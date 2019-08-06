@@ -1,5 +1,5 @@
-/* 
- * The software for the x0xb0x is available for use in accordance with the 
+/*
+ * The software for the x0xb0x is available for use in accordance with the
  * following open source license (MIT License). For more information about
  * OS licensing, please visit -> http://www.opensource.org/
  *
@@ -9,22 +9,22 @@
  *                                     *****
  * Copyright (c) 2005 Limor Fried
  *
- * Permission is hereby granted, free of charge, to any person obtaining a 
- * copy of this software and associated documentation files (the "Software"), 
- * to deal in the Software without restriction, including without limitation 
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, 
- * and/or sell copies of the Software, and to permit persons to whom the 
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in 
+ * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  *                                     *****
  *
@@ -37,9 +37,9 @@
 
 /* Pitch shift variables:
  * These define the 'current' pitch shift (for the currently playing pattern)
- * and the 'next' pitch shift, which will take effect on the next loop 
+ * and the 'next' pitch shift, which will take effect on the next loop
  * A pitch shift of 0 means no shift, -12 is octave down, 12 is octave up, etc.
- */ 
+ */
 int8_t curr_pitch_shift = 0;
 int8_t next_pitch_shift = 0;
 
@@ -58,7 +58,7 @@ void note_on(uint8_t note, uint8_t slide, uint8_t accent) {
     note = 0x3F;
 
   // Basically turn slide and accent flags into bit flags for the note port
-  if (slide != 0) 
+  if (slide != 0)
     slide = 0x40;
 
   if (accent == 0)
@@ -72,12 +72,11 @@ void note_on(uint8_t note, uint8_t slide, uint8_t accent) {
     // 30ns setup time?
     sbi(NOTELATCH_PORT, NOTELATCH_PIN);
     // 10 uS
-    while (i<40) {
+    while (i < 40) {
       i++;
     }
     sbi(GATE_PORT, GATE_PIN);
-  }
-  else {
+  } else {
     // gate is not restruck during rest, and note is not latched, but one can
     // slide to/from a rest and rests can have accent (tip to memology)
     NOTE_PORT = slide | accent;
@@ -95,7 +94,6 @@ void note_on(uint8_t note, uint8_t slide, uint8_t accent) {
      }
      putstring("\n\r");
   */
-
 }
 
 /* Note off:
@@ -104,7 +102,7 @@ void note_on(uint8_t note, uint8_t slide, uint8_t accent) {
  */
 void note_off(uint8_t slide) {
   /*
-  putstring("Note off\n\r");  
+  putstring("Note off\n\r");
   */
 
   if (slide) {
