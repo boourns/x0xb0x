@@ -49,6 +49,7 @@ CFLAGS = -g -O$(OPT) \
 -Wall -Wstrict-prototypes \
 -DF_CPU=$(F_CPU) \
 -Wa,-adhlns=$(<:.c=.lst) \
+-D__AVR_LIBC_DEPRECATED_ENABLE__
 $(patsubst %,-I%,$(EXTRAINCDIRS))
 
 
