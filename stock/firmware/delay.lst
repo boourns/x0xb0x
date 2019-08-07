@@ -1,0 +1,141 @@
+   1               		.file	"delay.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	delay_ms
+  12               	delay_ms:
+  13               	.LVL0:
+  14               	.LFB0:
+  15               		.file 1 "delay.c"
+   1:delay.c       **** #include "delay.h"
+   2:delay.c       **** 
+   3:delay.c       **** // these are just calibrated delay functions for timing applications
+   4:delay.c       **** 
+   5:delay.c       **** void delay_ms(unsigned char ms) {
+  16               		.loc 1 5 33 view -0
+  17               		.cfi_startproc
+  18               	/* prologue: function */
+  19               	/* frame size = 0 */
+  20               	/* stack size = 0 */
+  21               	.L__stack_usage = 0
+   6:delay.c       ****   unsigned short delay_count = F_CPU / 4000;
+  22               		.loc 1 6 3 view .LVU1
+   7:delay.c       **** 
+   8:delay.c       ****   unsigned short cnt;
+  23               		.loc 1 8 3 view .LVU2
+   9:delay.c       ****   asm volatile("\n"
+  24               		.loc 1 9 3 view .LVU3
+  25 0000 20EA      		ldi r18,lo8(-96)
+  26 0002 3FE0      		ldi r19,lo8(15)
+  27               	/* #APP */
+  28               	 ;  9 "delay.c" 1
+  29               		
+  30               	L_dl112:
+  31 0004 E22F      		mov r30, r18
+  32 0006 F32F      		mov r31, r19
+  33               	L_dl212:
+  34 0008 3197      		sbiw r30, 1
+  35 000a 01F4      		brne L_dl212
+  36 000c 8A95      		dec r24
+  37 000e 01F4      		brne L_dl112
+  38               		
+  39               	 ;  0 "" 2
+  40               	.LVL1:
+  41               	/* #NOAPP */
+  42               	/* epilogue start */
+  10:delay.c       ****                "L_dl1%=:\n\t"
+  11:delay.c       ****                "mov %A0, %A2\n\t"
+  12:delay.c       ****                "mov %B0, %B2\n"
+  13:delay.c       ****                "L_dl2%=:\n\t"
+  14:delay.c       ****                "sbiw %A0, 1\n\t"
+  15:delay.c       ****                "brne L_dl2%=\n\t"
+  16:delay.c       ****                "dec %1\n\t"
+  17:delay.c       ****                "brne L_dl1%=\n\t"
+  18:delay.c       ****                : "=&w"(cnt)
+  19:delay.c       ****                : "r"(ms), "r"((unsigned short)(delay_count)));
+  20:delay.c       **** }
+  43               		.loc 1 20 1 is_stmt 0 view .LVU4
+  44 0010 0895      		ret
+  45               		.cfi_endproc
+  46               	.LFE0:
+  48               	.global	delay_s
+  50               	delay_s:
+  51               	.LVL2:
+  52               	.LFB1:
+  21:delay.c       **** 
+  22:delay.c       **** void delay_s(unsigned char s) {
+  53               		.loc 1 22 31 is_stmt 1 view -0
+  54               		.cfi_startproc
+  55               		.loc 1 22 31 is_stmt 0 view .LVU6
+  56 0012 CF93      		push r28
+  57               		.cfi_def_cfa_offset 3
+  58               		.cfi_offset 28, -2
+  59               	/* prologue: function */
+  60               	/* frame size = 0 */
+  61               	/* stack size = 1 */
+  62               	.L__stack_usage = 1
+  63 0014 C82F      		mov r28,r24
+  23:delay.c       ****   while (s--) {
+  64               		.loc 1 23 3 is_stmt 1 view .LVU7
+  65               	.LVL3:
+  66               	.L3:
+  67               		.loc 1 23 11 is_stmt 0 view .LVU8
+  68               	.LVL4:
+  69 0016 C150      		subi r28,1
+  70 0018 00F4      		brcc .L4
+  71               	/* epilogue start */
+  24:delay.c       ****     delay_ms(250);
+  25:delay.c       ****     delay_ms(250);
+  26:delay.c       ****     delay_ms(250);
+  27:delay.c       ****     delay_ms(250);
+  28:delay.c       ****   }
+  29:delay.c       **** }
+  72               		.loc 1 29 1 view .LVU9
+  73 001a CF91      		pop r28
+  74               	.LVL5:
+  75               		.loc 1 29 1 view .LVU10
+  76 001c 0895      		ret
+  77               	.LVL6:
+  78               	.L4:
+  24:delay.c       ****     delay_ms(250);
+  79               		.loc 1 24 5 is_stmt 1 view .LVU11
+  80 001e 8AEF      		ldi r24,lo8(-6)
+  81 0020 0E94 0000 		call delay_ms
+  82               	.LVL7:
+  25:delay.c       ****     delay_ms(250);
+  83               		.loc 1 25 5 view .LVU12
+  84 0024 8AEF      		ldi r24,lo8(-6)
+  85 0026 0E94 0000 		call delay_ms
+  86               	.LVL8:
+  26:delay.c       ****     delay_ms(250);
+  87               		.loc 1 26 5 view .LVU13
+  88 002a 8AEF      		ldi r24,lo8(-6)
+  89 002c 0E94 0000 		call delay_ms
+  90               	.LVL9:
+  27:delay.c       ****   }
+  91               		.loc 1 27 5 view .LVU14
+  92 0030 8AEF      		ldi r24,lo8(-6)
+  93 0032 0E94 0000 		call delay_ms
+  94               	.LVL10:
+  95 0036 00C0      		rjmp .L3
+  96               		.cfi_endproc
+  97               	.LFE1:
+  99               	.Letext0:
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 delay.c
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccmLZVK1.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccmLZVK1.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccmLZVK1.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccmLZVK1.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccmLZVK1.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccmLZVK1.s:12     .text:0000000000000000 delay_ms
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccmLZVK1.s:30     .text:0000000000000004 L_dl112
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccmLZVK1.s:33     .text:0000000000000008 L_dl212
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccmLZVK1.s:50     .text:0000000000000012 delay_s
+
+NO UNDEFINED SYMBOLS

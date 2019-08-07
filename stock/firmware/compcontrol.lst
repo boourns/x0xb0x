@@ -1,0 +1,1326 @@
+   1               		.file	"compcontrol.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	send_msg
+  12               	send_msg:
+  13               	.LVL0:
+  14               	.LFB2:
+  15               		.file 1 "compcontrol.c"
+   1:compcontrol.c **** /*
+   2:compcontrol.c ****  * The software for the x0xb0x is available for use in accordance with the
+   3:compcontrol.c ****  * following open source license (MIT License). For more information about
+   4:compcontrol.c ****  * OS licensing, please visit -> http://www.opensource.org/
+   5:compcontrol.c ****  *
+   6:compcontrol.c ****  * For more information about the x0xb0x project, please visit
+   7:compcontrol.c ****  * -> http://www.ladyada.net/make/x0xb0x
+   8:compcontrol.c ****  *
+   9:compcontrol.c ****  *                                     *****
+  10:compcontrol.c ****  * Copyright (c) 2005 Limor Fried
+  11:compcontrol.c ****  *
+  12:compcontrol.c ****  * Permission is hereby granted, free of charge, to any person obtaining a
+  13:compcontrol.c ****  * copy of this software and associated documentation files (the "Software"),
+  14:compcontrol.c ****  * to deal in the Software without restriction, including without limitation
+  15:compcontrol.c ****  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+  16:compcontrol.c ****  * and/or sell copies of the Software, and to permit persons to whom the
+  17:compcontrol.c ****  * Software is furnished to do so, subject to the following conditions:
+  18:compcontrol.c ****  *
+  19:compcontrol.c ****  * The above copyright notice and this permission notice shall be included in
+  20:compcontrol.c ****  * all copies or substantial portions of the Software.
+  21:compcontrol.c ****  *
+  22:compcontrol.c ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  23:compcontrol.c ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  24:compcontrol.c ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  25:compcontrol.c ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  26:compcontrol.c ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+  27:compcontrol.c ****  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+  28:compcontrol.c ****  * IN THE SOFTWARE.
+  29:compcontrol.c ****  *                                     *****
+  30:compcontrol.c ****  *
+  31:compcontrol.c ****  */
+  32:compcontrol.c **** 
+  33:compcontrol.c **** #include <inttypes.h>
+  34:compcontrol.c **** #include <stdio.h>
+  35:compcontrol.c **** #include <avr/io.h>
+  36:compcontrol.c **** #include <avr/signal.h>
+  37:compcontrol.c **** #include "pattern.h"
+  38:compcontrol.c **** #include "switch.h"
+  39:compcontrol.c **** #include "led.h"
+  40:compcontrol.c **** #include "main.h"
+  41:compcontrol.c **** #include "compcontrol.h"
+  42:compcontrol.c **** #include "eeprom.h"
+  43:compcontrol.c **** 
+  44:compcontrol.c **** extern volatile uint8_t pattern_buff[PATT_SIZE];
+  45:compcontrol.c **** 
+  46:compcontrol.c **** extern uint8_t function, bank, switches[3];
+  47:compcontrol.c **** extern uint16_t tempo;
+  48:compcontrol.c **** 
+  49:compcontrol.c **** #define function_changed (function != COMPUTER_CONTROL_FUNC)
+  50:compcontrol.c **** 
+  51:compcontrol.c **** #define UART_BUFF_SIZE 64
+  52:compcontrol.c **** uint8_t recv_msg_buff[UART_BUFF_SIZE];
+  53:compcontrol.c **** uint8_t tx_msg_buff[UART_BUFF_SIZE];
+  54:compcontrol.c **** uint8_t recv_msg_i = 0;
+  55:compcontrol.c **** uint8_t valid_msg_in_q = 0;
+  56:compcontrol.c **** 
+  57:compcontrol.c **** volatile uint8_t CTS = TRUE;        // clear to send -- can receive data on uart
+  58:compcontrol.c **** volatile uint16_t uart_timeout = 0; // timeout for messages
+  59:compcontrol.c **** 
+  60:compcontrol.c **** /*
+  61:compcontrol.c ****  * Taken from:
+  62:compcontrol.c ****  * http://cell-relay.indiana.edu/mhonarc/cell-relay/1999-Jan/msg00074.html
+  63:compcontrol.c ****  * 8 bit CRC Generator, MSB shifted first
+  64:compcontrol.c ****  * Polynom: x^8 + x^2 + x^1 + 1
+  65:compcontrol.c ****  */
+  66:compcontrol.c **** const unsigned char CRC8Table[256] = {
+  67:compcontrol.c ****     0x00, 0x07, 0x0E, 0x09, 0x1C, 0x1B, 0x12, 0x15, 0x38, 0x3F, 0x36, 0x31,
+  68:compcontrol.c ****     0x24, 0x23, 0x2A, 0x2D, 0x70, 0x77, 0x7E, 0x79, 0x6C, 0x6B, 0x62, 0x65,
+  69:compcontrol.c ****     0x48, 0x4F, 0x46, 0x41, 0x54, 0x53, 0x5A, 0x5D, 0xE0, 0xE7, 0xEE, 0xE9,
+  70:compcontrol.c ****     0xFC, 0xFB, 0xF2, 0xF5, 0xD8, 0xDF, 0xD6, 0xD1, 0xC4, 0xC3, 0xCA, 0xCD,
+  71:compcontrol.c ****     0x90, 0x97, 0x9E, 0x99, 0x8C, 0x8B, 0x82, 0x85, 0xA8, 0xAF, 0xA6, 0xA1,
+  72:compcontrol.c ****     0xB4, 0xB3, 0xBA, 0xBD, 0xC7, 0xC0, 0xC9, 0xCE, 0xDB, 0xDC, 0xD5, 0xD2,
+  73:compcontrol.c ****     0xFF, 0xF8, 0xF1, 0xF6, 0xE3, 0xE4, 0xED, 0xEA, 0xB7, 0xB0, 0xB9, 0xBE,
+  74:compcontrol.c ****     0xAB, 0xAC, 0xA5, 0xA2, 0x8F, 0x88, 0x81, 0x86, 0x93, 0x94, 0x9D, 0x9A,
+  75:compcontrol.c ****     0x27, 0x20, 0x29, 0x2E, 0x3B, 0x3C, 0x35, 0x32, 0x1F, 0x18, 0x11, 0x16,
+  76:compcontrol.c ****     0x03, 0x04, 0x0D, 0x0A, 0x57, 0x50, 0x59, 0x5E, 0x4B, 0x4C, 0x45, 0x42,
+  77:compcontrol.c ****     0x6F, 0x68, 0x61, 0x66, 0x73, 0x74, 0x7D, 0x7A, 0x89, 0x8E, 0x87, 0x80,
+  78:compcontrol.c ****     0x95, 0x92, 0x9B, 0x9C, 0xB1, 0xB6, 0xBF, 0xB8, 0xAD, 0xAA, 0xA3, 0xA4,
+  79:compcontrol.c ****     0xF9, 0xFE, 0xF7, 0xF0, 0xE5, 0xE2, 0xEB, 0xEC, 0xC1, 0xC6, 0xCF, 0xC8,
+  80:compcontrol.c ****     0xDD, 0xDA, 0xD3, 0xD4, 0x69, 0x6E, 0x67, 0x60, 0x75, 0x72, 0x7B, 0x7C,
+  81:compcontrol.c ****     0x51, 0x56, 0x5F, 0x58, 0x4D, 0x4A, 0x43, 0x44, 0x19, 0x1E, 0x17, 0x10,
+  82:compcontrol.c ****     0x05, 0x02, 0x0B, 0x0C, 0x21, 0x26, 0x2F, 0x28, 0x3D, 0x3A, 0x33, 0x34,
+  83:compcontrol.c ****     0x4E, 0x49, 0x40, 0x47, 0x52, 0x55, 0x5C, 0x5B, 0x76, 0x71, 0x78, 0x7F,
+  84:compcontrol.c ****     0x6A, 0x6D, 0x64, 0x63, 0x3E, 0x39, 0x30, 0x37, 0x22, 0x25, 0x2C, 0x2B,
+  85:compcontrol.c ****     0x06, 0x01, 0x08, 0x0F, 0x1A, 0x1D, 0x14, 0x13, 0xAE, 0xA9, 0xA0, 0xA7,
+  86:compcontrol.c ****     0xB2, 0xB5, 0xBC, 0xBB, 0x96, 0x91, 0x98, 0x9F, 0x8A, 0x8D, 0x84, 0x83,
+  87:compcontrol.c ****     0xDE, 0xD9, 0xD0, 0xD7, 0xC2, 0xC5, 0xCC, 0xCB, 0xE6, 0xE1, 0xE8, 0xEF,
+  88:compcontrol.c ****     0xFA, 0xFD, 0xF4, 0xF3};
+  89:compcontrol.c **** 
+  90:compcontrol.c **** // interrupt on receive char
+  91:compcontrol.c **** SIGNAL(SIG_USART1_RECV) {
+  92:compcontrol.c ****   uint8_t cmd, crc;
+  93:compcontrol.c ****   uint16_t size;
+  94:compcontrol.c ****   char c = UDR1;
+  95:compcontrol.c **** 
+  96:compcontrol.c ****   if (CTS) {
+  97:compcontrol.c ****     if (uart_timeout > 1000) {
+  98:compcontrol.c ****       clear_bank_leds();
+  99:compcontrol.c ****       clock_leds();
+ 100:compcontrol.c ****       recv_msg_i = 0; // start over... but don't send status!
+ 101:compcontrol.c ****     }
+ 102:compcontrol.c **** 
+ 103:compcontrol.c ****     if (recv_msg_i < UART_BUFF_SIZE) {
+ 104:compcontrol.c ****       recv_msg_buff[recv_msg_i++] = c; // place at end of q
+ 105:compcontrol.c ****     } else {
+ 106:compcontrol.c ****       // Receive failure.  Start over.
+ 107:compcontrol.c **** 
+ 108:compcontrol.c ****       // Meme:  Perhaps this should be a counter timeout rather than an
+ 109:compcontrol.c ****       // overflow timeout?   -mbroxton
+ 110:compcontrol.c **** 
+ 111:compcontrol.c ****       send_status(recv_msg_i);
+ 112:compcontrol.c ****       recv_msg_i = 0;
+ 113:compcontrol.c ****       // set_bank_led(14); clock_leds();
+ 114:compcontrol.c ****     }
+ 115:compcontrol.c **** 
+ 116:compcontrol.c ****     uart_timeout = 0;
+ 117:compcontrol.c **** 
+ 118:compcontrol.c ****     /* The header has been received.  Start grabbing the content
+ 119:compcontrol.c ****      * and the CRC. */
+ 120:compcontrol.c ****     if (recv_msg_i >= 3) {
+ 121:compcontrol.c ****       cmd = recv_msg_buff[0];
+ 122:compcontrol.c ****       size = recv_msg_buff[1];
+ 123:compcontrol.c ****       size <<= 8; // size is just the body size
+ 124:compcontrol.c ****       size |= recv_msg_buff[2];
+ 125:compcontrol.c **** 
+ 126:compcontrol.c ****       if (recv_msg_i >= 4 + size) {    // header+foot is 4 bytes long
+ 127:compcontrol.c ****         crc = recv_msg_buff[3 + size]; // CRC is the last byte of the packet
+ 128:compcontrol.c **** 
+ 129:compcontrol.c ****         if (crc != calc_CRC8(recv_msg_buff, size + 3)) {
+ 130:compcontrol.c ****           putnum_uh(calc_CRC8(recv_msg_buff, size + 3));
+ 131:compcontrol.c **** 
+ 132:compcontrol.c ****           recv_msg_i = 0;
+ 133:compcontrol.c ****           send_status(0);
+ 134:compcontrol.c ****           // set_bank_led(13); clock_leds();   // CRC Error
+ 135:compcontrol.c ****           return;
+ 136:compcontrol.c ****         }
+ 137:compcontrol.c **** 
+ 138:compcontrol.c ****         /* If we get to here, the message has passed the CRC and is
+ 139:compcontrol.c ****          * assumed to be valid.  Now we process the message.
+ 140:compcontrol.c ****          */
+ 141:compcontrol.c **** 
+ 142:compcontrol.c ****         switch (cmd) {
+ 143:compcontrol.c ****         case PING_MSG:
+ 144:compcontrol.c ****           send_status(0x1);
+ 145:compcontrol.c ****           break;
+ 146:compcontrol.c **** 
+ 147:compcontrol.c ****         case GET_TEMPO_MSG:
+ 148:compcontrol.c ****           send_tempo(tempo);
+ 149:compcontrol.c ****           break;
+ 150:compcontrol.c **** 
+ 151:compcontrol.c ****         case SET_TEMPO_MSG: {
+ 152:compcontrol.c ****           uint16_t t;
+ 153:compcontrol.c **** 
+ 154:compcontrol.c ****           if (recv_msg_buff[2] != TEMPO_MSG_LEN) {
+ 155:compcontrol.c ****             send_status(0);
+ 156:compcontrol.c ****             break;
+ 157:compcontrol.c ****           }
+ 158:compcontrol.c ****           t = recv_msg_buff[3];
+ 159:compcontrol.c ****           t <<= 8;
+ 160:compcontrol.c ****           t += recv_msg_buff[4];
+ 161:compcontrol.c **** 
+ 162:compcontrol.c ****           change_tempo(t);
+ 163:compcontrol.c **** 
+ 164:compcontrol.c ****           break;
+ 165:compcontrol.c ****         }
+ 166:compcontrol.c ****         case RD_PATT_MSG: {
+ 167:compcontrol.c ****           uint8_t bank, patt, i;
+ 168:compcontrol.c ****           uint16_t addr;
+ 169:compcontrol.c **** 
+ 170:compcontrol.c ****           if (recv_msg_buff[2] != RD_PATT_MSG_LEN) {
+ 171:compcontrol.c ****             send_status(0);
+ 172:compcontrol.c ****             break;
+ 173:compcontrol.c ****           }
+ 174:compcontrol.c **** 
+ 175:compcontrol.c ****           bank = recv_msg_buff[3];
+ 176:compcontrol.c ****           patt = recv_msg_buff[4];
+ 177:compcontrol.c ****           addr = PATTERN_MEM + bank * BANK_SIZE + patt * PATT_SIZE;
+ 178:compcontrol.c ****           /*
+ 179:compcontrol.c ****             putstring("reading patt [");
+ 180:compcontrol.c ****             putnum_ud(bank); putstring(", "); putnum_ud(patt_location);
+ 181:compcontrol.c ****             putstring(" @ 0x");
+ 182:compcontrol.c ****             putnum_uh(pattern_addr);
+ 183:compcontrol.c ****             putstring("\n\r");
+ 184:compcontrol.c ****           */
+ 185:compcontrol.c ****           tx_msg_buff[0] = PATT_MSG;
+ 186:compcontrol.c ****           tx_msg_buff[1] = 0;
+ 187:compcontrol.c ****           tx_msg_buff[2] = PATT_MSG_LEN;
+ 188:compcontrol.c **** 
+ 189:compcontrol.c ****           for (i = 0; i < PATT_SIZE; i++) {
+ 190:compcontrol.c ****             tx_msg_buff[3 + i] = spieeprom_read(addr + i);
+ 191:compcontrol.c ****             // putstring(" 0x"); putnum_uh(tx_msg_buff[1+i]);
+ 192:compcontrol.c ****           }
+ 193:compcontrol.c ****           // putstring("\n\r");
+ 194:compcontrol.c **** 
+ 195:compcontrol.c ****           tx_msg_buff[3 + PATT_SIZE] = calc_CRC8(tx_msg_buff, 3 + PATT_SIZE);
+ 196:compcontrol.c **** 
+ 197:compcontrol.c ****           send_msg(tx_msg_buff, 4 + PATT_SIZE);
+ 198:compcontrol.c ****           break;
+ 199:compcontrol.c ****         }
+ 200:compcontrol.c **** 
+ 201:compcontrol.c ****         case WR_PATT_MSG: {
+ 202:compcontrol.c ****           uint8_t bank, patt, i;
+ 203:compcontrol.c ****           uint16_t addr;
+ 204:compcontrol.c **** 
+ 205:compcontrol.c ****           // set_bank_led(4); clock_leds();
+ 206:compcontrol.c ****           if (recv_msg_buff[2] != WR_PATT_MSG_LEN) {
+ 207:compcontrol.c ****             send_status(0);
+ 208:compcontrol.c ****             break;
+ 209:compcontrol.c ****           }
+ 210:compcontrol.c **** 
+ 211:compcontrol.c ****           bank = recv_msg_buff[3];
+ 212:compcontrol.c ****           patt = recv_msg_buff[4];
+ 213:compcontrol.c ****           addr = PATTERN_MEM + bank * BANK_SIZE + patt * PATT_SIZE;
+ 214:compcontrol.c ****           /*
+ 215:compcontrol.c ****             putstring("writing patt [");
+ 216:compcontrol.c ****             putnum_ud(bank); putstring(", "); putnum_ud(patt_location);
+ 217:compcontrol.c ****             putstring(" @ 0x");
+ 218:compcontrol.c ****             putnum_uh(pattern_addr);
+ 219:compcontrol.c ****             putstring("\n\r");
+ 220:compcontrol.c ****           */
+ 221:compcontrol.c ****           for (i = 0; i < PATT_SIZE; i++) {
+ 222:compcontrol.c ****             spieeprom_write(recv_msg_buff[5 + i], addr + i);
+ 223:compcontrol.c ****             // putstring(" 0x"); putnum_uh(tx_msg_buff[1+i]);
+ 224:compcontrol.c ****           }
+ 225:compcontrol.c ****           // putstring("\n\r");
+ 226:compcontrol.c **** 
+ 227:compcontrol.c ****           send_status(1);
+ 228:compcontrol.c ****           break;
+ 229:compcontrol.c ****         }
+ 230:compcontrol.c **** 
+ 231:compcontrol.c ****         default:
+ 232:compcontrol.c ****           send_status(0);
+ 233:compcontrol.c ****           break;
+ 234:compcontrol.c ****         }
+ 235:compcontrol.c ****         recv_msg_i = 0; // start over!
+ 236:compcontrol.c ****       }
+ 237:compcontrol.c ****     }
+ 238:compcontrol.c ****   }
+ 239:compcontrol.c **** }
+ 240:compcontrol.c **** 
+ 241:compcontrol.c **** void send_msg(uint8_t *buff, uint16_t len) {
+  16               		.loc 1 241 44 view -0
+  17               		.cfi_startproc
+  18               		.loc 1 241 44 is_stmt 0 view .LVU1
+  19 0000 0F93      		push r16
+  20               		.cfi_def_cfa_offset 3
+  21               		.cfi_offset 16, -2
+  22 0002 1F93      		push r17
+  23               		.cfi_def_cfa_offset 4
+  24               		.cfi_offset 17, -3
+  25 0004 CF93      		push r28
+  26               		.cfi_def_cfa_offset 5
+  27               		.cfi_offset 28, -4
+  28 0006 DF93      		push r29
+  29               		.cfi_def_cfa_offset 6
+  30               		.cfi_offset 29, -5
+  31               	/* prologue: function */
+  32               	/* frame size = 0 */
+  33               	/* stack size = 4 */
+  34               	.L__stack_usage = 4
+ 242:compcontrol.c ****   uint16_t i;
+  35               		.loc 1 242 3 is_stmt 1 view .LVU2
+ 243:compcontrol.c ****   for (i = 0; i < len; i++) {
+  36               		.loc 1 243 3 view .LVU3
+  37               	.LVL1:
+  38               		.loc 1 243 3 is_stmt 0 view .LVU4
+  39 0008 EC01      		movw r28,r24
+  40 000a 8C01      		movw r16,r24
+  41 000c 060F      		add r16,r22
+  42 000e 171F      		adc r17,r23
+  43               	.LVL2:
+  44               	.L2:
+  45               		.loc 1 243 3 discriminator 1 view .LVU5
+  46 0010 C017      		cp r28,r16
+  47 0012 D107      		cpc r29,r17
+  48 0014 01F4      		brne .L3
+  49               	/* epilogue start */
+ 244:compcontrol.c ****     uart_putchar(buff[i]);
+ 245:compcontrol.c ****   }
+ 246:compcontrol.c **** }
+  50               		.loc 1 246 1 view .LVU6
+  51 0016 DF91      		pop r29
+  52 0018 CF91      		pop r28
+  53               	.LVL3:
+  54               		.loc 1 246 1 view .LVU7
+  55 001a 1F91      		pop r17
+  56 001c 0F91      		pop r16
+  57 001e 0895      		ret
+  58               	.LVL4:
+  59               	.L3:
+ 244:compcontrol.c ****     uart_putchar(buff[i]);
+  60               		.loc 1 244 5 is_stmt 1 discriminator 3 view .LVU8
+  61 0020 8991      		ld r24,Y+
+  62               	.LVL5:
+ 244:compcontrol.c ****     uart_putchar(buff[i]);
+  63               		.loc 1 244 5 is_stmt 0 discriminator 3 view .LVU9
+  64 0022 0E94 0000 		call uart_putchar
+  65               	.LVL6:
+ 244:compcontrol.c ****     uart_putchar(buff[i]);
+  66               		.loc 1 244 5 discriminator 3 view .LVU10
+  67 0026 00C0      		rjmp .L2
+  68               		.cfi_endproc
+  69               	.LFE2:
+  71               	.global	do_computer_control
+  73               	do_computer_control:
+  74               	.LFB5:
+ 247:compcontrol.c **** 
+ 248:compcontrol.c **** void send_status(uint8_t stat) {
+ 249:compcontrol.c ****   tx_msg_buff[0] = STATUS_MSG;
+ 250:compcontrol.c ****   tx_msg_buff[1] = 0;
+ 251:compcontrol.c ****   tx_msg_buff[2] = 1;
+ 252:compcontrol.c ****   tx_msg_buff[3] = stat;
+ 253:compcontrol.c ****   tx_msg_buff[4] = calc_CRC8(tx_msg_buff, 4);
+ 254:compcontrol.c **** 
+ 255:compcontrol.c ****   send_msg(tx_msg_buff, 5);
+ 256:compcontrol.c **** }
+ 257:compcontrol.c **** 
+ 258:compcontrol.c **** void send_tempo(uint16_t t) {
+ 259:compcontrol.c **** 
+ 260:compcontrol.c ****   tx_msg_buff[0] = TEMPO_MSG;
+ 261:compcontrol.c ****   tx_msg_buff[1] = 0;
+ 262:compcontrol.c ****   tx_msg_buff[2] = TEMPO_MSG_LEN;
+ 263:compcontrol.c ****   tx_msg_buff[3] = t >> 8;
+ 264:compcontrol.c ****   tx_msg_buff[4] = t & 0xFF;
+ 265:compcontrol.c ****   tx_msg_buff[5] = calc_CRC8(tx_msg_buff, 5);
+ 266:compcontrol.c **** 
+ 267:compcontrol.c ****   send_msg(tx_msg_buff, TEMPO_MSG_LEN + 4);
+ 268:compcontrol.c **** }
+ 269:compcontrol.c **** 
+ 270:compcontrol.c **** void do_computer_control(void) {
+  75               		.loc 1 270 32 is_stmt 1 view -0
+  76               		.cfi_startproc
+  77               	/* prologue: function */
+  78               	/* frame size = 0 */
+  79               	/* stack size = 0 */
+  80               	.L__stack_usage = 0
+  81               	.L5:
+ 271:compcontrol.c **** 
+ 272:compcontrol.c ****   while (1) {
+  82               		.loc 1 272 3 view .LVU12
+ 273:compcontrol.c ****     read_switches();
+  83               		.loc 1 273 5 view .LVU13
+  84 0028 0E94 0000 		call read_switches
+  85               	.LVL7:
+ 274:compcontrol.c ****     if (function_changed) {
+  86               		.loc 1 274 5 view .LVU14
+  87               		.loc 1 274 8 is_stmt 0 view .LVU15
+  88 002c 8091 0000 		lds r24,function
+  89 0030 8E30      		cpi r24,lo8(14)
+  90 0032 01F0      		breq .L5
+ 275:compcontrol.c ****       // oops i guess they want something else, return!
+ 276:compcontrol.c ****       clear_all_leds();
+  91               		.loc 1 276 7 is_stmt 1 view .LVU16
+  92 0034 0E94 0000 		call clear_all_leds
+  93               	.LVL8:
+ 277:compcontrol.c ****       clock_leds();
+  94               		.loc 1 277 7 view .LVU17
+  95 0038 0C94 0000 		jmp clock_leds
+  96               	.LVL9:
+  97               		.cfi_endproc
+  98               	.LFE5:
+ 100               	.global	calc_CRC8
+ 102               	calc_CRC8:
+ 103               	.LVL10:
+ 104               	.LFB6:
+ 278:compcontrol.c ****       return;
+ 279:compcontrol.c ****     }
+ 280:compcontrol.c **** 
+ 281:compcontrol.c ****     // putstring("computer kontrol\n\r");
+ 282:compcontrol.c ****   }
+ 283:compcontrol.c **** }
+ 284:compcontrol.c **** 
+ 285:compcontrol.c **** /*
+ 286:compcontrol.c ****  * Adapted from:
+ 287:compcontrol.c ****  * http://cell-relay.indiana.edu/mhonarc/cell-relay/1999-Jan/msg00074.html 8 bit
+ 288:compcontrol.c ****  * CRC Generator, MSB shifted first Polynom: x^8 + x^2 + x^1 + 1
+ 289:compcontrol.c ****  *
+ 290:compcontrol.c ****  * Calculates an 8-bit cyclic redundancy check sum for a packet.
+ 291:compcontrol.c ****  * This function takes care not to include the packet's check sum in calculating
+ 292:compcontrol.c ****  * the check sum.  Assumes the CRC is the last byte of the packet header.  Also
+ 293:compcontrol.c ****  * takes care to look in code space (instead of xdata space) when dealing with a
+ 294:compcontrol.c ****  * PFrag.
+ 295:compcontrol.c ****  */
+ 296:compcontrol.c **** 
+ 297:compcontrol.c **** uint8_t calc_CRC8(uint8_t *buff, uint16_t size) {
+ 105               		.loc 1 297 49 view -0
+ 106               		.cfi_startproc
+ 107               		.loc 1 297 49 is_stmt 0 view .LVU19
+ 108 003c CF93      		push r28
+ 109               		.cfi_def_cfa_offset 3
+ 110               		.cfi_offset 28, -2
+ 111 003e DF93      		push r29
+ 112               		.cfi_def_cfa_offset 4
+ 113               		.cfi_offset 29, -3
+ 114               	/* prologue: function */
+ 115               	/* frame size = 0 */
+ 116               	/* stack size = 2 */
+ 117               	.L__stack_usage = 2
+ 118 0040 DC01      		movw r26,r24
+ 119 0042 AB01      		movw r20,r22
+ 298:compcontrol.c ****   uint8_t i;
+ 120               		.loc 1 298 3 is_stmt 1 view .LVU20
+ 299:compcontrol.c ****   uint8_t crc = 0;
+ 121               		.loc 1 299 3 view .LVU21
+ 122               	.LVL11:
+ 300:compcontrol.c **** 
+ 301:compcontrol.c ****   /*
+ 302:compcontrol.c ****    * Add the message header to the CRC.  Don't include the CRC itself
+ 303:compcontrol.c ****    * when calculating the CRC.
+ 304:compcontrol.c ****    */
+ 305:compcontrol.c ****   for (i = 0; i < size; i++) {
+ 123               		.loc 1 305 3 view .LVU22
+ 299:compcontrol.c ****   uint8_t crc = 0;
+ 124               		.loc 1 299 11 is_stmt 0 view .LVU23
+ 125 0044 80E0      		ldi r24,0
+ 126               	.LVL12:
+ 127               		.loc 1 305 10 view .LVU24
+ 128 0046 90E0      		ldi r25,0
+ 129               	.LVL13:
+ 130               	.L9:
+ 131               		.loc 1 305 17 discriminator 1 view .LVU25
+ 132 0048 292F      		mov r18,r25
+ 133 004a 30E0      		ldi r19,0
+ 134               		.loc 1 305 3 discriminator 1 view .LVU26
+ 135 004c 2417      		cp r18,r20
+ 136 004e 3507      		cpc r19,r21
+ 137 0050 00F0      		brlo .L10
+ 138               	/* epilogue start */
+ 306:compcontrol.c ****     crc = CRC8Table[crc ^ *(buff + i)];
+ 307:compcontrol.c ****   }
+ 308:compcontrol.c **** 
+ 309:compcontrol.c ****   return crc;
+ 310:compcontrol.c **** }
+ 139               		.loc 1 310 1 view .LVU27
+ 140 0052 DF91      		pop r29
+ 141 0054 CF91      		pop r28
+ 142 0056 0895      		ret
+ 143               	.L10:
+ 306:compcontrol.c ****     crc = CRC8Table[crc ^ *(buff + i)];
+ 144               		.loc 1 306 5 is_stmt 1 discriminator 3 view .LVU28
+ 306:compcontrol.c ****     crc = CRC8Table[crc ^ *(buff + i)];
+ 145               		.loc 1 306 27 is_stmt 0 discriminator 3 view .LVU29
+ 146 0058 2A0F      		add r18,r26
+ 147 005a 3B1F      		adc r19,r27
+ 306:compcontrol.c ****     crc = CRC8Table[crc ^ *(buff + i)];
+ 148               		.loc 1 306 25 discriminator 3 view .LVU30
+ 149 005c E901      		movw r28,r18
+ 150 005e E881      		ld r30,Y
+ 151 0060 8E27      		eor r24,r30
+ 152               	.LVL14:
+ 306:compcontrol.c ****     crc = CRC8Table[crc ^ *(buff + i)];
+ 153               		.loc 1 306 25 discriminator 3 view .LVU31
+ 154 0062 E82F      		mov r30,r24
+ 155 0064 F0E0      		ldi r31,0
+ 306:compcontrol.c ****     crc = CRC8Table[crc ^ *(buff + i)];
+ 156               		.loc 1 306 9 discriminator 3 view .LVU32
+ 157 0066 E050      		subi r30,lo8(-(CRC8Table))
+ 158 0068 F040      		sbci r31,hi8(-(CRC8Table))
+ 159 006a 8081      		ld r24,Z
+ 160               	.LVL15:
+ 305:compcontrol.c ****     crc = CRC8Table[crc ^ *(buff + i)];
+ 161               		.loc 1 305 26 discriminator 3 view .LVU33
+ 162 006c 9F5F      		subi r25,lo8(-(1))
+ 163               	.LVL16:
+ 305:compcontrol.c ****     crc = CRC8Table[crc ^ *(buff + i)];
+ 164               		.loc 1 305 26 discriminator 3 view .LVU34
+ 165 006e 00C0      		rjmp .L9
+ 166               		.cfi_endproc
+ 167               	.LFE6:
+ 169               	.global	send_status
+ 171               	send_status:
+ 172               	.LVL17:
+ 173               	.LFB3:
+ 248:compcontrol.c ****   tx_msg_buff[0] = STATUS_MSG;
+ 174               		.loc 1 248 32 is_stmt 1 view -0
+ 175               		.cfi_startproc
+ 248:compcontrol.c ****   tx_msg_buff[0] = STATUS_MSG;
+ 176               		.loc 1 248 32 is_stmt 0 view .LVU36
+ 177 0070 CF93      		push r28
+ 178               		.cfi_def_cfa_offset 3
+ 179               		.cfi_offset 28, -2
+ 180 0072 DF93      		push r29
+ 181               		.cfi_def_cfa_offset 4
+ 182               		.cfi_offset 29, -3
+ 183               	/* prologue: function */
+ 184               	/* frame size = 0 */
+ 185               	/* stack size = 2 */
+ 186               	.L__stack_usage = 2
+ 249:compcontrol.c ****   tx_msg_buff[1] = 0;
+ 187               		.loc 1 249 3 is_stmt 1 view .LVU37
+ 249:compcontrol.c ****   tx_msg_buff[1] = 0;
+ 188               		.loc 1 249 18 is_stmt 0 view .LVU38
+ 189 0074 C0E0      		ldi r28,lo8(tx_msg_buff)
+ 190 0076 D0E0      		ldi r29,hi8(tx_msg_buff)
+ 191 0078 90E8      		ldi r25,lo8(-128)
+ 192 007a 9883      		st Y,r25
+ 250:compcontrol.c ****   tx_msg_buff[2] = 1;
+ 193               		.loc 1 250 3 is_stmt 1 view .LVU39
+ 250:compcontrol.c ****   tx_msg_buff[2] = 1;
+ 194               		.loc 1 250 18 is_stmt 0 view .LVU40
+ 195 007c 1982      		std Y+1,__zero_reg__
+ 251:compcontrol.c ****   tx_msg_buff[3] = stat;
+ 196               		.loc 1 251 3 is_stmt 1 view .LVU41
+ 251:compcontrol.c ****   tx_msg_buff[3] = stat;
+ 197               		.loc 1 251 18 is_stmt 0 view .LVU42
+ 198 007e 91E0      		ldi r25,lo8(1)
+ 199 0080 9A83      		std Y+2,r25
+ 252:compcontrol.c ****   tx_msg_buff[4] = calc_CRC8(tx_msg_buff, 4);
+ 200               		.loc 1 252 3 is_stmt 1 view .LVU43
+ 252:compcontrol.c ****   tx_msg_buff[4] = calc_CRC8(tx_msg_buff, 4);
+ 201               		.loc 1 252 18 is_stmt 0 view .LVU44
+ 202 0082 8B83      		std Y+3,r24
+ 253:compcontrol.c **** 
+ 203               		.loc 1 253 3 is_stmt 1 view .LVU45
+ 253:compcontrol.c **** 
+ 204               		.loc 1 253 20 is_stmt 0 view .LVU46
+ 205 0084 64E0      		ldi r22,lo8(4)
+ 206 0086 70E0      		ldi r23,0
+ 207 0088 CE01      		movw r24,r28
+ 208               	.LVL18:
+ 253:compcontrol.c **** 
+ 209               		.loc 1 253 20 view .LVU47
+ 210 008a 0E94 0000 		call calc_CRC8
+ 211               	.LVL19:
+ 253:compcontrol.c **** 
+ 212               		.loc 1 253 18 view .LVU48
+ 213 008e 8C83      		std Y+4,r24
+ 255:compcontrol.c **** }
+ 214               		.loc 1 255 3 is_stmt 1 view .LVU49
+ 215 0090 65E0      		ldi r22,lo8(5)
+ 216 0092 70E0      		ldi r23,0
+ 217 0094 CE01      		movw r24,r28
+ 218               	/* epilogue start */
+ 256:compcontrol.c **** 
+ 219               		.loc 1 256 1 is_stmt 0 view .LVU50
+ 220 0096 DF91      		pop r29
+ 221 0098 CF91      		pop r28
+ 255:compcontrol.c **** }
+ 222               		.loc 1 255 3 view .LVU51
+ 223 009a 0C94 0000 		jmp send_msg
+ 224               	.LVL20:
+ 225               		.cfi_endproc
+ 226               	.LFE3:
+ 228               	.global	send_tempo
+ 230               	send_tempo:
+ 231               	.LVL21:
+ 232               	.LFB4:
+ 258:compcontrol.c **** 
+ 233               		.loc 1 258 29 is_stmt 1 view -0
+ 234               		.cfi_startproc
+ 258:compcontrol.c **** 
+ 235               		.loc 1 258 29 is_stmt 0 view .LVU53
+ 236 009e CF93      		push r28
+ 237               		.cfi_def_cfa_offset 3
+ 238               		.cfi_offset 28, -2
+ 239 00a0 DF93      		push r29
+ 240               		.cfi_def_cfa_offset 4
+ 241               		.cfi_offset 29, -3
+ 242               	/* prologue: function */
+ 243               	/* frame size = 0 */
+ 244               	/* stack size = 2 */
+ 245               	.L__stack_usage = 2
+ 260:compcontrol.c ****   tx_msg_buff[1] = 0;
+ 246               		.loc 1 260 3 is_stmt 1 view .LVU54
+ 260:compcontrol.c ****   tx_msg_buff[1] = 0;
+ 247               		.loc 1 260 18 is_stmt 0 view .LVU55
+ 248 00a2 C0E0      		ldi r28,lo8(tx_msg_buff)
+ 249 00a4 D0E0      		ldi r29,hi8(tx_msg_buff)
+ 250 00a6 22E4      		ldi r18,lo8(66)
+ 251 00a8 2883      		st Y,r18
+ 261:compcontrol.c ****   tx_msg_buff[2] = TEMPO_MSG_LEN;
+ 252               		.loc 1 261 3 is_stmt 1 view .LVU56
+ 261:compcontrol.c ****   tx_msg_buff[2] = TEMPO_MSG_LEN;
+ 253               		.loc 1 261 18 is_stmt 0 view .LVU57
+ 254 00aa 1982      		std Y+1,__zero_reg__
+ 262:compcontrol.c ****   tx_msg_buff[3] = t >> 8;
+ 255               		.loc 1 262 3 is_stmt 1 view .LVU58
+ 262:compcontrol.c ****   tx_msg_buff[3] = t >> 8;
+ 256               		.loc 1 262 18 is_stmt 0 view .LVU59
+ 257 00ac 22E0      		ldi r18,lo8(2)
+ 258 00ae 2A83      		std Y+2,r18
+ 263:compcontrol.c ****   tx_msg_buff[4] = t & 0xFF;
+ 259               		.loc 1 263 3 is_stmt 1 view .LVU60
+ 264:compcontrol.c ****   tx_msg_buff[5] = calc_CRC8(tx_msg_buff, 5);
+ 260               		.loc 1 264 3 view .LVU61
+ 263:compcontrol.c ****   tx_msg_buff[4] = t & 0xFF;
+ 261               		.loc 1 263 18 is_stmt 0 view .LVU62
+ 262 00b0 9827      		eor r25,r24
+ 263 00b2 8927      		eor r24,r25
+ 264               	.LVL22:
+ 263:compcontrol.c ****   tx_msg_buff[4] = t & 0xFF;
+ 265               		.loc 1 263 18 view .LVU63
+ 266 00b4 9827      		eor r25,r24
+ 267 00b6 9C83      		std Y+4,r25
+ 268 00b8 8B83      		std Y+3,r24
+ 265:compcontrol.c **** 
+ 269               		.loc 1 265 3 is_stmt 1 view .LVU64
+ 265:compcontrol.c **** 
+ 270               		.loc 1 265 20 is_stmt 0 view .LVU65
+ 271 00ba 65E0      		ldi r22,lo8(5)
+ 272 00bc 70E0      		ldi r23,0
+ 273 00be CE01      		movw r24,r28
+ 274 00c0 0E94 0000 		call calc_CRC8
+ 275               	.LVL23:
+ 265:compcontrol.c **** 
+ 276               		.loc 1 265 18 view .LVU66
+ 277 00c4 8D83      		std Y+5,r24
+ 267:compcontrol.c **** }
+ 278               		.loc 1 267 3 is_stmt 1 view .LVU67
+ 279 00c6 66E0      		ldi r22,lo8(6)
+ 280 00c8 70E0      		ldi r23,0
+ 281 00ca CE01      		movw r24,r28
+ 282               	/* epilogue start */
+ 268:compcontrol.c **** 
+ 283               		.loc 1 268 1 is_stmt 0 view .LVU68
+ 284 00cc DF91      		pop r29
+ 285 00ce CF91      		pop r28
+ 267:compcontrol.c **** }
+ 286               		.loc 1 267 3 view .LVU69
+ 287 00d0 0C94 0000 		jmp send_msg
+ 288               	.LVL24:
+ 289               		.cfi_endproc
+ 290               	.LFE4:
+ 292               	.global	__vector_20
+ 294               	__vector_20:
+ 295               	.LFB1:
+  91:compcontrol.c ****   uint8_t cmd, crc;
+ 296               		.loc 1 91 25 is_stmt 1 view -0
+ 297               		.cfi_startproc
+ 298 00d4 1F92      		push r1
+ 299               		.cfi_def_cfa_offset 3
+ 300               		.cfi_offset 1, -2
+ 301 00d6 0F92      		push r0
+ 302               		.cfi_def_cfa_offset 4
+ 303               		.cfi_offset 0, -3
+ 304 00d8 0FB6      		in r0,__SREG__
+ 305 00da 0F92      		push r0
+ 306 00dc 1124      		clr __zero_reg__
+ 307 00de EF92      		push r14
+ 308               		.cfi_def_cfa_offset 5
+ 309               		.cfi_offset 14, -4
+ 310 00e0 FF92      		push r15
+ 311               		.cfi_def_cfa_offset 6
+ 312               		.cfi_offset 15, -5
+ 313 00e2 0F93      		push r16
+ 314               		.cfi_def_cfa_offset 7
+ 315               		.cfi_offset 16, -6
+ 316 00e4 1F93      		push r17
+ 317               		.cfi_def_cfa_offset 8
+ 318               		.cfi_offset 17, -7
+ 319 00e6 2F93      		push r18
+ 320               		.cfi_def_cfa_offset 9
+ 321               		.cfi_offset 18, -8
+ 322 00e8 3F93      		push r19
+ 323               		.cfi_def_cfa_offset 10
+ 324               		.cfi_offset 19, -9
+ 325 00ea 4F93      		push r20
+ 326               		.cfi_def_cfa_offset 11
+ 327               		.cfi_offset 20, -10
+ 328 00ec 5F93      		push r21
+ 329               		.cfi_def_cfa_offset 12
+ 330               		.cfi_offset 21, -11
+ 331 00ee 6F93      		push r22
+ 332               		.cfi_def_cfa_offset 13
+ 333               		.cfi_offset 22, -12
+ 334 00f0 7F93      		push r23
+ 335               		.cfi_def_cfa_offset 14
+ 336               		.cfi_offset 23, -13
+ 337 00f2 8F93      		push r24
+ 338               		.cfi_def_cfa_offset 15
+ 339               		.cfi_offset 24, -14
+ 340 00f4 9F93      		push r25
+ 341               		.cfi_def_cfa_offset 16
+ 342               		.cfi_offset 25, -15
+ 343 00f6 AF93      		push r26
+ 344               		.cfi_def_cfa_offset 17
+ 345               		.cfi_offset 26, -16
+ 346 00f8 BF93      		push r27
+ 347               		.cfi_def_cfa_offset 18
+ 348               		.cfi_offset 27, -17
+ 349 00fa CF93      		push r28
+ 350               		.cfi_def_cfa_offset 19
+ 351               		.cfi_offset 28, -18
+ 352 00fc DF93      		push r29
+ 353               		.cfi_def_cfa_offset 20
+ 354               		.cfi_offset 29, -19
+ 355 00fe EF93      		push r30
+ 356               		.cfi_def_cfa_offset 21
+ 357               		.cfi_offset 30, -20
+ 358 0100 FF93      		push r31
+ 359               		.cfi_def_cfa_offset 22
+ 360               		.cfi_offset 31, -21
+ 361               	/* prologue: Signal */
+ 362               	/* frame size = 0 */
+ 363               	/* stack size = 21 */
+ 364               	.L__stack_usage = 21
+  92:compcontrol.c ****   uint16_t size;
+ 365               		.loc 1 92 3 view .LVU71
+  93:compcontrol.c ****   char c = UDR1;
+ 366               		.loc 1 93 3 view .LVU72
+  94:compcontrol.c **** 
+ 367               		.loc 1 94 3 view .LVU73
+  94:compcontrol.c **** 
+ 368               		.loc 1 94 8 is_stmt 0 view .LVU74
+ 369 0102 C3B1      		in r28,0x3
+ 370               	.LVL25:
+  96:compcontrol.c ****     if (uart_timeout > 1000) {
+ 371               		.loc 1 96 3 is_stmt 1 view .LVU75
+  96:compcontrol.c ****     if (uart_timeout > 1000) {
+ 372               		.loc 1 96 7 is_stmt 0 view .LVU76
+ 373 0104 8091 0000 		lds r24,CTS
+  96:compcontrol.c ****     if (uart_timeout > 1000) {
+ 374               		.loc 1 96 6 view .LVU77
+ 375 0108 8823      		tst r24
+ 376 010a 01F4      		brne .+2
+ 377 010c 00C0      		rjmp .L13
+  97:compcontrol.c ****       clear_bank_leds();
+ 378               		.loc 1 97 5 is_stmt 1 view .LVU78
+  97:compcontrol.c ****       clear_bank_leds();
+ 379               		.loc 1 97 22 is_stmt 0 view .LVU79
+ 380 010e 8091 0000 		lds r24,uart_timeout
+ 381 0112 9091 0000 		lds r25,uart_timeout+1
+  97:compcontrol.c ****       clear_bank_leds();
+ 382               		.loc 1 97 8 view .LVU80
+ 383 0116 893E      		cpi r24,-23
+ 384 0118 9340      		sbci r25,3
+ 385 011a 00F0      		brlo .L16
+  98:compcontrol.c ****       clock_leds();
+ 386               		.loc 1 98 7 is_stmt 1 view .LVU81
+ 387 011c 0E94 0000 		call clear_bank_leds
+ 388               	.LVL26:
+  99:compcontrol.c ****       recv_msg_i = 0; // start over... but don't send status!
+ 389               		.loc 1 99 7 view .LVU82
+ 390 0120 0E94 0000 		call clock_leds
+ 391               	.LVL27:
+ 100:compcontrol.c ****     }
+ 392               		.loc 1 100 7 view .LVU83
+ 100:compcontrol.c ****     }
+ 393               		.loc 1 100 18 is_stmt 0 view .LVU84
+ 394 0124 1092 0000 		sts recv_msg_i,__zero_reg__
+ 395               	.L16:
+ 103:compcontrol.c ****       recv_msg_buff[recv_msg_i++] = c; // place at end of q
+ 396               		.loc 1 103 5 is_stmt 1 view .LVU85
+ 103:compcontrol.c ****       recv_msg_buff[recv_msg_i++] = c; // place at end of q
+ 397               		.loc 1 103 20 is_stmt 0 view .LVU86
+ 398 0128 8091 0000 		lds r24,recv_msg_i
+ 103:compcontrol.c ****       recv_msg_buff[recv_msg_i++] = c; // place at end of q
+ 399               		.loc 1 103 8 view .LVU87
+ 400 012c 8034      		cpi r24,lo8(64)
+ 401 012e 00F0      		brlo .+2
+ 402 0130 00C0      		rjmp .L17
+ 104:compcontrol.c ****     } else {
+ 403               		.loc 1 104 7 is_stmt 1 view .LVU88
+ 104:compcontrol.c ****     } else {
+ 404               		.loc 1 104 31 is_stmt 0 view .LVU89
+ 405 0132 91E0      		ldi r25,lo8(1)
+ 406 0134 980F      		add r25,r24
+ 407 0136 9093 0000 		sts recv_msg_i,r25
+ 408 013a E82F      		mov r30,r24
+ 409 013c F0E0      		ldi r31,0
+ 104:compcontrol.c ****     } else {
+ 410               		.loc 1 104 35 view .LVU90
+ 411 013e E050      		subi r30,lo8(-(recv_msg_buff))
+ 412 0140 F040      		sbci r31,hi8(-(recv_msg_buff))
+ 413 0142 C083      		st Z,r28
+ 414               	.L18:
+ 116:compcontrol.c **** 
+ 415               		.loc 1 116 5 is_stmt 1 view .LVU91
+ 116:compcontrol.c **** 
+ 416               		.loc 1 116 18 is_stmt 0 view .LVU92
+ 417 0144 1092 0000 		sts uart_timeout+1,__zero_reg__
+ 418 0148 1092 0000 		sts uart_timeout,__zero_reg__
+ 120:compcontrol.c ****       cmd = recv_msg_buff[0];
+ 419               		.loc 1 120 5 is_stmt 1 view .LVU93
+ 120:compcontrol.c ****       cmd = recv_msg_buff[0];
+ 420               		.loc 1 120 20 is_stmt 0 view .LVU94
+ 421 014c 8091 0000 		lds r24,recv_msg_i
+ 120:compcontrol.c ****       cmd = recv_msg_buff[0];
+ 422               		.loc 1 120 8 view .LVU95
+ 423 0150 8330      		cpi r24,lo8(3)
+ 424 0152 00F0      		brlo .L13
+ 121:compcontrol.c ****       size = recv_msg_buff[1];
+ 425               		.loc 1 121 7 is_stmt 1 view .LVU96
+ 426               	.LVL28:
+ 122:compcontrol.c ****       size <<= 8; // size is just the body size
+ 427               		.loc 1 122 7 view .LVU97
+ 123:compcontrol.c ****       size |= recv_msg_buff[2];
+ 428               		.loc 1 123 7 view .LVU98
+ 124:compcontrol.c **** 
+ 429               		.loc 1 124 7 view .LVU99
+ 430 0154 C091 0000 		lds r28,recv_msg_buff+1
+ 431 0158 D091 0000 		lds r29,recv_msg_buff+1+1
+ 432               	.LVL29:
+ 124:compcontrol.c **** 
+ 433               		.loc 1 124 7 is_stmt 0 view .LVU100
+ 434 015c DC27      		eor r29,r28
+ 435 015e CD27      		eor r28,r29
+ 436 0160 DC27      		eor r29,r28
+ 437               	.LVL30:
+ 126:compcontrol.c ****         crc = recv_msg_buff[3 + size]; // CRC is the last byte of the packet
+ 438               		.loc 1 126 7 is_stmt 1 view .LVU101
+ 126:compcontrol.c ****         crc = recv_msg_buff[3 + size]; // CRC is the last byte of the packet
+ 439               		.loc 1 126 27 is_stmt 0 view .LVU102
+ 440 0162 9E01      		movw r18,r28
+ 441 0164 2C5F      		subi r18,-4
+ 442 0166 3F4F      		sbci r19,-1
+ 126:compcontrol.c ****         crc = recv_msg_buff[3 + size]; // CRC is the last byte of the packet
+ 443               		.loc 1 126 10 view .LVU103
+ 444 0168 8217      		cp r24,r18
+ 445 016a 1306      		cpc __zero_reg__,r19
+ 446 016c 00F0      		brlo .L13
+ 127:compcontrol.c **** 
+ 447               		.loc 1 127 9 is_stmt 1 view .LVU104
+ 127:compcontrol.c **** 
+ 448               		.loc 1 127 31 is_stmt 0 view .LVU105
+ 449 016e 2396      		adiw r28,3
+ 450               	.LVL31:
+ 129:compcontrol.c ****           putnum_uh(calc_CRC8(recv_msg_buff, size + 3));
+ 451               		.loc 1 129 9 is_stmt 1 view .LVU106
+ 129:compcontrol.c ****           putnum_uh(calc_CRC8(recv_msg_buff, size + 3));
+ 452               		.loc 1 129 20 is_stmt 0 view .LVU107
+ 453 0170 BE01      		movw r22,r28
+ 454 0172 80E0      		ldi r24,lo8(recv_msg_buff)
+ 455 0174 90E0      		ldi r25,hi8(recv_msg_buff)
+ 129:compcontrol.c ****           putnum_uh(calc_CRC8(recv_msg_buff, size + 3));
+ 456               		.loc 1 129 20 view .LVU108
+ 457 0176 0E94 0000 		call calc_CRC8
+ 458               	.LVL32:
+ 127:compcontrol.c **** 
+ 459               		.loc 1 127 13 view .LVU109
+ 460 017a C050      		subi r28,lo8(-(recv_msg_buff))
+ 461 017c D040      		sbci r29,hi8(-(recv_msg_buff))
+ 129:compcontrol.c ****           putnum_uh(calc_CRC8(recv_msg_buff, size + 3));
+ 462               		.loc 1 129 12 view .LVU110
+ 463 017e 9881      		ld r25,Y
+ 464 0180 8917      		cp r24,r25
+ 465 0182 01F0      		breq .L20
+ 130:compcontrol.c **** 
+ 466               		.loc 1 130 11 is_stmt 1 view .LVU111
+ 467 0184 90E0      		ldi r25,0
+ 468 0186 0E94 0000 		call putnum_uh
+ 469               	.LVL33:
+ 132:compcontrol.c ****           send_status(0);
+ 470               		.loc 1 132 11 view .LVU112
+ 132:compcontrol.c ****           send_status(0);
+ 471               		.loc 1 132 22 is_stmt 0 view .LVU113
+ 472 018a 1092 0000 		sts recv_msg_i,__zero_reg__
+ 133:compcontrol.c ****           // set_bank_led(13); clock_leds();   // CRC Error
+ 473               		.loc 1 133 11 is_stmt 1 view .LVU114
+ 474 018e 80E0      		ldi r24,0
+ 475 0190 0E94 0000 		call send_status
+ 476               	.LVL34:
+ 135:compcontrol.c ****         }
+ 477               		.loc 1 135 11 view .LVU115
+ 478               	.L13:
+ 479               	/* epilogue start */
+ 239:compcontrol.c **** 
+ 480               		.loc 1 239 1 is_stmt 0 view .LVU116
+ 481 0194 FF91      		pop r31
+ 482 0196 EF91      		pop r30
+ 483 0198 DF91      		pop r29
+ 484 019a CF91      		pop r28
+ 485 019c BF91      		pop r27
+ 486 019e AF91      		pop r26
+ 487 01a0 9F91      		pop r25
+ 488 01a2 8F91      		pop r24
+ 489 01a4 7F91      		pop r23
+ 490 01a6 6F91      		pop r22
+ 491 01a8 5F91      		pop r21
+ 492 01aa 4F91      		pop r20
+ 493 01ac 3F91      		pop r19
+ 494 01ae 2F91      		pop r18
+ 495 01b0 1F91      		pop r17
+ 496 01b2 0F91      		pop r16
+ 497 01b4 FF90      		pop r15
+ 498 01b6 EF90      		pop r14
+ 499 01b8 0F90      		pop r0
+ 500 01ba 0FBE      		out __SREG__,r0
+ 501 01bc 0F90      		pop r0
+ 502 01be 1F90      		pop r1
+ 503 01c0 1895      		reti
+ 504               	.LVL35:
+ 505               	.L17:
+ 111:compcontrol.c ****       recv_msg_i = 0;
+ 506               		.loc 1 111 7 is_stmt 1 view .LVU117
+ 507 01c2 0E94 0000 		call send_status
+ 508               	.LVL36:
+ 112:compcontrol.c ****       // set_bank_led(14); clock_leds();
+ 509               		.loc 1 112 7 view .LVU118
+ 112:compcontrol.c ****       // set_bank_led(14); clock_leds();
+ 510               		.loc 1 112 18 is_stmt 0 view .LVU119
+ 511 01c6 1092 0000 		sts recv_msg_i,__zero_reg__
+ 512 01ca 00C0      		rjmp .L18
+ 513               	.LVL37:
+ 514               	.L20:
+ 121:compcontrol.c ****       size = recv_msg_buff[1];
+ 515               		.loc 1 121 11 view .LVU120
+ 516 01cc 8091 0000 		lds r24,recv_msg_buff
+ 124:compcontrol.c **** 
+ 517               		.loc 1 124 28 view .LVU121
+ 518 01d0 9091 0000 		lds r25,recv_msg_buff+2
+ 142:compcontrol.c ****         case PING_MSG:
+ 519               		.loc 1 142 9 is_stmt 1 view .LVU122
+ 520 01d4 8131      		cpi r24,lo8(17)
+ 521 01d6 01F0      		breq .L21
+ 522 01d8 00F4      		brsh .L22
+ 523 01da 8130      		cpi r24,lo8(1)
+ 524 01dc 01F4      		brne .+2
+ 525 01de 00C0      		rjmp .L36
+ 526 01e0 8031      		cpi r24,lo8(16)
+ 527 01e2 01F4      		brne .+2
+ 528 01e4 00C0      		rjmp .L24
+ 529               	.L25:
+ 232:compcontrol.c ****           break;
+ 530               		.loc 1 232 11 view .LVU123
+ 531 01e6 80E0      		ldi r24,0
+ 532 01e8 00C0      		rjmp .L35
+ 533               	.L22:
+ 142:compcontrol.c ****         case PING_MSG:
+ 534               		.loc 1 142 9 is_stmt 0 view .LVU124
+ 535 01ea 8034      		cpi r24,lo8(64)
+ 536 01ec 01F0      		breq .L26
+ 537 01ee 8134      		cpi r24,lo8(65)
+ 538 01f0 01F4      		brne .L25
+ 539               	.LBB2:
+ 152:compcontrol.c **** 
+ 540               		.loc 1 152 11 is_stmt 1 view .LVU125
+ 154:compcontrol.c ****             send_status(0);
+ 541               		.loc 1 154 11 view .LVU126
+ 154:compcontrol.c ****             send_status(0);
+ 542               		.loc 1 154 14 is_stmt 0 view .LVU127
+ 543 01f2 9230      		cpi r25,lo8(2)
+ 544 01f4 01F4      		brne .L25
+ 158:compcontrol.c ****           t <<= 8;
+ 545               		.loc 1 158 11 is_stmt 1 view .LVU128
+ 158:compcontrol.c ****           t <<= 8;
+ 546               		.loc 1 158 13 is_stmt 0 view .LVU129
+ 547 01f6 8091 0000 		lds r24,recv_msg_buff+3
+ 548 01fa 90E0      		ldi r25,0
+ 549               	.LVL38:
+ 159:compcontrol.c ****           t += recv_msg_buff[4];
+ 550               		.loc 1 159 11 is_stmt 1 view .LVU130
+ 159:compcontrol.c ****           t += recv_msg_buff[4];
+ 551               		.loc 1 159 13 is_stmt 0 view .LVU131
+ 552 01fc 982F      		mov r25,r24
+ 553 01fe 8827      		clr r24
+ 554               	.LVL39:
+ 160:compcontrol.c **** 
+ 555               		.loc 1 160 11 is_stmt 1 view .LVU132
+ 162:compcontrol.c **** 
+ 556               		.loc 1 162 11 view .LVU133
+ 160:compcontrol.c **** 
+ 557               		.loc 1 160 29 is_stmt 0 view .LVU134
+ 558 0200 2091 0000 		lds r18,recv_msg_buff+4
+ 162:compcontrol.c **** 
+ 559               		.loc 1 162 11 view .LVU135
+ 560 0204 820F      		add r24,r18
+ 561 0206 911D      		adc r25,__zero_reg__
+ 562               	.LVL40:
+ 162:compcontrol.c **** 
+ 563               		.loc 1 162 11 view .LVU136
+ 564 0208 0E94 0000 		call change_tempo
+ 565               	.LVL41:
+ 164:compcontrol.c ****         }
+ 566               		.loc 1 164 11 is_stmt 1 view .LVU137
+ 567 020c 00C0      		rjmp .L28
+ 568               	.L26:
+ 164:compcontrol.c ****         }
+ 569               		.loc 1 164 11 is_stmt 0 view .LVU138
+ 570               	.LBE2:
+ 148:compcontrol.c ****           break;
+ 571               		.loc 1 148 11 is_stmt 1 view .LVU139
+ 572 020e 8091 0000 		lds r24,tempo
+ 573 0212 9091 0000 		lds r25,tempo+1
+ 574 0216 0E94 0000 		call send_tempo
+ 575               	.LVL42:
+ 149:compcontrol.c **** 
+ 576               		.loc 1 149 11 view .LVU140
+ 577               	.L28:
+ 235:compcontrol.c ****       }
+ 578               		.loc 1 235 9 view .LVU141
+ 235:compcontrol.c ****       }
+ 579               		.loc 1 235 20 is_stmt 0 view .LVU142
+ 580 021a 1092 0000 		sts recv_msg_i,__zero_reg__
+ 581 021e 00C0      		rjmp .L13
+ 582               	.L21:
+ 583               	.LBB3:
+ 167:compcontrol.c ****           uint16_t addr;
+ 584               		.loc 1 167 11 is_stmt 1 view .LVU143
+ 168:compcontrol.c **** 
+ 585               		.loc 1 168 11 view .LVU144
+ 170:compcontrol.c ****             send_status(0);
+ 586               		.loc 1 170 11 view .LVU145
+ 170:compcontrol.c ****             send_status(0);
+ 587               		.loc 1 170 14 is_stmt 0 view .LVU146
+ 588 0220 9230      		cpi r25,lo8(2)
+ 589 0222 01F4      		brne .L25
+ 175:compcontrol.c ****           patt = recv_msg_buff[4];
+ 590               		.loc 1 175 11 is_stmt 1 view .LVU147
+ 591               	.LVL43:
+ 176:compcontrol.c ****           addr = PATTERN_MEM + bank * BANK_SIZE + patt * PATT_SIZE;
+ 592               		.loc 1 176 11 view .LVU148
+ 177:compcontrol.c ****           /*
+ 593               		.loc 1 177 11 view .LVU149
+ 177:compcontrol.c ****           /*
+ 594               		.loc 1 177 49 is_stmt 0 view .LVU150
+ 595 0224 C091 0000 		lds r28,recv_msg_buff+3
+ 596 0228 E8E0      		ldi r30,lo8(8)
+ 597 022a CE9F      		mul r28,r30
+ 598 022c C001      		movw r24,r0
+ 599 022e 1124      		clr __zero_reg__
+ 600 0230 C091 0000 		lds r28,recv_msg_buff+4
+ 601 0234 C80F      		add r28,r24
+ 602 0236 D92F      		mov r29,r25
+ 603 0238 D11D      		adc r29,__zero_reg__
+ 604 023a 24E0      		ldi r18,4
+ 605               		1:
+ 606 023c CC0F      		lsl r28
+ 607 023e DD1F      		rol r29
+ 608 0240 2A95      		dec r18
+ 609 0242 01F4      		brne 1b
+ 610               	.LVL44:
+ 185:compcontrol.c ****           tx_msg_buff[1] = 0;
+ 611               		.loc 1 185 11 is_stmt 1 view .LVU151
+ 185:compcontrol.c ****           tx_msg_buff[1] = 0;
+ 612               		.loc 1 185 26 is_stmt 0 view .LVU152
+ 613 0244 89E1      		ldi r24,lo8(25)
+ 614 0246 8093 0000 		sts tx_msg_buff,r24
+ 186:compcontrol.c ****           tx_msg_buff[2] = PATT_MSG_LEN;
+ 615               		.loc 1 186 11 is_stmt 1 view .LVU153
+ 186:compcontrol.c ****           tx_msg_buff[2] = PATT_MSG_LEN;
+ 616               		.loc 1 186 26 is_stmt 0 view .LVU154
+ 617 024a 1092 0000 		sts tx_msg_buff+1,__zero_reg__
+ 187:compcontrol.c **** 
+ 618               		.loc 1 187 11 is_stmt 1 view .LVU155
+ 187:compcontrol.c **** 
+ 619               		.loc 1 187 26 is_stmt 0 view .LVU156
+ 620 024e 80E1      		ldi r24,lo8(16)
+ 621 0250 8093 0000 		sts tx_msg_buff+2,r24
+ 189:compcontrol.c ****             tx_msg_buff[3 + i] = spieeprom_read(addr + i);
+ 622               		.loc 1 189 11 is_stmt 1 view .LVU157
+ 623               	.LVL45:
+ 189:compcontrol.c ****             tx_msg_buff[3 + i] = spieeprom_read(addr + i);
+ 624               		.loc 1 189 11 is_stmt 0 view .LVU158
+ 625 0254 30E0      		ldi r19,lo8(tx_msg_buff+3)
+ 626 0256 E32E      		mov r14,r19
+ 627 0258 30E0      		ldi r19,hi8(tx_msg_buff+3)
+ 628 025a F32E      		mov r15,r19
+ 187:compcontrol.c **** 
+ 629               		.loc 1 187 26 view .LVU159
+ 630 025c 10E0      		ldi r17,0
+ 631 025e 00E0      		ldi r16,0
+ 632               	.LVL46:
+ 633               	.L31:
+ 190:compcontrol.c ****             // putstring(" 0x"); putnum_uh(tx_msg_buff[1+i]);
+ 634               		.loc 1 190 13 is_stmt 1 discriminator 3 view .LVU160
+ 190:compcontrol.c ****             // putstring(" 0x"); putnum_uh(tx_msg_buff[1+i]);
+ 635               		.loc 1 190 34 is_stmt 0 discriminator 3 view .LVU161
+ 636 0260 CE01      		movw r24,r28
+ 637 0262 800F      		add r24,r16
+ 638 0264 911F      		adc r25,r17
+ 639 0266 0E94 0000 		call spieeprom_read
+ 640               	.LVL47:
+ 190:compcontrol.c ****             // putstring(" 0x"); putnum_uh(tx_msg_buff[1+i]);
+ 641               		.loc 1 190 32 discriminator 3 view .LVU162
+ 642 026a F701      		movw r30,r14
+ 643 026c 8193      		st Z+,r24
+ 644 026e 7F01      		movw r14,r30
+ 645               	.LVL48:
+ 190:compcontrol.c ****             // putstring(" 0x"); putnum_uh(tx_msg_buff[1+i]);
+ 646               		.loc 1 190 32 discriminator 3 view .LVU163
+ 647 0270 0F5F      		subi r16,-1
+ 648 0272 1F4F      		sbci r17,-1
+ 649               	.LVL49:
+ 189:compcontrol.c ****             tx_msg_buff[3 + i] = spieeprom_read(addr + i);
+ 650               		.loc 1 189 11 discriminator 3 view .LVU164
+ 651 0274 0031      		cpi r16,16
+ 652 0276 1105      		cpc r17,__zero_reg__
+ 653 0278 01F4      		brne .L31
+ 195:compcontrol.c **** 
+ 654               		.loc 1 195 11 is_stmt 1 view .LVU165
+ 195:compcontrol.c **** 
+ 655               		.loc 1 195 40 is_stmt 0 view .LVU166
+ 656 027a 63E1      		ldi r22,lo8(19)
+ 657 027c 70E0      		ldi r23,0
+ 658 027e 80E0      		ldi r24,lo8(tx_msg_buff)
+ 659 0280 90E0      		ldi r25,hi8(tx_msg_buff)
+ 660 0282 0E94 0000 		call calc_CRC8
+ 661               	.LVL50:
+ 195:compcontrol.c **** 
+ 662               		.loc 1 195 38 view .LVU167
+ 663 0286 8093 0000 		sts tx_msg_buff+19,r24
+ 197:compcontrol.c ****           break;
+ 664               		.loc 1 197 11 is_stmt 1 view .LVU168
+ 665 028a 64E1      		ldi r22,lo8(20)
+ 666 028c 70E0      		ldi r23,0
+ 667 028e 80E0      		ldi r24,lo8(tx_msg_buff)
+ 668 0290 90E0      		ldi r25,hi8(tx_msg_buff)
+ 669 0292 0E94 0000 		call send_msg
+ 670               	.LVL51:
+ 198:compcontrol.c ****         }
+ 671               		.loc 1 198 11 view .LVU169
+ 672 0296 00C0      		rjmp .L28
+ 673               	.LVL52:
+ 674               	.L24:
+ 198:compcontrol.c ****         }
+ 675               		.loc 1 198 11 is_stmt 0 view .LVU170
+ 676               	.LBE3:
+ 677               	.LBB4:
+ 202:compcontrol.c ****           uint16_t addr;
+ 678               		.loc 1 202 11 is_stmt 1 view .LVU171
+ 203:compcontrol.c **** 
+ 679               		.loc 1 203 11 view .LVU172
+ 206:compcontrol.c ****             send_status(0);
+ 680               		.loc 1 206 11 view .LVU173
+ 206:compcontrol.c ****             send_status(0);
+ 681               		.loc 1 206 14 is_stmt 0 view .LVU174
+ 682 0298 9231      		cpi r25,lo8(18)
+ 683 029a 01F0      		breq .+2
+ 684 029c 00C0      		rjmp .L25
+ 211:compcontrol.c ****           patt = recv_msg_buff[4];
+ 685               		.loc 1 211 11 is_stmt 1 view .LVU175
+ 686               	.LVL53:
+ 212:compcontrol.c ****           addr = PATTERN_MEM + bank * BANK_SIZE + patt * PATT_SIZE;
+ 687               		.loc 1 212 11 view .LVU176
+ 213:compcontrol.c ****           /*
+ 688               		.loc 1 213 11 view .LVU177
+ 213:compcontrol.c ****           /*
+ 689               		.loc 1 213 49 is_stmt 0 view .LVU178
+ 690 029e C091 0000 		lds r28,recv_msg_buff+3
+ 691 02a2 F8E0      		ldi r31,lo8(8)
+ 692 02a4 CF9F      		mul r28,r31
+ 693 02a6 C001      		movw r24,r0
+ 694 02a8 1124      		clr __zero_reg__
+ 695 02aa C091 0000 		lds r28,recv_msg_buff+4
+ 696 02ae C80F      		add r28,r24
+ 697 02b0 D92F      		mov r29,r25
+ 698 02b2 D11D      		adc r29,__zero_reg__
+ 699 02b4 84E0      		ldi r24,4
+ 700               		1:
+ 701 02b6 CC0F      		lsl r28
+ 702 02b8 DD1F      		rol r29
+ 703 02ba 8A95      		dec r24
+ 704 02bc 01F4      		brne 1b
+ 705               	.LVL54:
+ 221:compcontrol.c ****             spieeprom_write(recv_msg_buff[5 + i], addr + i);
+ 706               		.loc 1 221 11 is_stmt 1 view .LVU179
+ 221:compcontrol.c ****             spieeprom_write(recv_msg_buff[5 + i], addr + i);
+ 707               		.loc 1 221 11 is_stmt 0 view .LVU180
+ 708 02be 90E0      		ldi r25,lo8(recv_msg_buff+5)
+ 709 02c0 E92E      		mov r14,r25
+ 710 02c2 90E0      		ldi r25,hi8(recv_msg_buff+5)
+ 711 02c4 F92E      		mov r15,r25
+ 213:compcontrol.c ****           /*
+ 712               		.loc 1 213 16 view .LVU181
+ 713 02c6 10E0      		ldi r17,0
+ 714 02c8 00E0      		ldi r16,0
+ 715               	.LVL55:
+ 716               	.L32:
+ 222:compcontrol.c ****             // putstring(" 0x"); putnum_uh(tx_msg_buff[1+i]);
+ 717               		.loc 1 222 13 is_stmt 1 discriminator 3 view .LVU182
+ 718 02ca BE01      		movw r22,r28
+ 719 02cc 600F      		add r22,r16
+ 720 02ce 711F      		adc r23,r17
+ 721 02d0 F701      		movw r30,r14
+ 722 02d2 8191      		ld r24,Z+
+ 723 02d4 7F01      		movw r14,r30
+ 724 02d6 0E94 0000 		call spieeprom_write
+ 725               	.LVL56:
+ 222:compcontrol.c ****             // putstring(" 0x"); putnum_uh(tx_msg_buff[1+i]);
+ 726               		.loc 1 222 13 is_stmt 0 discriminator 3 view .LVU183
+ 727 02da 0F5F      		subi r16,-1
+ 728 02dc 1F4F      		sbci r17,-1
+ 729               	.LVL57:
+ 221:compcontrol.c ****             spieeprom_write(recv_msg_buff[5 + i], addr + i);
+ 730               		.loc 1 221 11 discriminator 3 view .LVU184
+ 731 02de 0031      		cpi r16,16
+ 732 02e0 1105      		cpc r17,__zero_reg__
+ 733 02e2 01F4      		brne .L32
+ 734               	.LVL58:
+ 735               	.L36:
+ 227:compcontrol.c ****           break;
+ 736               		.loc 1 227 11 is_stmt 1 view .LVU185
+ 737 02e4 81E0      		ldi r24,lo8(1)
+ 738               	.L35:
+ 739               	.LBE4:
+ 232:compcontrol.c ****           break;
+ 740               		.loc 1 232 11 is_stmt 0 view .LVU186
+ 741 02e6 0E94 0000 		call send_status
+ 742               	.LVL59:
+ 233:compcontrol.c ****         }
+ 743               		.loc 1 233 11 is_stmt 1 view .LVU187
+ 744 02ea 00C0      		rjmp .L28
+ 745               		.cfi_endproc
+ 746               	.LFE1:
+ 748               	.global	CRC8Table
+ 749               		.section	.rodata
+ 752               	CRC8Table:
+ 753 0000 00        		.string	""
+ 754 0001 070E 091C 		.ascii	"\007\016\t\034\033\022\0258?61$#*-pw~ylkbeHOFATSZ]\340\347\356"
+ 754      1B12 1538 
+ 754      3F36 3124 
+ 754      232A 2D70 
+ 754      777E 796C 
+ 755 0023 E9FC FBF2 		.ascii	"\351\374\373\362\365\330\337\326\321\304\303\312\315\220\227"
+ 755      F5D8 DFD6 
+ 755      D1C4 C3CA 
+ 755      CD90 97
+ 756 0032 9E99 8C8B 		.ascii	"\236\231\214\213\202\205\250\257\246\241\264\263\272\275\307"
+ 756      8285 A8AF 
+ 756      A6A1 B4B3 
+ 756      BABD C7
+ 757 0041 C0C9 CEDB 		.ascii	"\300\311\316\333\334\325\322\377\370\361\366\343\344\355\352"
+ 757      DCD5 D2FF 
+ 757      F8F1 F6E3 
+ 757      E4ED EA
+ 758 0050 B7B0 B9BE 		.ascii	"\267\260\271\276\253\254\245\242\217\210\201\206\223\224\235"
+ 758      ABAC A5A2 
+ 758      8F88 8186 
+ 758      9394 9D
+ 759 005f 9A27 2029 		.ascii	"\232' ).;<52\037\030\021\026\003\004\r\nWPY^KLEBohafst}z\211"
+ 759      2E3B 3C35 
+ 759      321F 1811 
+ 759      1603 040D 
+ 759      0A57 5059 
+ 760 0081 8E87 8095 		.ascii	"\216\207\200\225\222\233\234\261\266\277\270\255\252\243\244"
+ 760      929B 9CB1 
+ 760      B6BF B8AD 
+ 760      AAA3 A4
+ 761 0090 F9FE F7F0 		.ascii	"\371\376\367\360\345\342\353\354\301\306\317\310\335\332\323"
+ 761      E5E2 EBEC 
+ 761      C1C6 CFC8 
+ 761      DDDA D3
+ 762 009f D469 6E67 		.ascii	"\324ing`ur{|QV_XMJCD\031\036\027\020\005\002\013\f!&/(=:34NI"
+ 762      6075 727B 
+ 762      7C51 565F 
+ 762      584D 4A43 
+ 762      4419 1E17 
+ 763 00c2 4047 5255 		.ascii	"@GRU\\[vqx\177jmdc>907\"%,+\006\001\b\017\032\035\024\023\256"
+ 763      5C5B 7671 
+ 763      787F 6A6D 
+ 763      6463 3E39 
+ 763      3037 2225 
+ 764 00e1 A9A0 A7B2 		.ascii	"\251\240\247\262\265\274\273\226\221\230\237\212\215\204\203"
+ 764      B5BC BB96 
+ 764      9198 9F8A 
+ 764      8D84 83
+ 765 00f0 DED9 D0D7 		.ascii	"\336\331\320\327\302\305\314\313\346\341\350\357\372\375\364"
+ 765      C2C5 CCCB 
+ 765      E6E1 E8EF 
+ 765      FAFD F4
+ 766 00ff F3        		.ascii	"\363"
+ 767               	.global	uart_timeout
+ 768               		.section .bss
+ 771               	uart_timeout:
+ 772 0000 0000      		.zero	2
+ 773               	.global	CTS
+ 774               		.data
+ 777               	CTS:
+ 778 0000 01        		.byte	1
+ 779               	.global	valid_msg_in_q
+ 780               		.section .bss
+ 783               	valid_msg_in_q:
+ 784 0002 00        		.zero	1
+ 785               	.global	recv_msg_i
+ 788               	recv_msg_i:
+ 789 0003 00        		.zero	1
+ 790               		.comm	tx_msg_buff,64,1
+ 791               		.comm	recv_msg_buff,64,1
+ 792               		.text
+ 793               	.Letext0:
+ 794               		.file 2 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdint.h"
+ 795               		.file 3 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdio.h"
+ 796               		.file 4 "switch.h"
+ 797               		.file 5 "led.h"
+ 798               		.file 6 "main.h"
+ 799               		.file 7 "eeprom.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 compcontrol.c
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:12     .text:0000000000000000 send_msg
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:73     .text:0000000000000028 do_computer_control
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:102    .text:000000000000003c calc_CRC8
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:752    .rodata:0000000000000000 CRC8Table
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:171    .text:0000000000000070 send_status
+                            *COM*:0000000000000040 tx_msg_buff
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:230    .text:000000000000009e send_tempo
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:294    .text:00000000000000d4 __vector_20
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:777    .data:0000000000000000 CTS
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:771    .bss:0000000000000000 uart_timeout
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:788    .bss:0000000000000003 recv_msg_i
+                            *COM*:0000000000000040 recv_msg_buff
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccHGT7OP.s:783    .bss:0000000000000002 valid_msg_in_q
+
+UNDEFINED SYMBOLS
+uart_putchar
+read_switches
+function
+clear_all_leds
+clock_leds
+clear_bank_leds
+putnum_uh
+change_tempo
+tempo
+spieeprom_read
+spieeprom_write
+__do_copy_data
+__do_clear_bss

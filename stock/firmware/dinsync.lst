@@ -1,0 +1,448 @@
+   1               		.file	"dinsync.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	dinsync_start
+  12               	dinsync_start:
+  13               	.LFB0:
+  14               		.file 1 "dinsync.c"
+   1:dinsync.c     **** /*
+   2:dinsync.c     ****  * The software for the x0xb0x is available for use in accordance with the
+   3:dinsync.c     ****  * following open source license (MIT License). For more information about
+   4:dinsync.c     ****  * OS licensing, please visit -> http://www.opensource.org/
+   5:dinsync.c     ****  *
+   6:dinsync.c     ****  * For more information about the x0xb0x project, please visit
+   7:dinsync.c     ****  * -> http://www.ladyada.net/make/x0xb0x
+   8:dinsync.c     ****  *
+   9:dinsync.c     ****  *                                     *****
+  10:dinsync.c     ****  * Copyright (c) 2005 Limor Fried
+  11:dinsync.c     ****  *
+  12:dinsync.c     ****  * Permission is hereby granted, free of charge, to any person obtaining a
+  13:dinsync.c     ****  * copy of this software and associated documentation files (the "Software"),
+  14:dinsync.c     ****  * to deal in the Software without restriction, including without limitation
+  15:dinsync.c     ****  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+  16:dinsync.c     ****  * and/or sell copies of the Software, and to permit persons to whom the
+  17:dinsync.c     ****  * Software is furnished to do so, subject to the following conditions:
+  18:dinsync.c     ****  *
+  19:dinsync.c     ****  * The above copyright notice and this permission notice shall be included in
+  20:dinsync.c     ****  * all copies or substantial portions of the Software.
+  21:dinsync.c     ****  *
+  22:dinsync.c     ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  23:dinsync.c     ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  24:dinsync.c     ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  25:dinsync.c     ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  26:dinsync.c     ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+  27:dinsync.c     ****  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+  28:dinsync.c     ****  * IN THE SOFTWARE.
+  29:dinsync.c     ****  *                                     *****
+  30:dinsync.c     ****  *
+  31:dinsync.c     ****  */
+  32:dinsync.c     **** 
+  33:dinsync.c     **** #include <inttypes.h>
+  34:dinsync.c     **** #include <avr/io.h>
+  35:dinsync.c     **** #include "dinsync.h"
+  36:dinsync.c     **** #include "main.h"
+  37:dinsync.c     **** #include "delay.h"
+  38:dinsync.c     **** 
+  39:dinsync.c     **** // counter: counts up DINSYNC_PPM per beat, for dinsync out
+  40:dinsync.c     **** volatile uint8_t dinsync_counter = 0;
+  41:dinsync.c     **** // clocked: keeps track of input dinsync pulses
+  42:dinsync.c     **** volatile int16_t dinsync_clocked = 0;
+  43:dinsync.c     **** 
+  44:dinsync.c     **** // when doing midi sync to dinsync conversion, this is the timeout
+  45:dinsync.c     **** // to dropping the clock after a MIDICLOCK message
+  46:dinsync.c     **** volatile int16_t dinsync_clock_timeout = 0;
+  47:dinsync.c     **** 
+  48:dinsync.c     **** // these variables keep track of the dinsync pin states for dinsync in
+  49:dinsync.c     **** uint8_t last_dinsync_start = 0;
+  50:dinsync.c     **** uint8_t last_dinsync_stop = 0;
+  51:dinsync.c     **** uint8_t last_dinsync_c = 0;
+  52:dinsync.c     **** 
+  53:dinsync.c     **** extern uint8_t sync; // what sync mode are we in?
+  54:dinsync.c     **** 
+  55:dinsync.c     **** extern volatile uint8_t note_counter;
+  56:dinsync.c     **** extern uint16_t timer3_init;
+  57:dinsync.c     **** 
+  58:dinsync.c     **** /* output functions (dinsync_start/stop) start and stop dinsync
+  59:dinsync.c     ****    that is clocked from the internal tempo function */
+  60:dinsync.c     **** void dinsync_start(void) {
+  15               		.loc 1 60 26 view -0
+  16               		.cfi_startproc
+  17 0000 CF93      		push r28
+  18               		.cfi_def_cfa_offset 3
+  19               		.cfi_offset 28, -2
+  20               	/* prologue: function */
+  21               	/* frame size = 0 */
+  22               	/* stack size = 1 */
+  23               	.L__stack_usage = 1
+  61:dinsync.c     ****   uint8_t flag = is_tempo_running();
+  24               		.loc 1 61 3 view .LVU1
+  25               		.loc 1 61 18 is_stmt 0 view .LVU2
+  26 0002 0E94 0000 		call is_tempo_running
+  27               	.LVL0:
+  28 0006 C82F      		mov r28,r24
+  29               	.LVL1:
+  62:dinsync.c     **** 
+  63:dinsync.c     ****   // make sure we're not in a "dinsync in" mode
+  64:dinsync.c     ****   if (sync != DIN_SYNC) {
+  30               		.loc 1 64 3 is_stmt 1 view .LVU3
+  31               		.loc 1 64 6 is_stmt 0 view .LVU4
+  32 0008 8091 0000 		lds r24,sync
+  33               	.LVL2:
+  34               		.loc 1 64 6 view .LVU5
+  35 000c 8130      		cpi r24,lo8(1)
+  36 000e 01F0      		breq .L1
+  65:dinsync.c     ****     // putstring("Starting DIN Sync\n\r");
+  66:dinsync.c     ****     if (flag)
+  37               		.loc 1 66 5 is_stmt 1 view .LVU6
+  38               		.loc 1 66 8 is_stmt 0 view .LVU7
+  39 0010 C111      		cpse r28,__zero_reg__
+  67:dinsync.c     ****       turn_off_tempo(); // if tempo was on, turn if off
+  40               		.loc 1 67 7 is_stmt 1 view .LVU8
+  41 0012 0E94 0000 		call turn_off_tempo
+  42               	.LVL3:
+  43               	.L4:
+  68:dinsync.c     **** 
+  69:dinsync.c     ****     // set the clock low (rising edge is a clock)
+  70:dinsync.c     ****     cbi(DINSYNC_PORT, DINSYNC_CLK);
+  44               		.loc 1 70 5 view .LVU9
+  45 0016 9498      		cbi 0x12,4
+  71:dinsync.c     ****     // send start signal
+  72:dinsync.c     ****     DINSYNC_PORT |= _BV(DINSYNC_START);
+  46               		.loc 1 72 5 view .LVU10
+  47               		.loc 1 72 18 is_stmt 0 view .LVU11
+  48 0018 979A      		sbi 0x12,7
+  73:dinsync.c     **** 
+  74:dinsync.c     ****     // wait for start signal to be noticed, then start the tempo up again.
+  75:dinsync.c     ****     delay_ms(5);
+  49               		.loc 1 75 5 is_stmt 1 view .LVU12
+  50 001a 85E0      		ldi r24,lo8(5)
+  51 001c 0E94 0000 		call delay_ms
+  52               	.LVL4:
+  76:dinsync.c     ****     TCNT3 = timer3_init - 10; // make it start soon
+  53               		.loc 1 76 5 view .LVU13
+  54               		.loc 1 76 25 is_stmt 0 view .LVU14
+  55 0020 8091 0000 		lds r24,timer3_init
+  56 0024 9091 0000 		lds r25,timer3_init+1
+  57 0028 0A97      		sbiw r24,10
+  58               		.loc 1 76 11 view .LVU15
+  59 002a 9093 8900 		sts 136+1,r25
+  60 002e 8093 8800 		sts 136,r24
+  77:dinsync.c     ****     dinsync_counter = 0;
+  61               		.loc 1 77 5 is_stmt 1 view .LVU16
+  62               		.loc 1 77 21 is_stmt 0 view .LVU17
+  63 0032 1092 0000 		sts dinsync_counter,__zero_reg__
+  78:dinsync.c     ****     note_counter = 0;
+  64               		.loc 1 78 5 is_stmt 1 view .LVU18
+  65               		.loc 1 78 18 is_stmt 0 view .LVU19
+  66 0036 1092 0000 		sts note_counter,__zero_reg__
+  79:dinsync.c     ****     if (flag)
+  67               		.loc 1 79 5 is_stmt 1 view .LVU20
+  68               		.loc 1 79 8 is_stmt 0 view .LVU21
+  69 003a CC23      		tst r28
+  70 003c 01F0      		breq .L1
+  80:dinsync.c     ****       turn_on_tempo();
+  71               		.loc 1 80 7 is_stmt 1 view .LVU22
+  72               	/* epilogue start */
+  81:dinsync.c     ****   }
+  82:dinsync.c     **** }
+  73               		.loc 1 82 1 is_stmt 0 view .LVU23
+  74 003e CF91      		pop r28
+  75               	.LVL5:
+  80:dinsync.c     ****       turn_on_tempo();
+  76               		.loc 1 80 7 view .LVU24
+  77 0040 0C94 0000 		jmp turn_on_tempo
+  78               	.LVL6:
+  79               	.L1:
+  80               	/* epilogue start */
+  81               		.loc 1 82 1 view .LVU25
+  82 0044 CF91      		pop r28
+  83               	.LVL7:
+  84               		.loc 1 82 1 view .LVU26
+  85 0046 0895      		ret
+  86               		.cfi_endproc
+  87               	.LFE0:
+  89               	.global	dinsync_stop
+  91               	dinsync_stop:
+  92               	.LFB1:
+  83:dinsync.c     **** 
+  84:dinsync.c     **** void dinsync_stop(void) {
+  93               		.loc 1 84 25 is_stmt 1 view -0
+  94               		.cfi_startproc
+  95               	/* prologue: function */
+  96               	/* frame size = 0 */
+  97               	/* stack size = 0 */
+  98               	.L__stack_usage = 0
+  85:dinsync.c     ****   if (sync != DIN_SYNC) { // make sure we're not input mode
+  99               		.loc 1 85 3 view .LVU28
+ 100               		.loc 1 85 6 is_stmt 0 view .LVU29
+ 101 0048 8091 0000 		lds r24,sync
+ 102 004c 8130      		cpi r24,lo8(1)
+ 103 004e 01F0      		breq .L12
+  86:dinsync.c     ****     // putstring("Stopping DinSync\n\r");
+  87:dinsync.c     ****     cbi(DINSYNC_PORT, DINSYNC_START); // easy, just set Start low.
+ 104               		.loc 1 87 5 is_stmt 1 view .LVU30
+ 105 0050 9798      		cbi 0x12,7
+ 106               	.L12:
+ 107               	/* epilogue start */
+  88:dinsync.c     ****   }
+  89:dinsync.c     **** }
+ 108               		.loc 1 89 1 is_stmt 0 view .LVU31
+ 109 0052 0895      		ret
+ 110               		.cfi_endproc
+ 111               	.LFE1:
+ 113               	.global	dinsync_started
+ 115               	dinsync_started:
+ 116               	.LFB2:
+  90:dinsync.c     **** 
+  91:dinsync.c     **** /* input functions are for keeping track of whether an event occured
+  92:dinsync.c     ****    on the dinsync port */
+  93:dinsync.c     **** 
+  94:dinsync.c     **** /* dinsync_started returns TRUE if the start pin is high and the previous
+  95:dinsync.c     ****    call to this function was FALSE (ie. since the last function call, dinsync
+  96:dinsync.c     ****    has started */
+  97:dinsync.c     **** uint8_t dinsync_started(void) {
+ 117               		.loc 1 97 31 is_stmt 1 view -0
+ 118               		.cfi_startproc
+ 119               	/* prologue: function */
+ 120               	/* frame size = 0 */
+ 121               	/* stack size = 0 */
+ 122               	.L__stack_usage = 0
+  98:dinsync.c     ****   uint8_t curr_dinsync_s;
+ 123               		.loc 1 98 3 view .LVU33
+  99:dinsync.c     ****   curr_dinsync_s = (DINSYNC_PIN >> DINSYNC_START) & 0x1;
+ 124               		.loc 1 99 3 view .LVU34
+ 125               		.loc 1 99 21 is_stmt 0 view .LVU35
+ 126 0054 80B3      		in r24,0x10
+ 127               		.loc 1 99 51 view .LVU36
+ 128 0056 881F      		rol r24
+ 129 0058 8827      		clr r24
+ 130 005a 881F      		rol r24
+ 131               	.LVL8:
+ 100:dinsync.c     **** 
+ 101:dinsync.c     ****   if (!last_dinsync_start && curr_dinsync_s) {
+ 132               		.loc 1 101 3 is_stmt 1 view .LVU37
+ 133               		.loc 1 101 6 is_stmt 0 view .LVU38
+ 134 005c 9091 0000 		lds r25,last_dinsync_start
+ 135 0060 9111      		cpse r25,__zero_reg__
+ 136 0062 00C0      		rjmp .L18
+ 137               		.loc 1 101 27 discriminator 1 view .LVU39
+ 138 0064 8823      		tst r24
+ 139 0066 01F0      		breq .L18
+ 102:dinsync.c     ****     last_dinsync_start = curr_dinsync_s;
+ 140               		.loc 1 102 5 is_stmt 1 view .LVU40
+ 141               		.loc 1 102 24 is_stmt 0 view .LVU41
+ 142 0068 91E0      		ldi r25,lo8(1)
+ 143 006a 9093 0000 		sts last_dinsync_start,r25
+ 103:dinsync.c     ****     return TRUE;
+ 144               		.loc 1 103 5 is_stmt 1 view .LVU42
+ 145               		.loc 1 103 12 is_stmt 0 view .LVU43
+ 146 006e 0895      		ret
+ 147               	.L18:
+ 104:dinsync.c     ****   }
+ 105:dinsync.c     **** 
+ 106:dinsync.c     ****   last_dinsync_start = curr_dinsync_s;
+ 148               		.loc 1 106 3 is_stmt 1 view .LVU44
+ 149               		.loc 1 106 22 is_stmt 0 view .LVU45
+ 150 0070 8093 0000 		sts last_dinsync_start,r24
+ 107:dinsync.c     ****   return FALSE;
+ 151               		.loc 1 107 3 is_stmt 1 view .LVU46
+ 152               		.loc 1 107 10 is_stmt 0 view .LVU47
+ 153 0074 80E0      		ldi r24,0
+ 154               	.LVL9:
+ 155               	/* epilogue start */
+ 108:dinsync.c     **** }
+ 156               		.loc 1 108 1 view .LVU48
+ 157 0076 0895      		ret
+ 158               		.cfi_endproc
+ 159               	.LFE2:
+ 161               	.global	dinsync_stopped
+ 163               	dinsync_stopped:
+ 164               	.LFB3:
+ 109:dinsync.c     **** 
+ 110:dinsync.c     **** /* dinsync_stopped returns TRUE if the start pin is low and the previous
+ 111:dinsync.c     ****    call to this function was FALSE (ie. since the last function call, dinsync
+ 112:dinsync.c     ****    has stopped */
+ 113:dinsync.c     **** uint8_t dinsync_stopped(void) {
+ 165               		.loc 1 113 31 is_stmt 1 view -0
+ 166               		.cfi_startproc
+ 167               	/* prologue: function */
+ 168               	/* frame size = 0 */
+ 169               	/* stack size = 0 */
+ 170               	.L__stack_usage = 0
+ 114:dinsync.c     ****   uint8_t curr_dinsync_s;
+ 171               		.loc 1 114 3 view .LVU50
+ 115:dinsync.c     ****   curr_dinsync_s = (DINSYNC_PIN >> DINSYNC_START) & 0x1;
+ 172               		.loc 1 115 3 view .LVU51
+ 173               		.loc 1 115 21 is_stmt 0 view .LVU52
+ 174 0078 80B3      		in r24,0x10
+ 175               		.loc 1 115 51 view .LVU53
+ 176 007a 881F      		rol r24
+ 177 007c 8827      		clr r24
+ 178 007e 881F      		rol r24
+ 179               	.LVL10:
+ 116:dinsync.c     **** 
+ 117:dinsync.c     ****   if (last_dinsync_stop && !curr_dinsync_s) {
+ 180               		.loc 1 117 3 is_stmt 1 view .LVU54
+ 181               		.loc 1 117 6 is_stmt 0 view .LVU55
+ 182 0080 9091 0000 		lds r25,last_dinsync_stop
+ 183 0084 9923      		tst r25
+ 184 0086 01F0      		breq .L24
+ 185               		.loc 1 117 25 discriminator 1 view .LVU56
+ 186 0088 8111      		cpse r24,__zero_reg__
+ 187 008a 00C0      		rjmp .L24
+ 118:dinsync.c     ****     last_dinsync_stop = curr_dinsync_s;
+ 188               		.loc 1 118 5 is_stmt 1 view .LVU57
+ 189               		.loc 1 118 23 is_stmt 0 view .LVU58
+ 190 008c 1092 0000 		sts last_dinsync_stop,__zero_reg__
+ 119:dinsync.c     ****     return TRUE;
+ 191               		.loc 1 119 5 is_stmt 1 view .LVU59
+ 192               		.loc 1 119 12 is_stmt 0 view .LVU60
+ 193 0090 81E0      		ldi r24,lo8(1)
+ 194               	.LVL11:
+ 195               		.loc 1 119 12 view .LVU61
+ 196 0092 0895      		ret
+ 197               	.LVL12:
+ 198               	.L24:
+ 120:dinsync.c     ****   }
+ 121:dinsync.c     **** 
+ 122:dinsync.c     ****   last_dinsync_stop = curr_dinsync_s;
+ 199               		.loc 1 122 3 is_stmt 1 view .LVU62
+ 200               		.loc 1 122 21 is_stmt 0 view .LVU63
+ 201 0094 8093 0000 		sts last_dinsync_stop,r24
+ 123:dinsync.c     ****   return FALSE;
+ 202               		.loc 1 123 3 is_stmt 1 view .LVU64
+ 203               		.loc 1 123 10 is_stmt 0 view .LVU65
+ 204 0098 80E0      		ldi r24,0
+ 205               	.LVL13:
+ 206               	/* epilogue start */
+ 124:dinsync.c     **** }
+ 207               		.loc 1 124 1 view .LVU66
+ 208 009a 0895      		ret
+ 209               		.cfi_endproc
+ 210               	.LFE3:
+ 212               	.global	dinsync_set_out
+ 214               	dinsync_set_out:
+ 215               	.LFB4:
+ 125:dinsync.c     **** 
+ 126:dinsync.c     **** /* these functions set the input/output descriptors */
+ 127:dinsync.c     **** void dinsync_set_out() {
+ 216               		.loc 1 127 24 is_stmt 1 view -0
+ 217               		.cfi_startproc
+ 218               	/* prologue: function */
+ 219               	/* frame size = 0 */
+ 220               	/* stack size = 0 */
+ 221               	.L__stack_usage = 0
+ 128:dinsync.c     **** 
+ 129:dinsync.c     ****   DINSYNC_DDR |=
+ 222               		.loc 1 129 3 view .LVU68
+ 223               		.loc 1 129 15 is_stmt 0 view .LVU69
+ 224 009c 81B3      		in r24,0x11
+ 225 009e 806F      		ori r24,lo8(-16)
+ 226 00a0 81BB      		out 0x11,r24
+ 130:dinsync.c     ****       _BV(DINSYNC_START) | _BV(DINSYNC_CLK) | _BV(DINSYNC_4) | _BV(DINSYNC_5);
+ 131:dinsync.c     **** 
+ 132:dinsync.c     ****   DINSYNC_PORT &= ~(_BV(DINSYNC_START) | _BV(DINSYNC_CLK) | _BV(DINSYNC_4) |
+ 227               		.loc 1 132 3 is_stmt 1 view .LVU70
+ 228               		.loc 1 132 16 is_stmt 0 view .LVU71
+ 229 00a2 82B3      		in r24,0x12
+ 230 00a4 8F70      		andi r24,lo8(15)
+ 231 00a6 82BB      		out 0x12,r24
+ 232               	/* epilogue start */
+ 133:dinsync.c     ****                     _BV(DINSYNC_5));
+ 134:dinsync.c     **** }
+ 233               		.loc 1 134 1 view .LVU72
+ 234 00a8 0895      		ret
+ 235               		.cfi_endproc
+ 236               	.LFE4:
+ 238               	.global	dinsync_set_in
+ 240               	dinsync_set_in:
+ 241               	.LFB5:
+ 135:dinsync.c     **** 
+ 136:dinsync.c     **** void dinsync_set_in() {
+ 242               		.loc 1 136 23 is_stmt 1 view -0
+ 243               		.cfi_startproc
+ 244               	/* prologue: function */
+ 245               	/* frame size = 0 */
+ 246               	/* stack size = 0 */
+ 247               	.L__stack_usage = 0
+ 137:dinsync.c     **** 
+ 138:dinsync.c     ****   DINSYNC_DDR &= ~(_BV(DINSYNC_START) | _BV(DINSYNC_CLK) | _BV(DINSYNC_4) |
+ 248               		.loc 1 138 3 view .LVU74
+ 249               		.loc 1 138 15 is_stmt 0 view .LVU75
+ 250 00aa 81B3      		in r24,0x11
+ 251 00ac 8F70      		andi r24,lo8(15)
+ 252 00ae 81BB      		out 0x11,r24
+ 139:dinsync.c     ****                    _BV(DINSYNC_5));
+ 140:dinsync.c     **** 
+ 141:dinsync.c     ****   DINSYNC_PORT &= ~(_BV(DINSYNC_START) | _BV(DINSYNC_CLK) | _BV(DINSYNC_4) |
+ 253               		.loc 1 141 3 is_stmt 1 view .LVU76
+ 254               		.loc 1 141 16 is_stmt 0 view .LVU77
+ 255 00b0 82B3      		in r24,0x12
+ 256 00b2 8F70      		andi r24,lo8(15)
+ 257 00b4 82BB      		out 0x12,r24
+ 258               	/* epilogue start */
+ 142:dinsync.c     ****                     _BV(DINSYNC_5));
+ 143:dinsync.c     **** }
+ 259               		.loc 1 143 1 view .LVU78
+ 260 00b6 0895      		ret
+ 261               		.cfi_endproc
+ 262               	.LFE5:
+ 264               	.global	last_dinsync_c
+ 265               		.section .bss
+ 268               	last_dinsync_c:
+ 269 0000 00        		.zero	1
+ 270               	.global	last_dinsync_stop
+ 273               	last_dinsync_stop:
+ 274 0001 00        		.zero	1
+ 275               	.global	last_dinsync_start
+ 278               	last_dinsync_start:
+ 279 0002 00        		.zero	1
+ 280               	.global	dinsync_clock_timeout
+ 283               	dinsync_clock_timeout:
+ 284 0003 0000      		.zero	2
+ 285               	.global	dinsync_clocked
+ 288               	dinsync_clocked:
+ 289 0005 0000      		.zero	2
+ 290               	.global	dinsync_counter
+ 293               	dinsync_counter:
+ 294 0007 00        		.zero	1
+ 295               		.text
+ 296               	.Letext0:
+ 297               		.file 2 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdint.h"
+ 298               		.file 3 "main.h"
+ 299               		.file 4 "delay.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 dinsync.c
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:12     .text:0000000000000000 dinsync_start
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:293    .bss:0000000000000007 dinsync_counter
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:91     .text:0000000000000048 dinsync_stop
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:115    .text:0000000000000054 dinsync_started
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:278    .bss:0000000000000002 last_dinsync_start
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:163    .text:0000000000000078 dinsync_stopped
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:273    .bss:0000000000000001 last_dinsync_stop
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:214    .text:000000000000009c dinsync_set_out
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:240    .text:00000000000000aa dinsync_set_in
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:268    .bss:0000000000000000 last_dinsync_c
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:283    .bss:0000000000000003 dinsync_clock_timeout
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cccrh8HL.s:288    .bss:0000000000000005 dinsync_clocked
+
+UNDEFINED SYMBOLS
+is_tempo_running
+sync
+turn_off_tempo
+delay_ms
+timer3_init
+note_counter
+turn_on_tempo
+__do_clear_bss

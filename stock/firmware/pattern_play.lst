@@ -1,0 +1,2531 @@
+   1               		.file	"pattern_play.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	chains_equiv
+  12               	chains_equiv:
+  13               	.LVL0:
+  14               	.LFB2:
+  15               		.file 1 "pattern_play.c"
+   1:pattern_play.c **** /*
+   2:pattern_play.c ****  * The software for the x0xb0x is available for use in accordance with the
+   3:pattern_play.c ****  * following open source license (MIT License). For more information about
+   4:pattern_play.c ****  * OS licensing, please visit -> http://www.opensource.org/
+   5:pattern_play.c ****  *
+   6:pattern_play.c ****  * For more information about the x0xb0x project, please visit
+   7:pattern_play.c ****  * -> http://www.ladyada.net/make/x0xb0x
+   8:pattern_play.c ****  *
+   9:pattern_play.c ****  *                                     *****
+  10:pattern_play.c ****  * Copyright (c) 2005 Limor Fried
+  11:pattern_play.c ****  *
+  12:pattern_play.c ****  * Permission is hereby granted, free of charge, to any person obtaining a
+  13:pattern_play.c ****  * copy of this software and associated documentation files (the "Software"),
+  14:pattern_play.c ****  * to deal in the Software without restriction, including without limitation
+  15:pattern_play.c ****  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+  16:pattern_play.c ****  * and/or sell copies of the Software, and to permit persons to whom the
+  17:pattern_play.c ****  * Software is furnished to do so, subject to the following conditions:
+  18:pattern_play.c ****  *
+  19:pattern_play.c ****  * The above copyright notice and this permission notice shall be included in
+  20:pattern_play.c ****  * all copies or substantial portions of the Software.
+  21:pattern_play.c ****  *
+  22:pattern_play.c ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  23:pattern_play.c ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  24:pattern_play.c ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  25:pattern_play.c ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  26:pattern_play.c ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+  27:pattern_play.c ****  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+  28:pattern_play.c ****  * IN THE SOFTWARE.
+  29:pattern_play.c ****  *                                     *****
+  30:pattern_play.c ****  *
+  31:pattern_play.c ****  */
+  32:pattern_play.c **** 
+  33:pattern_play.c **** #include <inttypes.h>
+  34:pattern_play.c **** #include <stdio.h>
+  35:pattern_play.c **** #include <avr/interrupt.h>
+  36:pattern_play.c **** #include "pattern.h"
+  37:pattern_play.c **** #include "track.h"
+  38:pattern_play.c **** #include "switch.h"
+  39:pattern_play.c **** #include "led.h"
+  40:pattern_play.c **** #include "main.h"
+  41:pattern_play.c **** #include "synth.h"
+  42:pattern_play.c **** #include "delay.h"
+  43:pattern_play.c **** #include "dinsync.h"
+  44:pattern_play.c **** #include "midi.h"
+  45:pattern_play.c **** 
+  46:pattern_play.c **** extern uint8_t function, bank;
+  47:pattern_play.c **** 
+  48:pattern_play.c **** extern uint8_t sync;
+  49:pattern_play.c **** 
+  50:pattern_play.c **** extern volatile uint8_t note_counter;
+  51:pattern_play.c **** extern volatile uint8_t dinsync_counter;
+  52:pattern_play.c **** extern volatile int16_t dinsync_clocked, midisync_clocked;
+  53:pattern_play.c **** extern uint8_t midi_in_addr;
+  54:pattern_play.c **** 
+  55:pattern_play.c **** // pattern running info
+  56:pattern_play.c **** extern volatile uint8_t curr_pattern_index;
+  57:pattern_play.c **** extern volatile uint8_t pattern_buff[PATT_SIZE]; // the 'loaded' pattern buffer
+  58:pattern_play.c **** extern uint16_t curr_patt;
+  59:pattern_play.c **** 
+  60:pattern_play.c **** // track runnning info
+  61:pattern_play.c **** extern volatile uint8_t curr_track_index;
+  62:pattern_play.c **** extern volatile uint16_t track_buff[TRACK_SIZE]; // the 'loaded' track buffer
+  63:pattern_play.c **** 
+  64:pattern_play.c **** // a chain can either hold patterns or tracks (depending on the mode
+  65:pattern_play.c **** volatile uint8_t curr_chain[MAX_CHAIN];
+  66:pattern_play.c **** volatile uint8_t curr_chain_index;
+  67:pattern_play.c **** volatile uint8_t next_chain[MAX_CHAIN];
+  68:pattern_play.c **** uint8_t buff_chain[MAX_CHAIN];
+  69:pattern_play.c **** uint8_t buff_chain_len = 0;
+  70:pattern_play.c **** 
+  71:pattern_play.c **** // the currently-playing pitch shift and the upcoming pitch shift
+  72:pattern_play.c **** extern int8_t curr_pitch_shift;
+  73:pattern_play.c **** extern int8_t next_pitch_shift;
+  74:pattern_play.c **** 
+  75:pattern_play.c **** extern uint8_t curr_note;
+  76:pattern_play.c **** 
+  77:pattern_play.c **** uint8_t all_accent = 0;
+  78:pattern_play.c **** uint8_t all_slide = 0;
+  79:pattern_play.c **** uint8_t all_rest = 0; // all the time
+  80:pattern_play.c **** 
+  81:pattern_play.c **** uint8_t curr_bank = 0;
+  82:pattern_play.c **** uint8_t next_bank = 0;
+  83:pattern_play.c **** 
+  84:pattern_play.c **** uint8_t playing;
+  85:pattern_play.c **** 
+  86:pattern_play.c **** volatile uint16_t tap_tempo_timer = 0;
+  87:pattern_play.c **** 
+  88:pattern_play.c **** // could be MIDISYNC, DINSYNC or SYNCOUT
+  89:pattern_play.c **** #define function_changed (function != curr_function)
+  90:pattern_play.c **** 
+  91:pattern_play.c **** // both pattern and track play are similar enough in function
+  92:pattern_play.c **** // (and codespace is small enough) that they're in the same
+  93:pattern_play.c **** // function. eek
+  94:pattern_play.c **** void do_patterntrack_play(void) {
+  95:pattern_play.c ****   uint8_t i = 0, curr_function;
+  96:pattern_play.c ****   uint8_t midi_cmd = 0;
+  97:pattern_play.c ****   // uint8_t midi_data ;
+  98:pattern_play.c **** 
+  99:pattern_play.c ****   curr_function = function;
+ 100:pattern_play.c **** 
+ 101:pattern_play.c ****   if (sync == INTERNAL_SYNC) {
+ 102:pattern_play.c ****     turn_on_tempo();
+ 103:pattern_play.c ****   } else {
+ 104:pattern_play.c ****     turn_off_tempo();
+ 105:pattern_play.c ****   }
+ 106:pattern_play.c ****   if (sync == DIN_SYNC) {
+ 107:pattern_play.c ****     dinsync_set_in();
+ 108:pattern_play.c ****   } else {
+ 109:pattern_play.c ****     dinsync_set_out();
+ 110:pattern_play.c ****   }
+ 111:pattern_play.c **** 
+ 112:pattern_play.c ****   clear_all_leds();
+ 113:pattern_play.c ****   clear_blinking_leds();
+ 114:pattern_play.c ****   next_chain[0] = curr_chain[0] = 0;
+ 115:pattern_play.c ****   next_chain[1] = curr_chain[1] = 0xFF;
+ 116:pattern_play.c ****   set_numkey_led(1);
+ 117:pattern_play.c **** 
+ 118:pattern_play.c ****   playing = FALSE;
+ 119:pattern_play.c **** 
+ 120:pattern_play.c ****   curr_track_index = 0;
+ 121:pattern_play.c ****   curr_pattern_index = 0;
+ 122:pattern_play.c **** 
+ 123:pattern_play.c ****   curr_patt = 0;
+ 124:pattern_play.c **** 
+ 125:pattern_play.c ****   curr_chain_index = 0;
+ 126:pattern_play.c **** 
+ 127:pattern_play.c ****   curr_pitch_shift = next_pitch_shift = 0;
+ 128:pattern_play.c **** 
+ 129:pattern_play.c ****   clear_bank_leds();
+ 130:pattern_play.c ****   if (ANYPATTERNPLAYFUNC)
+ 131:pattern_play.c ****     next_bank = curr_bank = bank;
+ 132:pattern_play.c ****   else // TRACKPLAY
+ 133:pattern_play.c ****     next_bank = curr_bank = bank % 8;
+ 134:pattern_play.c **** 
+ 135:pattern_play.c ****   set_bank_led(bank);
+ 136:pattern_play.c **** 
+ 137:pattern_play.c ****   while (1) {
+ 138:pattern_play.c ****     read_switches();
+ 139:pattern_play.c **** 
+ 140:pattern_play.c ****     if (function_changed) {
+ 141:pattern_play.c ****       playing = FALSE;
+ 142:pattern_play.c **** 
+ 143:pattern_play.c ****       dinsync_stop();
+ 144:pattern_play.c ****       midi_stop();
+ 145:pattern_play.c ****       curr_pitch_shift = next_pitch_shift = 0;
+ 146:pattern_play.c ****       all_accent = all_rest = all_slide = 0;
+ 147:pattern_play.c **** 
+ 148:pattern_play.c ****       clear_all_leds();
+ 149:pattern_play.c ****       clear_blinking_leds();
+ 150:pattern_play.c ****       clock_leds();
+ 151:pattern_play.c ****       return;
+ 152:pattern_play.c ****     }
+ 153:pattern_play.c **** 
+ 154:pattern_play.c ****     // detect 'tap tempo' requests by timing between KEY_DONE strikes
+ 155:pattern_play.c ****     if (just_pressed(KEY_DONE)) {
+ 156:pattern_play.c ****       if ((tap_tempo_timer < 3334)    //  more than 3s between taps = 20BPM
+ 157:pattern_play.c ****           && (tap_tempo_timer > 333)) // less than .3ms between taps = 200BPM
+ 158:pattern_play.c ****       {
+ 159:pattern_play.c ****         tap_tempo_timer = 60000UL / tap_tempo_timer; // convert to BPM
+ 160:pattern_play.c ****         change_tempo(tap_tempo_timer);
+ 161:pattern_play.c ****       }
+ 162:pattern_play.c ****       tap_tempo_timer = 0;
+ 163:pattern_play.c ****     }
+ 164:pattern_play.c **** 
+ 165:pattern_play.c ****     // start a new chain if just pressed
+ 166:pattern_play.c ****     if (just_pressed(KEY_CHAIN)) {
+ 167:pattern_play.c ****       clear_notekey_leds();
+ 168:pattern_play.c ****       clear_blinking_leds();
+ 169:pattern_play.c ****       set_led(LED_CHAIN);
+ 170:pattern_play.c ****       buff_chain_len = 0; // 'start' to write a new chain
+ 171:pattern_play.c ****     }
+ 172:pattern_play.c **** 
+ 173:pattern_play.c ****     // releasing the chain key 'finalizes' the chain buffer
+ 174:pattern_play.c ****     if (just_released(KEY_CHAIN)) {
+ 175:pattern_play.c ****       /*
+ 176:pattern_play.c ****         putstring("buff'd chain = ");
+ 177:pattern_play.c ****         for (i=0; i<MAX_CHAIN; i++) {
+ 178:pattern_play.c ****           if (buff_chain[i] >= 8)
+ 179:pattern_play.c ****             break;
+ 180:pattern_play.c ****           putnum_ud(buff_chain[i]);
+ 181:pattern_play.c ****           uart_putchar(' ');
+ 182:pattern_play.c ****         }
+ 183:pattern_play.c ****         putstring("\n\r");
+ 184:pattern_play.c ****       */
+ 185:pattern_play.c ****       for (i = 0; i < MAX_CHAIN; i++) {
+ 186:pattern_play.c ****         next_chain[i] = buff_chain[i];
+ 187:pattern_play.c ****       }
+ 188:pattern_play.c ****       // if we're not playing something right now, curr = next
+ 189:pattern_play.c ****       if (!playing) {
+ 190:pattern_play.c ****         for (i = 0; i < MAX_CHAIN; i++)
+ 191:pattern_play.c ****           curr_chain[i] = next_chain[i];
+ 192:pattern_play.c ****         curr_pitch_shift = next_pitch_shift;
+ 193:pattern_play.c ****         clear_led(LED_UP);
+ 194:pattern_play.c ****         clear_led(LED_DOWN);
+ 195:pattern_play.c ****       }
+ 196:pattern_play.c ****       clear_led(LED_CHAIN);
+ 197:pattern_play.c ****     }
+ 198:pattern_play.c **** 
+ 199:pattern_play.c ****     if (is_pressed(KEY_CHAIN)) {
+ 200:pattern_play.c ****       // display the current chain
+ 201:pattern_play.c ****       for (i = 0; i < buff_chain_len; i++) {
+ 202:pattern_play.c ****         if (buff_chain[i] >= 8)
+ 203:pattern_play.c ****           break;
+ 204:pattern_play.c ****         set_numkey_led(buff_chain[i] + 1);
+ 205:pattern_play.c ****       }
+ 206:pattern_play.c **** 
+ 207:pattern_play.c ****       // ok lets add patterns/tracks to the buffer chain!
+ 208:pattern_play.c ****       i = get_lowest_numkey_just_pressed();
+ 209:pattern_play.c ****       if ((i != 0) && (buff_chain_len < MAX_CHAIN)) {
+ 210:pattern_play.c ****         buff_chain[buff_chain_len++] = i - 1;
+ 211:pattern_play.c ****         buff_chain[buff_chain_len] = 0xFF;
+ 212:pattern_play.c ****         /*
+ 213:pattern_play.c ****           putstring("adding: ");
+ 214:pattern_play.c ****           putnum_uh(buff_chain[buff_chain_len-1]);
+ 215:pattern_play.c ****           putstring("\n\r");
+ 216:pattern_play.c ****         */
+ 217:pattern_play.c ****         /*
+ 218:pattern_play.c ****           putstring("buff'd chain = ");
+ 219:pattern_play.c ****           for (i=0; i<MAX_CHAIN; i++) {
+ 220:pattern_play.c ****           if (buff_chain[i] >= 8)
+ 221:pattern_play.c ****           break;
+ 222:pattern_play.c ****           putnum_ud(buff_chain[i]);
+ 223:pattern_play.c ****           uart_putchar(' ');
+ 224:pattern_play.c ****           }
+ 225:pattern_play.c ****           putstring("\n\r");
+ 226:pattern_play.c ****         */
+ 227:pattern_play.c ****       }
+ 228:pattern_play.c ****     }
+ 229:pattern_play.c ****     // if they press U or D, show the current pitch shift and allow pitch shift
+ 230:pattern_play.c ****     // adjust
+ 231:pattern_play.c ****     else if (is_pressed(KEY_UP) || is_pressed(KEY_DOWN)) {
+ 232:pattern_play.c ****       int8_t notekey = get_lowest_notekey_pressed();
+ 233:pattern_play.c **** 
+ 234:pattern_play.c ****       // clear any pattern indicator leds
+ 235:pattern_play.c ****       if (just_pressed(KEY_UP) || just_pressed(KEY_DOWN)) {
+ 236:pattern_play.c ****         clear_notekey_leds();
+ 237:pattern_play.c ****         clear_blinking_leds();
+ 238:pattern_play.c ****         clear_led(LED_CHAIN);
+ 239:pattern_play.c ****       }
+ 240:pattern_play.c **** 
+ 241:pattern_play.c ****       // check if they are changing the shift
+ 242:pattern_play.c ****       if (is_pressed(KEY_UP)) {
+ 243:pattern_play.c ****         clear_led(LED_DOWN);
+ 244:pattern_play.c ****         set_led(LED_UP);
+ 245:pattern_play.c **** 
+ 246:pattern_play.c ****         if (notekey != -1)
+ 247:pattern_play.c ****           next_pitch_shift = notekey;
+ 248:pattern_play.c ****         if (curr_pitch_shift >= 0) {
+ 249:pattern_play.c ****           if (!is_notekey_led_blink(curr_pitch_shift)) {
+ 250:pattern_play.c ****             clear_blinking_leds();
+ 251:pattern_play.c ****             set_notekey_led_blink(curr_pitch_shift);
+ 252:pattern_play.c ****           }
+ 253:pattern_play.c ****         }
+ 254:pattern_play.c ****         if (next_pitch_shift != curr_pitch_shift)
+ 255:pattern_play.c ****           set_notekey_led(next_pitch_shift);
+ 256:pattern_play.c ****       } else if (is_pressed(KEY_DOWN)) {
+ 257:pattern_play.c ****         clear_led(LED_UP);
+ 258:pattern_play.c ****         set_led(LED_DOWN);
+ 259:pattern_play.c **** 
+ 260:pattern_play.c ****         if (notekey != -1)
+ 261:pattern_play.c ****           next_pitch_shift = notekey - OCTAVE; // invert direction
+ 262:pattern_play.c **** 
+ 263:pattern_play.c ****         if (curr_pitch_shift <= 0) {
+ 264:pattern_play.c ****           if (!is_notekey_led_blink(OCTAVE + curr_pitch_shift)) {
+ 265:pattern_play.c ****             clear_blinking_leds();
+ 266:pattern_play.c ****             set_notekey_led_blink(OCTAVE + curr_pitch_shift);
+ 267:pattern_play.c ****           }
+ 268:pattern_play.c ****         }
+ 269:pattern_play.c ****         if (next_pitch_shift != curr_pitch_shift)
+ 270:pattern_play.c ****           set_notekey_led(OCTAVE + next_pitch_shift);
+ 271:pattern_play.c ****       }
+ 272:pattern_play.c **** 
+ 273:pattern_play.c ****       // if not playing something right now,
+ 274:pattern_play.c ****       // make the pitch shift effective immediately
+ 275:pattern_play.c ****       if (!playing)
+ 276:pattern_play.c ****         curr_pitch_shift = next_pitch_shift;
+ 277:pattern_play.c **** 
+ 278:pattern_play.c ****     } else {
+ 279:pattern_play.c ****       if (just_released(KEY_UP) || just_released(KEY_DOWN)) {
+ 280:pattern_play.c ****         // clear any pitch shift indicators
+ 281:pattern_play.c ****         clear_notekey_leds();
+ 282:pattern_play.c ****         clear_blinking_leds();
+ 283:pattern_play.c ****       }
+ 284:pattern_play.c **** 
+ 285:pattern_play.c ****       // if they just pressed a numkey, make a chain thats
+ 286:pattern_play.c ****       // one pattern long
+ 287:pattern_play.c ****       i = get_lowest_numkey_pressed();
+ 288:pattern_play.c ****       if ((i != 0) || has_bank_knob_changed()) {
+ 289:pattern_play.c ****         if (i != 0) {
+ 290:pattern_play.c ****           clear_numkey_leds();
+ 291:pattern_play.c ****           buff_chain[0] = next_chain[0] = i - 1;
+ 292:pattern_play.c ****           buff_chain[1] = next_chain[1] = 0xFF;
+ 293:pattern_play.c **** 
+ 294:pattern_play.c ****           if (!playing)
+ 295:pattern_play.c ****             for (i = 0; i < MAX_CHAIN; i++)
+ 296:pattern_play.c ****               curr_chain[i] = next_chain[i];
+ 297:pattern_play.c ****         } else {
+ 298:pattern_play.c ****           if (ANYPATTERNPLAYFUNC)
+ 299:pattern_play.c ****             next_bank = bank;
+ 300:pattern_play.c ****           else
+ 301:pattern_play.c ****             next_bank = bank % 8;
+ 302:pattern_play.c **** 
+ 303:pattern_play.c ****           if (!playing)
+ 304:pattern_play.c ****             curr_bank = next_bank;
+ 305:pattern_play.c ****         }
+ 306:pattern_play.c ****         if (!playing) {
+ 307:pattern_play.c ****           clear_bank_leds();
+ 308:pattern_play.c ****           set_bank_led(next_bank);
+ 309:pattern_play.c ****           curr_pitch_shift = next_pitch_shift;
+ 310:pattern_play.c ****         }
+ 311:pattern_play.c ****       }
+ 312:pattern_play.c **** 
+ 313:pattern_play.c ****       // indicate current pattern & next pattern & shift
+ 314:pattern_play.c ****       if (!chains_equiv(next_chain, curr_chain)) {
+ 315:pattern_play.c ****         if (next_chain[1] == END_OF_CHAIN && curr_chain[1] == END_OF_CHAIN) {
+ 316:pattern_play.c ****           // basically single patterns. current blinks
+ 317:pattern_play.c ****           set_numkey_led_blink(curr_chain[0] + 1);
+ 318:pattern_play.c ****         }
+ 319:pattern_play.c **** 
+ 320:pattern_play.c ****         // otherwise, always just show the next chain in all solid lights
+ 321:pattern_play.c ****         for (i = 0; i < MAX_CHAIN; i++) {
+ 322:pattern_play.c ****           if (next_chain[i] > 8)
+ 323:pattern_play.c ****             break;
+ 324:pattern_play.c ****           set_numkey_led(next_chain[i] + 1);
+ 325:pattern_play.c ****         }
+ 326:pattern_play.c ****       } else {
+ 327:pattern_play.c ****         for (i = 0; i < MAX_CHAIN; i++) {
+ 328:pattern_play.c ****           if (curr_chain[i] > 8)
+ 329:pattern_play.c ****             break;
+ 330:pattern_play.c ****           if (playing && (curr_chain[i] == curr_chain[curr_chain_index])) {
+ 331:pattern_play.c ****             if (!is_numkey_led_blink(curr_chain[i] + 1)) {
+ 332:pattern_play.c ****               // if playing, current pattern/track blinks
+ 333:pattern_play.c ****               clear_numkey_led(curr_chain[i] + 1);
+ 334:pattern_play.c ****               set_numkey_led_blink(curr_chain[i] + 1);
+ 335:pattern_play.c ****             }
+ 336:pattern_play.c ****           } else {
+ 337:pattern_play.c ****             // clear old blinking tracks/patterns
+ 338:pattern_play.c ****             if (is_numkey_led_blink(curr_chain[i] + 1))
+ 339:pattern_play.c ****               clear_blinking_leds();
+ 340:pattern_play.c ****             // all other patterns in chain solid
+ 341:pattern_play.c ****             set_numkey_led(curr_chain[i] + 1);
+ 342:pattern_play.c ****           }
+ 343:pattern_play.c ****         }
+ 344:pattern_play.c ****       }
+ 345:pattern_play.c ****       display_curr_pitch_shift_ud();
+ 346:pattern_play.c ****     }
+ 347:pattern_play.c **** 
+ 348:pattern_play.c ****     // if syncing by MIDI, look for midi commands
+ 349:pattern_play.c ****     if (sync == MIDI_SYNC) {
+ 350:pattern_play.c ****       midi_cmd = midi_recv_cmd(); // returns 0 if no midi commands waiting
+ 351:pattern_play.c ****       
+ 352:pattern_play.c ****       // pattern bank/location control via midi
+ 353:pattern_play.c **** 
+ 354:pattern_play.c ****       if ((midi_cmd >> 4 == 0xc) && ((midi_cmd & 0xF) == midi_in_addr) && midi_getch()) {
+ 355:pattern_play.c ****         midi_cmd = midi_getchar();
+ 356:pattern_play.c ****         if (! (midi_cmd & 0x80))  {
+ 357:pattern_play.c ****           curr_bank = midi_cmd / 8; // override the bank!
+ 358:pattern_play.c ****           curr_chain[0] = buff_chain[0] = next_chain[0] = midi_cmd % 8;
+ 359:pattern_play.c ****           curr_chain[1] = buff_chain[1] = next_chain[1] = 0xFF;
+ 360:pattern_play.c ****           load_pattern(bank, curr_chain[0]);
+ 361:pattern_play.c **** 
+ 362:pattern_play.c ****           clear_numkey_leds();
+ 363:pattern_play.c ****           set_numkey_led(curr_chain[0]+1);
+ 364:pattern_play.c ****           midi_cmd = 0;
+ 365:pattern_play.c ****         }
+ 366:pattern_play.c ****       }
+ 367:pattern_play.c ****       
+ 368:pattern_play.c ****     }
+ 369:pattern_play.c **** 
+ 370:pattern_play.c ****     if (((sync == INTERNAL_SYNC) && just_pressed(KEY_RS) && playing) ||
+ 371:pattern_play.c ****         ((sync == MIDI_SYNC) && (midi_cmd == MIDI_STOP)) ||
+ 372:pattern_play.c ****         ((sync == DIN_SYNC) && dinsync_stopped())) {
+ 373:pattern_play.c ****       // putstring("stop\n\r");
+ 374:pattern_play.c ****       playing = FALSE;
+ 375:pattern_play.c ****       note_off(0);
+ 376:pattern_play.c ****       midi_stop();
+ 377:pattern_play.c **** 
+ 378:pattern_play.c ****       if (sync != DIN_SYNC)
+ 379:pattern_play.c ****         dinsync_stop();
+ 380:pattern_play.c **** 
+ 381:pattern_play.c ****       clear_led(LED_RS);
+ 382:pattern_play.c ****       clear_blinking_leds();
+ 383:pattern_play.c ****       clear_bank_leds();
+ 384:pattern_play.c ****       if (ANYPATTERNPLAYFUNC)
+ 385:pattern_play.c ****         set_bank_led(bank);
+ 386:pattern_play.c ****       else
+ 387:pattern_play.c ****         set_bank_led(bank % 8);
+ 388:pattern_play.c ****     } else if (((sync == INTERNAL_SYNC) && just_pressed(KEY_RS) && !playing) ||
+ 389:pattern_play.c ****                ((sync == MIDI_SYNC) &&
+ 390:pattern_play.c ****                 ((midi_cmd == MIDI_START) || (midi_cmd == MIDI_CONTINUE))) ||
+ 391:pattern_play.c ****                ((sync == DIN_SYNC) && dinsync_started())) {
+ 392:pattern_play.c ****       set_led(LED_RS);
+ 393:pattern_play.c ****       // putstring("start\n\r");
+ 394:pattern_play.c **** 
+ 395:pattern_play.c ****       if (ANYPATTERNPLAYFUNC)
+ 396:pattern_play.c ****         load_pattern(bank, curr_chain[0]);
+ 397:pattern_play.c ****       else {
+ 398:pattern_play.c ****         load_track(bank % 8, curr_chain[0]);
+ 399:pattern_play.c ****         curr_patt = track_buff[0];
+ 400:pattern_play.c ****         load_curr_patt(); // ignore pitch shift returned
+ 401:pattern_play.c ****       }
+ 402:pattern_play.c ****       curr_note = REST;
+ 403:pattern_play.c ****       /*
+ 404:pattern_play.c ****         putstring("next pattern (bank ");
+ 405:pattern_play.c ****         putnum_ud(bank);
+ 406:pattern_play.c ****         putstring(", loc ");
+ 407:pattern_play.c ****         putnum_ud(curr_pattern_location);
+ 408:pattern_play.c ****         putstring("\n\r");
+ 409:pattern_play.c ****       */
+ 410:pattern_play.c **** 
+ 411:pattern_play.c ****       // on midisync continue message, continue!
+ 412:pattern_play.c ****       if (!((sync == MIDI_SYNC) && (midi_cmd == MIDI_CONTINUE))) {
+ 413:pattern_play.c ****         curr_chain_index = 0;   // index into current chain
+ 414:pattern_play.c ****         curr_pattern_index = 0; // index into current pattern in chain
+ 415:pattern_play.c ****         curr_track_index = 0;   // index into current pattern in chain
+ 416:pattern_play.c ****       }
+ 417:pattern_play.c **** 
+ 418:pattern_play.c ****       note_counter = 0;
+ 419:pattern_play.c ****       dinsync_counter = 0;
+ 420:pattern_play.c ****       dinsync_clocked = 0;
+ 421:pattern_play.c ****       playing = TRUE;
+ 422:pattern_play.c ****       midi_putchar(MIDI_START);
+ 423:pattern_play.c ****       if (sync != DIN_SYNC)
+ 424:pattern_play.c ****         dinsync_start();
+ 425:pattern_play.c ****     }
+ 426:pattern_play.c **** 
+ 427:pattern_play.c ****     if (playing) {
+ 428:pattern_play.c ****       // midi sync clock ticks
+ 429:pattern_play.c ****       if ((sync == MIDI_SYNC) && (midisync_clocked > 0)) {
+ 430:pattern_play.c ****         midisync_clocked -= MIDISYNC_PPQ / 8;
+ 431:pattern_play.c ****         do_tempo();
+ 432:pattern_play.c ****         continue;
+ 433:pattern_play.c ****       }
+ 434:pattern_play.c ****       // din sync clock ticks
+ 435:pattern_play.c ****       else if ((sync == DIN_SYNC) && (dinsync_clocked > 0)) {
+ 436:pattern_play.c ****         dinsync_clocked -= DINSYNC_PPQ / 8;
+ 437:pattern_play.c ****         do_tempo();
+ 438:pattern_play.c ****         continue;
+ 439:pattern_play.c ****       }
+ 440:pattern_play.c ****     }
+ 441:pattern_play.c **** 
+ 442:pattern_play.c ****     if (just_pressed(KEY_SLIDE)) {
+ 443:pattern_play.c ****       all_slide = !all_slide;
+ 444:pattern_play.c ****       if (all_slide)
+ 445:pattern_play.c ****         set_led(LED_SLIDE);
+ 446:pattern_play.c ****       else
+ 447:pattern_play.c ****         clear_led(LED_SLIDE);
+ 448:pattern_play.c ****     }
+ 449:pattern_play.c **** 
+ 450:pattern_play.c ****     if (just_pressed(KEY_ACCENT)) {
+ 451:pattern_play.c ****       all_accent = !all_accent;
+ 452:pattern_play.c ****       if (all_accent)
+ 453:pattern_play.c ****         set_led(LED_ACCENT);
+ 454:pattern_play.c ****       else
+ 455:pattern_play.c ****         clear_led(LED_ACCENT);
+ 456:pattern_play.c ****     }
+ 457:pattern_play.c **** 
+ 458:pattern_play.c ****     if (just_pressed(KEY_REST)) {
+ 459:pattern_play.c ****       all_rest = !all_rest;
+ 460:pattern_play.c ****       if (all_rest)
+ 461:pattern_play.c ****         set_led(LED_REST);
+ 462:pattern_play.c ****       else
+ 463:pattern_play.c ****         clear_led(LED_REST);
+ 464:pattern_play.c ****     }
+ 465:pattern_play.c ****   }
+ 466:pattern_play.c **** }
+ 467:pattern_play.c **** 
+ 468:pattern_play.c **** uint8_t chains_equiv(volatile uint8_t *chain1, volatile uint8_t *chain2) {
+  16               		.loc 1 468 74 view -0
+  17               		.cfi_startproc
+  18               	/* prologue: function */
+  19               	/* frame size = 0 */
+  20               	/* stack size = 0 */
+  21               	.L__stack_usage = 0
+  22               		.loc 1 468 74 is_stmt 0 view .LVU1
+  23 0000 9C01      		movw r18,r24
+  24 0002 AB01      		movw r20,r22
+ 469:pattern_play.c ****   uint8_t i;
+  25               		.loc 1 469 3 is_stmt 1 view .LVU2
+ 470:pattern_play.c **** 
+ 471:pattern_play.c ****   for (i = 0; i < MAX_CHAIN; i++) {
+  26               		.loc 1 471 3 view .LVU3
+  27               	.LVL1:
+ 468:pattern_play.c ****   uint8_t i;
+  28               		.loc 1 468 74 is_stmt 0 view .LVU4
+  29 0004 90E0      		ldi r25,0
+  30 0006 80E0      		ldi r24,0
+  31               	.LVL2:
+  32               	.L3:
+ 472:pattern_play.c ****     if (chain1[i] != chain2[i])
+  33               		.loc 1 472 5 is_stmt 1 view .LVU5
+  34 0008 F901      		movw r30,r18
+  35 000a E80F      		add r30,r24
+  36 000c F91F      		adc r31,r25
+  37               		.loc 1 472 15 is_stmt 0 view .LVU6
+  38 000e 7081      		ld r23,Z
+  39 0010 DA01      		movw r26,r20
+  40 0012 A80F      		add r26,r24
+  41 0014 B91F      		adc r27,r25
+  42               		.loc 1 472 28 view .LVU7
+  43 0016 6C91      		ld r22,X
+  44               		.loc 1 472 8 view .LVU8
+  45 0018 7613      		cpse r23,r22
+  46 001a 00C0      		rjmp .L4
+ 473:pattern_play.c ****       return FALSE;
+ 474:pattern_play.c ****     if (chain1[i] == 0xFF)
+  47               		.loc 1 474 5 is_stmt 1 view .LVU9
+  48               		.loc 1 474 15 is_stmt 0 view .LVU10
+  49 001c 6081      		ld r22,Z
+  50               		.loc 1 474 8 view .LVU11
+  51 001e 6F3F      		cpi r22,lo8(-1)
+  52 0020 01F0      		breq .L5
+  53               	.LVL3:
+  54               		.loc 1 474 8 view .LVU12
+  55 0022 0196      		adiw r24,1
+  56               	.LVL4:
+ 471:pattern_play.c ****     if (chain1[i] != chain2[i])
+  57               		.loc 1 471 3 discriminator 2 view .LVU13
+  58 0024 8032      		cpi r24,32
+  59 0026 9105      		cpc r25,__zero_reg__
+  60 0028 01F4      		brne .L3
+  61               	.LVL5:
+  62               	.L5:
+ 475:pattern_play.c ****       return TRUE;
+  63               		.loc 1 475 14 view .LVU14
+  64 002a 81E0      		ldi r24,lo8(1)
+  65               	/* epilogue start */
+ 476:pattern_play.c ****   }
+ 477:pattern_play.c ****   return TRUE;
+ 478:pattern_play.c **** }
+  66               		.loc 1 478 1 view .LVU15
+  67 002c 0895      		ret
+  68               	.LVL6:
+  69               	.L4:
+ 473:pattern_play.c ****     if (chain1[i] == 0xFF)
+  70               		.loc 1 473 14 view .LVU16
+  71 002e 80E0      		ldi r24,0
+  72               	.LVL7:
+ 473:pattern_play.c ****     if (chain1[i] == 0xFF)
+  73               		.loc 1 473 14 view .LVU17
+  74 0030 0895      		ret
+  75               		.cfi_endproc
+  76               	.LFE2:
+  78               	.global	do_patterntrack_play
+  80               	do_patterntrack_play:
+  81               	.LFB1:
+  94:pattern_play.c ****   uint8_t i = 0, curr_function;
+  82               		.loc 1 94 33 is_stmt 1 view -0
+  83               		.cfi_startproc
+  84 0032 AF92      		push r10
+  85               		.cfi_def_cfa_offset 3
+  86               		.cfi_offset 10, -2
+  87 0034 BF92      		push r11
+  88               		.cfi_def_cfa_offset 4
+  89               		.cfi_offset 11, -3
+  90 0036 CF92      		push r12
+  91               		.cfi_def_cfa_offset 5
+  92               		.cfi_offset 12, -4
+  93 0038 DF92      		push r13
+  94               		.cfi_def_cfa_offset 6
+  95               		.cfi_offset 13, -5
+  96 003a EF92      		push r14
+  97               		.cfi_def_cfa_offset 7
+  98               		.cfi_offset 14, -6
+  99 003c FF92      		push r15
+ 100               		.cfi_def_cfa_offset 8
+ 101               		.cfi_offset 15, -7
+ 102 003e 0F93      		push r16
+ 103               		.cfi_def_cfa_offset 9
+ 104               		.cfi_offset 16, -8
+ 105 0040 1F93      		push r17
+ 106               		.cfi_def_cfa_offset 10
+ 107               		.cfi_offset 17, -9
+ 108 0042 CF93      		push r28
+ 109               		.cfi_def_cfa_offset 11
+ 110               		.cfi_offset 28, -10
+ 111 0044 DF93      		push r29
+ 112               		.cfi_def_cfa_offset 12
+ 113               		.cfi_offset 29, -11
+ 114               	/* prologue: function */
+ 115               	/* frame size = 0 */
+ 116               	/* stack size = 10 */
+ 117               	.L__stack_usage = 10
+  95:pattern_play.c ****   uint8_t midi_cmd = 0;
+ 118               		.loc 1 95 3 view .LVU19
+ 119               	.LVL8:
+  96:pattern_play.c ****   // uint8_t midi_data ;
+ 120               		.loc 1 96 3 view .LVU20
+  99:pattern_play.c **** 
+ 121               		.loc 1 99 3 view .LVU21
+  99:pattern_play.c **** 
+ 122               		.loc 1 99 17 is_stmt 0 view .LVU22
+ 123 0046 C090 0000 		lds r12,function
+ 124               	.LVL9:
+ 101:pattern_play.c ****     turn_on_tempo();
+ 125               		.loc 1 101 3 is_stmt 1 view .LVU23
+ 101:pattern_play.c ****     turn_on_tempo();
+ 126               		.loc 1 101 6 is_stmt 0 view .LVU24
+ 127 004a 8091 0000 		lds r24,sync
+ 128 004e 8111      		cpse r24,__zero_reg__
+ 129 0050 00C0      		rjmp .L8
+ 102:pattern_play.c ****   } else {
+ 130               		.loc 1 102 5 is_stmt 1 view .LVU25
+ 131 0052 0E94 0000 		call turn_on_tempo
+ 132               	.LVL10:
+ 133               	.L9:
+ 106:pattern_play.c ****     dinsync_set_in();
+ 134               		.loc 1 106 3 view .LVU26
+ 106:pattern_play.c ****     dinsync_set_in();
+ 135               		.loc 1 106 6 is_stmt 0 view .LVU27
+ 136 0056 8091 0000 		lds r24,sync
+ 137 005a 8130      		cpi r24,lo8(1)
+ 138 005c 01F0      		breq .+2
+ 139 005e 00C0      		rjmp .L10
+ 107:pattern_play.c ****   } else {
+ 140               		.loc 1 107 5 is_stmt 1 view .LVU28
+ 141 0060 0E94 0000 		call dinsync_set_in
+ 142               	.LVL11:
+ 143               	.L11:
+ 112:pattern_play.c ****   clear_blinking_leds();
+ 144               		.loc 1 112 3 view .LVU29
+ 145 0064 0E94 0000 		call clear_all_leds
+ 146               	.LVL12:
+ 113:pattern_play.c ****   next_chain[0] = curr_chain[0] = 0;
+ 147               		.loc 1 113 3 view .LVU30
+ 148 0068 0E94 0000 		call clear_blinking_leds
+ 149               	.LVL13:
+ 114:pattern_play.c ****   next_chain[1] = curr_chain[1] = 0xFF;
+ 150               		.loc 1 114 3 view .LVU31
+ 114:pattern_play.c ****   next_chain[1] = curr_chain[1] = 0xFF;
+ 151               		.loc 1 114 33 is_stmt 0 view .LVU32
+ 152 006c 1092 0000 		sts curr_chain,__zero_reg__
+ 114:pattern_play.c ****   next_chain[1] = curr_chain[1] = 0xFF;
+ 153               		.loc 1 114 17 view .LVU33
+ 154 0070 1092 0000 		sts next_chain,__zero_reg__
+ 115:pattern_play.c ****   set_numkey_led(1);
+ 155               		.loc 1 115 3 is_stmt 1 view .LVU34
+ 115:pattern_play.c ****   set_numkey_led(1);
+ 156               		.loc 1 115 33 is_stmt 0 view .LVU35
+ 157 0074 8FEF      		ldi r24,lo8(-1)
+ 158 0076 8093 0000 		sts curr_chain+1,r24
+ 115:pattern_play.c ****   set_numkey_led(1);
+ 159               		.loc 1 115 17 view .LVU36
+ 160 007a 8093 0000 		sts next_chain+1,r24
+ 116:pattern_play.c **** 
+ 161               		.loc 1 116 3 is_stmt 1 view .LVU37
+ 162 007e 81E0      		ldi r24,lo8(1)
+ 163 0080 0E94 0000 		call set_numkey_led
+ 164               	.LVL14:
+ 118:pattern_play.c **** 
+ 165               		.loc 1 118 3 view .LVU38
+ 118:pattern_play.c **** 
+ 166               		.loc 1 118 11 is_stmt 0 view .LVU39
+ 167 0084 1092 0000 		sts playing,__zero_reg__
+ 120:pattern_play.c ****   curr_pattern_index = 0;
+ 168               		.loc 1 120 3 is_stmt 1 view .LVU40
+ 120:pattern_play.c ****   curr_pattern_index = 0;
+ 169               		.loc 1 120 20 is_stmt 0 view .LVU41
+ 170 0088 1092 0000 		sts curr_track_index,__zero_reg__
+ 121:pattern_play.c **** 
+ 171               		.loc 1 121 3 is_stmt 1 view .LVU42
+ 121:pattern_play.c **** 
+ 172               		.loc 1 121 22 is_stmt 0 view .LVU43
+ 173 008c 1092 0000 		sts curr_pattern_index,__zero_reg__
+ 123:pattern_play.c **** 
+ 174               		.loc 1 123 3 is_stmt 1 view .LVU44
+ 123:pattern_play.c **** 
+ 175               		.loc 1 123 13 is_stmt 0 view .LVU45
+ 176 0090 1092 0000 		sts curr_patt+1,__zero_reg__
+ 177 0094 1092 0000 		sts curr_patt,__zero_reg__
+ 125:pattern_play.c **** 
+ 178               		.loc 1 125 3 is_stmt 1 view .LVU46
+ 125:pattern_play.c **** 
+ 179               		.loc 1 125 20 is_stmt 0 view .LVU47
+ 180 0098 1092 0000 		sts curr_chain_index,__zero_reg__
+ 127:pattern_play.c **** 
+ 181               		.loc 1 127 3 is_stmt 1 view .LVU48
+ 127:pattern_play.c **** 
+ 182               		.loc 1 127 39 is_stmt 0 view .LVU49
+ 183 009c 1092 0000 		sts next_pitch_shift,__zero_reg__
+ 127:pattern_play.c **** 
+ 184               		.loc 1 127 20 view .LVU50
+ 185 00a0 1092 0000 		sts curr_pitch_shift,__zero_reg__
+ 129:pattern_play.c ****   if (ANYPATTERNPLAYFUNC)
+ 186               		.loc 1 129 3 is_stmt 1 view .LVU51
+ 187 00a4 0E94 0000 		call clear_bank_leds
+ 188               	.LVL15:
+ 130:pattern_play.c ****     next_bank = curr_bank = bank;
+ 189               		.loc 1 130 3 view .LVU52
+ 130:pattern_play.c ****     next_bank = curr_bank = bank;
+ 190               		.loc 1 130 7 is_stmt 0 view .LVU53
+ 191 00a8 9091 0000 		lds r25,function
+ 192 00ac 8091 0000 		lds r24,bank
+ 193 00b0 9B30      		cpi r25,lo8(11)
+ 194 00b2 01F0      		breq .L198
+ 130:pattern_play.c ****     next_bank = curr_bank = bank;
+ 195               		.loc 1 130 7 discriminator 2 view .LVU54
+ 196 00b4 977F      		andi r25,lo8(-9)
+ 197 00b6 9730      		cpi r25,lo8(7)
+ 198 00b8 01F4      		brne .L13
+ 199               	.L198:
+ 133:pattern_play.c **** 
+ 200               		.loc 1 133 27 view .LVU55
+ 201 00ba 8093 0000 		sts curr_bank,r24
+ 133:pattern_play.c **** 
+ 202               		.loc 1 133 15 view .LVU56
+ 203 00be 8093 0000 		sts next_bank,r24
+ 135:pattern_play.c **** 
+ 204               		.loc 1 135 3 is_stmt 1 view .LVU57
+ 205 00c2 8091 0000 		lds r24,bank
+ 206 00c6 0E94 0000 		call set_bank_led
+ 207               	.LVL16:
+  96:pattern_play.c ****   // uint8_t midi_data ;
+ 208               		.loc 1 96 11 is_stmt 0 view .LVU58
+ 209 00ca C0E0      		ldi r28,0
+ 159:pattern_play.c ****         change_tempo(tap_tempo_timer);
+ 210               		.loc 1 159 25 view .LVU59
+ 211 00cc 00E6      		ldi r16,lo8(96)
+ 212 00ce 1AEE      		ldi r17,lo8(-22)
+ 292:pattern_play.c **** 
+ 213               		.loc 1 292 41 view .LVU60
+ 214 00d0 DD24      		clr r13
+ 215 00d2 DA94      		dec r13
+ 216               	.LVL17:
+ 217               	.L15:
+ 137:pattern_play.c ****     read_switches();
+ 218               		.loc 1 137 3 is_stmt 1 view .LVU61
+ 138:pattern_play.c **** 
+ 219               		.loc 1 138 5 view .LVU62
+ 220 00d4 0E94 0000 		call read_switches
+ 221               	.LVL18:
+ 140:pattern_play.c ****       playing = FALSE;
+ 222               		.loc 1 140 5 view .LVU63
+ 140:pattern_play.c ****       playing = FALSE;
+ 223               		.loc 1 140 8 is_stmt 0 view .LVU64
+ 224 00d8 8091 0000 		lds r24,function
+ 225 00dc 8C15      		cp r24,r12
+ 226 00de 01F0      		breq .L16
+ 141:pattern_play.c **** 
+ 227               		.loc 1 141 7 is_stmt 1 view .LVU65
+ 141:pattern_play.c **** 
+ 228               		.loc 1 141 15 is_stmt 0 view .LVU66
+ 229 00e0 1092 0000 		sts playing,__zero_reg__
+ 143:pattern_play.c ****       midi_stop();
+ 230               		.loc 1 143 7 is_stmt 1 view .LVU67
+ 231 00e4 0E94 0000 		call dinsync_stop
+ 232               	.LVL19:
+ 144:pattern_play.c ****       curr_pitch_shift = next_pitch_shift = 0;
+ 233               		.loc 1 144 7 view .LVU68
+ 234 00e8 0E94 0000 		call midi_stop
+ 235               	.LVL20:
+ 145:pattern_play.c ****       all_accent = all_rest = all_slide = 0;
+ 236               		.loc 1 145 7 view .LVU69
+ 145:pattern_play.c ****       all_accent = all_rest = all_slide = 0;
+ 237               		.loc 1 145 43 is_stmt 0 view .LVU70
+ 238 00ec 1092 0000 		sts next_pitch_shift,__zero_reg__
+ 145:pattern_play.c ****       all_accent = all_rest = all_slide = 0;
+ 239               		.loc 1 145 24 view .LVU71
+ 240 00f0 1092 0000 		sts curr_pitch_shift,__zero_reg__
+ 146:pattern_play.c **** 
+ 241               		.loc 1 146 7 is_stmt 1 view .LVU72
+ 146:pattern_play.c **** 
+ 242               		.loc 1 146 41 is_stmt 0 view .LVU73
+ 243 00f4 1092 0000 		sts all_slide,__zero_reg__
+ 146:pattern_play.c **** 
+ 244               		.loc 1 146 29 view .LVU74
+ 245 00f8 1092 0000 		sts all_rest,__zero_reg__
+ 146:pattern_play.c **** 
+ 246               		.loc 1 146 18 view .LVU75
+ 247 00fc 1092 0000 		sts all_accent,__zero_reg__
+ 148:pattern_play.c ****       clear_blinking_leds();
+ 248               		.loc 1 148 7 is_stmt 1 view .LVU76
+ 249 0100 0E94 0000 		call clear_all_leds
+ 250               	.LVL21:
+ 149:pattern_play.c ****       clock_leds();
+ 251               		.loc 1 149 7 view .LVU77
+ 252 0104 0E94 0000 		call clear_blinking_leds
+ 253               	.LVL22:
+ 150:pattern_play.c ****       return;
+ 254               		.loc 1 150 7 view .LVU78
+ 255               	/* epilogue start */
+ 466:pattern_play.c **** 
+ 256               		.loc 1 466 1 is_stmt 0 view .LVU79
+ 257 0108 DF91      		pop r29
+ 258 010a CF91      		pop r28
+ 259               	.LVL23:
+ 466:pattern_play.c **** 
+ 260               		.loc 1 466 1 view .LVU80
+ 261 010c 1F91      		pop r17
+ 262 010e 0F91      		pop r16
+ 263 0110 FF90      		pop r15
+ 264 0112 EF90      		pop r14
+ 265 0114 DF90      		pop r13
+ 266 0116 CF90      		pop r12
+ 267               	.LVL24:
+ 466:pattern_play.c **** 
+ 268               		.loc 1 466 1 view .LVU81
+ 269 0118 BF90      		pop r11
+ 270 011a AF90      		pop r10
+ 150:pattern_play.c ****       return;
+ 271               		.loc 1 150 7 view .LVU82
+ 272 011c 0C94 0000 		jmp clock_leds
+ 273               	.LVL25:
+ 274               	.L8:
+ 104:pattern_play.c ****   }
+ 275               		.loc 1 104 5 is_stmt 1 view .LVU83
+ 276 0120 0E94 0000 		call turn_off_tempo
+ 277               	.LVL26:
+ 278 0124 00C0      		rjmp .L9
+ 279               	.L10:
+ 109:pattern_play.c ****   }
+ 280               		.loc 1 109 5 view .LVU84
+ 281 0126 0E94 0000 		call dinsync_set_out
+ 282               	.LVL27:
+ 283 012a 00C0      		rjmp .L11
+ 284               	.L13:
+ 133:pattern_play.c **** 
+ 285               		.loc 1 133 5 view .LVU85
+ 133:pattern_play.c **** 
+ 286               		.loc 1 133 34 is_stmt 0 view .LVU86
+ 287 012c 8770      		andi r24,lo8(7)
+ 288 012e 00C0      		rjmp .L198
+ 289               	.LVL28:
+ 290               	.L16:
+ 155:pattern_play.c ****       if ((tap_tempo_timer < 3334)    //  more than 3s between taps = 20BPM
+ 291               		.loc 1 155 5 is_stmt 1 view .LVU87
+ 155:pattern_play.c ****       if ((tap_tempo_timer < 3334)    //  more than 3s between taps = 20BPM
+ 292               		.loc 1 155 9 is_stmt 0 view .LVU88
+ 293 0130 87E1      		ldi r24,lo8(23)
+ 294 0132 0E94 0000 		call just_pressed
+ 295               	.LVL29:
+ 155:pattern_play.c ****       if ((tap_tempo_timer < 3334)    //  more than 3s between taps = 20BPM
+ 296               		.loc 1 155 8 view .LVU89
+ 297 0136 8823      		tst r24
+ 298 0138 01F0      		breq .L17
+ 156:pattern_play.c ****           && (tap_tempo_timer > 333)) // less than .3ms between taps = 200BPM
+ 299               		.loc 1 156 7 is_stmt 1 view .LVU90
+ 156:pattern_play.c ****           && (tap_tempo_timer > 333)) // less than .3ms between taps = 200BPM
+ 300               		.loc 1 156 28 is_stmt 0 view .LVU91
+ 301 013a 8091 0000 		lds r24,tap_tempo_timer
+ 302 013e 9091 0000 		lds r25,tap_tempo_timer+1
+ 156:pattern_play.c ****           && (tap_tempo_timer > 333)) // less than .3ms between taps = 200BPM
+ 303               		.loc 1 156 10 view .LVU92
+ 304 0142 8630      		cpi r24,6
+ 305 0144 9D40      		sbci r25,13
+ 306 0146 00F4      		brsh .L18
+ 157:pattern_play.c ****       {
+ 307               		.loc 1 157 31 view .LVU93
+ 308 0148 8091 0000 		lds r24,tap_tempo_timer
+ 309 014c 9091 0000 		lds r25,tap_tempo_timer+1
+ 157:pattern_play.c ****       {
+ 310               		.loc 1 157 11 view .LVU94
+ 311 0150 8E34      		cpi r24,78
+ 312 0152 9140      		sbci r25,1
+ 313 0154 00F0      		brlo .L18
+ 159:pattern_play.c ****         change_tempo(tap_tempo_timer);
+ 314               		.loc 1 159 9 is_stmt 1 view .LVU95
+ 159:pattern_play.c ****         change_tempo(tap_tempo_timer);
+ 315               		.loc 1 159 25 is_stmt 0 view .LVU96
+ 316 0156 6091 0000 		lds r22,tap_tempo_timer
+ 317 015a 7091 0000 		lds r23,tap_tempo_timer+1
+ 318 015e C801      		movw r24,r16
+ 319 0160 0E94 0000 		call __udivmodhi4
+ 320 0164 7093 0000 		sts tap_tempo_timer+1,r23
+ 321 0168 6093 0000 		sts tap_tempo_timer,r22
+ 160:pattern_play.c ****       }
+ 322               		.loc 1 160 9 is_stmt 1 view .LVU97
+ 323 016c 8091 0000 		lds r24,tap_tempo_timer
+ 324 0170 9091 0000 		lds r25,tap_tempo_timer+1
+ 325 0174 0E94 0000 		call change_tempo
+ 326               	.LVL30:
+ 327               	.L18:
+ 162:pattern_play.c ****     }
+ 328               		.loc 1 162 7 view .LVU98
+ 162:pattern_play.c ****     }
+ 329               		.loc 1 162 23 is_stmt 0 view .LVU99
+ 330 0178 1092 0000 		sts tap_tempo_timer+1,__zero_reg__
+ 331 017c 1092 0000 		sts tap_tempo_timer,__zero_reg__
+ 332               	.L17:
+ 166:pattern_play.c ****       clear_notekey_leds();
+ 333               		.loc 1 166 5 is_stmt 1 view .LVU100
+ 166:pattern_play.c ****       clear_notekey_leds();
+ 334               		.loc 1 166 9 is_stmt 0 view .LVU101
+ 335 0180 80E0      		ldi r24,0
+ 336 0182 0E94 0000 		call just_pressed
+ 337               	.LVL31:
+ 166:pattern_play.c ****       clear_notekey_leds();
+ 338               		.loc 1 166 8 view .LVU102
+ 339 0186 8823      		tst r24
+ 340 0188 01F0      		breq .L19
+ 167:pattern_play.c ****       clear_blinking_leds();
+ 341               		.loc 1 167 7 is_stmt 1 view .LVU103
+ 342 018a 0E94 0000 		call clear_notekey_leds
+ 343               	.LVL32:
+ 168:pattern_play.c ****       set_led(LED_CHAIN);
+ 344               		.loc 1 168 7 view .LVU104
+ 345 018e 0E94 0000 		call clear_blinking_leds
+ 346               	.LVL33:
+ 169:pattern_play.c ****       buff_chain_len = 0; // 'start' to write a new chain
+ 347               		.loc 1 169 7 view .LVU105
+ 348 0192 82E2      		ldi r24,lo8(34)
+ 349 0194 0E94 0000 		call set_led
+ 350               	.LVL34:
+ 170:pattern_play.c ****     }
+ 351               		.loc 1 170 7 view .LVU106
+ 170:pattern_play.c ****     }
+ 352               		.loc 1 170 22 is_stmt 0 view .LVU107
+ 353 0198 1092 0000 		sts buff_chain_len,__zero_reg__
+ 354               	.L19:
+ 174:pattern_play.c ****       /*
+ 355               		.loc 1 174 5 is_stmt 1 view .LVU108
+ 174:pattern_play.c ****       /*
+ 356               		.loc 1 174 9 is_stmt 0 view .LVU109
+ 357 019c 80E0      		ldi r24,0
+ 358 019e 0E94 0000 		call just_released
+ 359               	.LVL35:
+ 174:pattern_play.c ****       /*
+ 360               		.loc 1 174 8 view .LVU110
+ 361 01a2 8823      		tst r24
+ 362 01a4 01F0      		breq .L20
+ 363 01a6 E0E0      		ldi r30,lo8(buff_chain)
+ 364 01a8 F0E0      		ldi r31,hi8(buff_chain)
+ 365 01aa 90E0      		ldi r25,0
+ 366 01ac 80E0      		ldi r24,0
+ 367               	.L21:
+ 368               	.LVL36:
+ 186:pattern_play.c ****       }
+ 369               		.loc 1 186 9 is_stmt 1 discriminator 3 view .LVU111
+ 186:pattern_play.c ****       }
+ 370               		.loc 1 186 35 is_stmt 0 discriminator 3 view .LVU112
+ 371 01ae 2191      		ld r18,Z+
+ 186:pattern_play.c ****       }
+ 372               		.loc 1 186 23 discriminator 3 view .LVU113
+ 373 01b0 DC01      		movw r26,r24
+ 374 01b2 A050      		subi r26,lo8(-(next_chain))
+ 375 01b4 B040      		sbci r27,hi8(-(next_chain))
+ 376 01b6 2C93      		st X,r18
+ 377               	.LVL37:
+ 186:pattern_play.c ****       }
+ 378               		.loc 1 186 23 discriminator 3 view .LVU114
+ 379 01b8 0196      		adiw r24,1
+ 380               	.LVL38:
+ 185:pattern_play.c ****         next_chain[i] = buff_chain[i];
+ 381               		.loc 1 185 7 discriminator 3 view .LVU115
+ 382 01ba 8032      		cpi r24,32
+ 383 01bc 9105      		cpc r25,__zero_reg__
+ 384 01be 01F4      		brne .L21
+ 189:pattern_play.c ****         for (i = 0; i < MAX_CHAIN; i++)
+ 385               		.loc 1 189 7 is_stmt 1 view .LVU116
+ 189:pattern_play.c ****         for (i = 0; i < MAX_CHAIN; i++)
+ 386               		.loc 1 189 10 is_stmt 0 view .LVU117
+ 387 01c0 8091 0000 		lds r24,playing
+ 388               	.LVL39:
+ 189:pattern_play.c ****         for (i = 0; i < MAX_CHAIN; i++)
+ 389               		.loc 1 189 10 view .LVU118
+ 390 01c4 8111      		cpse r24,__zero_reg__
+ 391 01c6 00C0      		rjmp .L22
+ 392 01c8 90E0      		ldi r25,0
+ 393 01ca 80E0      		ldi r24,0
+ 394               	.LVL40:
+ 395               	.L23:
+ 191:pattern_play.c ****         curr_pitch_shift = next_pitch_shift;
+ 396               		.loc 1 191 11 is_stmt 1 discriminator 3 view .LVU119
+ 191:pattern_play.c ****         curr_pitch_shift = next_pitch_shift;
+ 397               		.loc 1 191 37 is_stmt 0 discriminator 3 view .LVU120
+ 398 01cc FC01      		movw r30,r24
+ 399 01ce E050      		subi r30,lo8(-(next_chain))
+ 400 01d0 F040      		sbci r31,hi8(-(next_chain))
+ 401 01d2 2081      		ld r18,Z
+ 191:pattern_play.c ****         curr_pitch_shift = next_pitch_shift;
+ 402               		.loc 1 191 25 discriminator 3 view .LVU121
+ 403 01d4 FC01      		movw r30,r24
+ 404 01d6 E050      		subi r30,lo8(-(curr_chain))
+ 405 01d8 F040      		sbci r31,hi8(-(curr_chain))
+ 406 01da 2083      		st Z,r18
+ 407               	.LVL41:
+ 191:pattern_play.c ****         curr_pitch_shift = next_pitch_shift;
+ 408               		.loc 1 191 25 discriminator 3 view .LVU122
+ 409 01dc 0196      		adiw r24,1
+ 410               	.LVL42:
+ 190:pattern_play.c ****           curr_chain[i] = next_chain[i];
+ 411               		.loc 1 190 9 discriminator 3 view .LVU123
+ 412 01de 8032      		cpi r24,32
+ 413 01e0 9105      		cpc r25,__zero_reg__
+ 414 01e2 01F4      		brne .L23
+ 192:pattern_play.c ****         clear_led(LED_UP);
+ 415               		.loc 1 192 9 is_stmt 1 view .LVU124
+ 192:pattern_play.c ****         clear_led(LED_UP);
+ 416               		.loc 1 192 26 is_stmt 0 view .LVU125
+ 417 01e4 8091 0000 		lds r24,next_pitch_shift
+ 418               	.LVL43:
+ 192:pattern_play.c ****         clear_led(LED_UP);
+ 419               		.loc 1 192 26 view .LVU126
+ 420 01e8 8093 0000 		sts curr_pitch_shift,r24
+ 193:pattern_play.c ****         clear_led(LED_DOWN);
+ 421               		.loc 1 193 9 is_stmt 1 view .LVU127
+ 422 01ec 83E0      		ldi r24,lo8(3)
+ 423 01ee 0E94 0000 		call clear_led
+ 424               	.LVL44:
+ 194:pattern_play.c ****       }
+ 425               		.loc 1 194 9 view .LVU128
+ 426 01f2 84E0      		ldi r24,lo8(4)
+ 427 01f4 0E94 0000 		call clear_led
+ 428               	.LVL45:
+ 429               	.L22:
+ 196:pattern_play.c ****     }
+ 430               		.loc 1 196 7 view .LVU129
+ 431 01f8 82E2      		ldi r24,lo8(34)
+ 432 01fa 0E94 0000 		call clear_led
+ 433               	.LVL46:
+ 434               	.L20:
+ 199:pattern_play.c ****       // display the current chain
+ 435               		.loc 1 199 5 view .LVU130
+ 199:pattern_play.c ****       // display the current chain
+ 436               		.loc 1 199 9 is_stmt 0 view .LVU131
+ 437 01fe 80E0      		ldi r24,0
+ 438 0200 0E94 0000 		call is_pressed
+ 439               	.LVL47:
+ 199:pattern_play.c ****       // display the current chain
+ 440               		.loc 1 199 8 view .LVU132
+ 441 0204 8823      		tst r24
+ 442 0206 01F4      		brne .+2
+ 443 0208 00C0      		rjmp .L191
+ 201:pattern_play.c ****         if (buff_chain[i] >= 8)
+ 444               		.loc 1 201 14 view .LVU133
+ 445 020a D0E0      		ldi r29,0
+ 446 020c 00C0      		rjmp .L24
+ 447               	.LVL48:
+ 448               	.L27:
+ 202:pattern_play.c ****           break;
+ 449               		.loc 1 202 9 is_stmt 1 view .LVU134
+ 202:pattern_play.c ****           break;
+ 450               		.loc 1 202 23 is_stmt 0 view .LVU135
+ 451 020e ED2F      		mov r30,r29
+ 452 0210 F0E0      		ldi r31,0
+ 453 0212 E050      		subi r30,lo8(-(buff_chain))
+ 454 0214 F040      		sbci r31,hi8(-(buff_chain))
+ 455 0216 8081      		ld r24,Z
+ 202:pattern_play.c ****           break;
+ 456               		.loc 1 202 12 view .LVU136
+ 457 0218 8830      		cpi r24,lo8(8)
+ 458 021a 00F4      		brsh .L26
+ 204:pattern_play.c ****       }
+ 459               		.loc 1 204 9 is_stmt 1 discriminator 2 view .LVU137
+ 460 021c 8F5F      		subi r24,lo8(-(1))
+ 461 021e 0E94 0000 		call set_numkey_led
+ 462               	.LVL49:
+ 201:pattern_play.c ****         if (buff_chain[i] >= 8)
+ 463               		.loc 1 201 40 is_stmt 0 discriminator 2 view .LVU138
+ 464 0222 DF5F      		subi r29,lo8(-(1))
+ 465               	.LVL50:
+ 466               	.L24:
+ 201:pattern_play.c ****         if (buff_chain[i] >= 8)
+ 467               		.loc 1 201 7 discriminator 1 view .LVU139
+ 468 0224 8091 0000 		lds r24,buff_chain_len
+ 469 0228 D817      		cp r29,r24
+ 470 022a 00F0      		brlo .L27
+ 471               	.L26:
+ 208:pattern_play.c ****       if ((i != 0) && (buff_chain_len < MAX_CHAIN)) {
+ 472               		.loc 1 208 7 is_stmt 1 view .LVU140
+ 208:pattern_play.c ****       if ((i != 0) && (buff_chain_len < MAX_CHAIN)) {
+ 473               		.loc 1 208 11 is_stmt 0 view .LVU141
+ 474 022c 0E94 0000 		call get_lowest_numkey_just_pressed
+ 475               	.LVL51:
+ 209:pattern_play.c ****         buff_chain[buff_chain_len++] = i - 1;
+ 476               		.loc 1 209 7 is_stmt 1 view .LVU142
+ 209:pattern_play.c ****         buff_chain[buff_chain_len++] = i - 1;
+ 477               		.loc 1 209 10 is_stmt 0 view .LVU143
+ 478 0230 8823      		tst r24
+ 479 0232 01F0      		breq .L29
+ 209:pattern_play.c ****         buff_chain[buff_chain_len++] = i - 1;
+ 480               		.loc 1 209 39 discriminator 1 view .LVU144
+ 481 0234 E091 0000 		lds r30,buff_chain_len
+ 209:pattern_play.c ****         buff_chain[buff_chain_len++] = i - 1;
+ 482               		.loc 1 209 20 discriminator 1 view .LVU145
+ 483 0238 E032      		cpi r30,lo8(32)
+ 484 023a 00F4      		brsh .L29
+ 210:pattern_play.c ****         buff_chain[buff_chain_len] = 0xFF;
+ 485               		.loc 1 210 9 is_stmt 1 view .LVU146
+ 210:pattern_play.c ****         buff_chain[buff_chain_len] = 0xFF;
+ 486               		.loc 1 210 34 is_stmt 0 view .LVU147
+ 487 023c 91E0      		ldi r25,lo8(1)
+ 488 023e 9E0F      		add r25,r30
+ 489 0240 9093 0000 		sts buff_chain_len,r25
+ 490 0244 F0E0      		ldi r31,0
+ 210:pattern_play.c ****         buff_chain[buff_chain_len] = 0xFF;
+ 491               		.loc 1 210 38 view .LVU148
+ 492 0246 E050      		subi r30,lo8(-(buff_chain))
+ 493 0248 F040      		sbci r31,hi8(-(buff_chain))
+ 210:pattern_play.c ****         buff_chain[buff_chain_len] = 0xFF;
+ 494               		.loc 1 210 42 view .LVU149
+ 495 024a 8150      		subi r24,lo8(-(-1))
+ 496               	.LVL52:
+ 210:pattern_play.c ****         buff_chain[buff_chain_len] = 0xFF;
+ 497               		.loc 1 210 38 view .LVU150
+ 498 024c 8083      		st Z,r24
+ 211:pattern_play.c ****         /*
+ 499               		.loc 1 211 9 is_stmt 1 view .LVU151
+ 211:pattern_play.c ****         /*
+ 500               		.loc 1 211 19 is_stmt 0 view .LVU152
+ 501 024e E92F      		mov r30,r25
+ 502 0250 F0E0      		ldi r31,0
+ 211:pattern_play.c ****         /*
+ 503               		.loc 1 211 36 view .LVU153
+ 504 0252 E050      		subi r30,lo8(-(buff_chain))
+ 505 0254 F040      		sbci r31,hi8(-(buff_chain))
+ 506 0256 D082      		st Z,r13
+ 507               	.LVL53:
+ 508               	.L29:
+ 349:pattern_play.c ****       midi_cmd = midi_recv_cmd(); // returns 0 if no midi commands waiting
+ 509               		.loc 1 349 5 is_stmt 1 view .LVU154
+ 349:pattern_play.c ****       midi_cmd = midi_recv_cmd(); // returns 0 if no midi commands waiting
+ 510               		.loc 1 349 8 is_stmt 0 view .LVU155
+ 511 0258 8091 0000 		lds r24,sync
+ 512 025c 8230      		cpi r24,lo8(2)
+ 513 025e 01F4      		brne .L68
+ 350:pattern_play.c ****       
+ 514               		.loc 1 350 7 is_stmt 1 view .LVU156
+ 350:pattern_play.c ****       
+ 515               		.loc 1 350 18 is_stmt 0 view .LVU157
+ 516 0260 0E94 0000 		call midi_recv_cmd
+ 517               	.LVL54:
+ 518 0264 C82F      		mov r28,r24
+ 519               	.LVL55:
+ 354:pattern_play.c ****         midi_cmd = midi_getchar();
+ 520               		.loc 1 354 7 is_stmt 1 view .LVU158
+ 354:pattern_play.c ****         midi_cmd = midi_getchar();
+ 521               		.loc 1 354 26 is_stmt 0 view .LVU159
+ 522 0266 8295      		swap r24
+ 523               	.LVL56:
+ 354:pattern_play.c ****         midi_cmd = midi_getchar();
+ 524               		.loc 1 354 26 view .LVU160
+ 525 0268 8F70      		andi r24,lo8(15)
+ 354:pattern_play.c ****         midi_cmd = midi_getchar();
+ 526               		.loc 1 354 10 view .LVU161
+ 527 026a 8C30      		cpi r24,lo8(12)
+ 528 026c 01F4      		brne .L68
+ 354:pattern_play.c ****         midi_cmd = midi_getchar();
+ 529               		.loc 1 354 34 discriminator 1 view .LVU162
+ 530 026e 9091 0000 		lds r25,midi_in_addr
+ 531 0272 8C2F      		mov r24,r28
+ 532 0274 8F70      		andi r24,lo8(15)
+ 533 0276 9813      		cpse r25,r24
+ 534 0278 00C0      		rjmp .L68
+ 354:pattern_play.c ****         midi_cmd = midi_getchar();
+ 535               		.loc 1 354 75 discriminator 2 view .LVU163
+ 536 027a 0E94 0000 		call midi_getch
+ 537               	.LVL57:
+ 354:pattern_play.c ****         midi_cmd = midi_getchar();
+ 538               		.loc 1 354 72 discriminator 2 view .LVU164
+ 539 027e 892B      		or r24,r25
+ 540 0280 01F0      		breq .L68
+ 355:pattern_play.c ****         if (! (midi_cmd & 0x80))  {
+ 541               		.loc 1 355 9 is_stmt 1 view .LVU165
+ 355:pattern_play.c ****         if (! (midi_cmd & 0x80))  {
+ 542               		.loc 1 355 20 is_stmt 0 view .LVU166
+ 543 0282 0E94 0000 		call midi_getchar
+ 544               	.LVL58:
+ 545 0286 C82F      		mov r28,r24
+ 546               	.LVL59:
+ 356:pattern_play.c ****           curr_bank = midi_cmd / 8; // override the bank!
+ 547               		.loc 1 356 9 is_stmt 1 view .LVU167
+ 356:pattern_play.c ****           curr_bank = midi_cmd / 8; // override the bank!
+ 548               		.loc 1 356 12 is_stmt 0 view .LVU168
+ 549 0288 87FD      		sbrc r24,7
+ 550 028a 00C0      		rjmp .L68
+ 357:pattern_play.c ****           curr_chain[0] = buff_chain[0] = next_chain[0] = midi_cmd % 8;
+ 551               		.loc 1 357 11 is_stmt 1 view .LVU169
+ 357:pattern_play.c ****           curr_chain[0] = buff_chain[0] = next_chain[0] = midi_cmd % 8;
+ 552               		.loc 1 357 21 is_stmt 0 view .LVU170
+ 553 028c 8695      		lsr r24
+ 554 028e 8695      		lsr r24
+ 555 0290 8695      		lsr r24
+ 556               	.LVL60:
+ 357:pattern_play.c ****           curr_chain[0] = buff_chain[0] = next_chain[0] = midi_cmd % 8;
+ 557               		.loc 1 357 21 view .LVU171
+ 558 0292 8093 0000 		sts curr_bank,r24
+ 358:pattern_play.c ****           curr_chain[1] = buff_chain[1] = next_chain[1] = 0xFF;
+ 559               		.loc 1 358 11 is_stmt 1 view .LVU172
+ 358:pattern_play.c ****           curr_chain[1] = buff_chain[1] = next_chain[1] = 0xFF;
+ 560               		.loc 1 358 68 is_stmt 0 view .LVU173
+ 561 0296 C770      		andi r28,lo8(7)
+ 562               	.LVL61:
+ 358:pattern_play.c ****           curr_chain[1] = buff_chain[1] = next_chain[1] = 0xFF;
+ 563               		.loc 1 358 57 view .LVU174
+ 564 0298 C093 0000 		sts next_chain,r28
+ 358:pattern_play.c ****           curr_chain[1] = buff_chain[1] = next_chain[1] = 0xFF;
+ 565               		.loc 1 358 41 view .LVU175
+ 566 029c C093 0000 		sts buff_chain,r28
+ 358:pattern_play.c ****           curr_chain[1] = buff_chain[1] = next_chain[1] = 0xFF;
+ 567               		.loc 1 358 25 view .LVU176
+ 568 02a0 C093 0000 		sts curr_chain,r28
+ 359:pattern_play.c ****           load_pattern(bank, curr_chain[0]);
+ 569               		.loc 1 359 11 is_stmt 1 view .LVU177
+ 359:pattern_play.c ****           load_pattern(bank, curr_chain[0]);
+ 570               		.loc 1 359 57 is_stmt 0 view .LVU178
+ 571 02a4 D092 0000 		sts next_chain+1,r13
+ 359:pattern_play.c ****           load_pattern(bank, curr_chain[0]);
+ 572               		.loc 1 359 41 view .LVU179
+ 573 02a8 D092 0000 		sts buff_chain+1,r13
+ 359:pattern_play.c ****           load_pattern(bank, curr_chain[0]);
+ 574               		.loc 1 359 25 view .LVU180
+ 575 02ac D092 0000 		sts curr_chain+1,r13
+ 360:pattern_play.c **** 
+ 576               		.loc 1 360 11 is_stmt 1 view .LVU181
+ 577 02b0 6091 0000 		lds r22,curr_chain
+ 578 02b4 8091 0000 		lds r24,bank
+ 579 02b8 0E94 0000 		call load_pattern
+ 580               	.LVL62:
+ 362:pattern_play.c ****           set_numkey_led(curr_chain[0]+1);
+ 581               		.loc 1 362 11 view .LVU182
+ 582 02bc 0E94 0000 		call clear_numkey_leds
+ 583               	.LVL63:
+ 363:pattern_play.c ****           midi_cmd = 0;
+ 584               		.loc 1 363 11 view .LVU183
+ 363:pattern_play.c ****           midi_cmd = 0;
+ 585               		.loc 1 363 36 is_stmt 0 view .LVU184
+ 586 02c0 8091 0000 		lds r24,curr_chain
+ 363:pattern_play.c ****           midi_cmd = 0;
+ 587               		.loc 1 363 11 view .LVU185
+ 588 02c4 8F5F      		subi r24,lo8(-(1))
+ 589 02c6 0E94 0000 		call set_numkey_led
+ 590               	.LVL64:
+ 364:pattern_play.c ****         }
+ 591               		.loc 1 364 11 is_stmt 1 view .LVU186
+ 364:pattern_play.c ****         }
+ 592               		.loc 1 364 20 is_stmt 0 view .LVU187
+ 593 02ca C0E0      		ldi r28,0
+ 594               	.LVL65:
+ 595               	.L68:
+ 370:pattern_play.c ****         ((sync == MIDI_SYNC) && (midi_cmd == MIDI_STOP)) ||
+ 596               		.loc 1 370 5 is_stmt 1 view .LVU188
+ 370:pattern_play.c ****         ((sync == MIDI_SYNC) && (midi_cmd == MIDI_STOP)) ||
+ 597               		.loc 1 370 8 is_stmt 0 view .LVU189
+ 598 02cc 8091 0000 		lds r24,sync
+ 599 02d0 8823      		tst r24
+ 600 02d2 01F4      		brne .+2
+ 601 02d4 00C0      		rjmp .L69
+ 602               	.L72:
+ 371:pattern_play.c ****         ((sync == DIN_SYNC) && dinsync_stopped())) {
+ 603               		.loc 1 371 16 view .LVU190
+ 604 02d6 8091 0000 		lds r24,sync
+ 370:pattern_play.c ****         ((sync == MIDI_SYNC) && (midi_cmd == MIDI_STOP)) ||
+ 605               		.loc 1 370 70 view .LVU191
+ 606 02da 8230      		cpi r24,lo8(2)
+ 607 02dc 01F0      		breq .+2
+ 608 02de 00C0      		rjmp .L194
+ 371:pattern_play.c ****         ((sync == DIN_SYNC) && dinsync_stopped())) {
+ 609               		.loc 1 371 30 view .LVU192
+ 610 02e0 CC3F      		cpi r28,lo8(-4)
+ 611 02e2 01F4      		brne .+2
+ 612 02e4 00C0      		rjmp .L75
+ 613               	.L82:
+ 389:pattern_play.c ****                 ((midi_cmd == MIDI_START) || (midi_cmd == MIDI_CONTINUE))) ||
+ 614               		.loc 1 389 23 view .LVU193
+ 615 02e6 8091 0000 		lds r24,sync
+ 388:pattern_play.c ****                ((sync == MIDI_SYNC) &&
+ 616               		.loc 1 388 78 view .LVU194
+ 617 02ea 8230      		cpi r24,lo8(2)
+ 618 02ec 01F0      		breq .+2
+ 619 02ee 00C0      		rjmp .L195
+ 390:pattern_play.c ****                ((sync == DIN_SYNC) && dinsync_started())) {
+ 620               		.loc 1 390 43 view .LVU195
+ 621 02f0 86E0      		ldi r24,lo8(6)
+ 622 02f2 8C0F      		add r24,r28
+ 389:pattern_play.c ****                 ((midi_cmd == MIDI_START) || (midi_cmd == MIDI_CONTINUE))) ||
+ 623               		.loc 1 389 37 view .LVU196
+ 624 02f4 8230      		cpi r24,lo8(2)
+ 625 02f6 00F0      		brlo .+2
+ 626 02f8 00C0      		rjmp .L81
+ 627 02fa 00C0      		rjmp .L85
+ 628               	.L191:
+ 231:pattern_play.c ****       int8_t notekey = get_lowest_notekey_pressed();
+ 629               		.loc 1 231 10 is_stmt 1 view .LVU197
+ 231:pattern_play.c ****       int8_t notekey = get_lowest_notekey_pressed();
+ 630               		.loc 1 231 14 is_stmt 0 view .LVU198
+ 631 02fc 8FE0      		ldi r24,lo8(15)
+ 632 02fe 0E94 0000 		call is_pressed
+ 633               	.LVL66:
+ 231:pattern_play.c ****       int8_t notekey = get_lowest_notekey_pressed();
+ 634               		.loc 1 231 13 view .LVU199
+ 635 0302 8823      		tst r24
+ 636 0304 01F4      		brne .+2
+ 637 0306 00C0      		rjmp .L31
+ 638               	.L34:
+ 639               	.LBB2:
+ 232:pattern_play.c **** 
+ 640               		.loc 1 232 7 is_stmt 1 view .LVU200
+ 232:pattern_play.c **** 
+ 641               		.loc 1 232 24 is_stmt 0 view .LVU201
+ 642 0308 0E94 0000 		call get_lowest_notekey_pressed
+ 643               	.LVL67:
+ 644 030c D82F      		mov r29,r24
+ 645               	.LVL68:
+ 235:pattern_play.c ****         clear_notekey_leds();
+ 646               		.loc 1 235 7 is_stmt 1 view .LVU202
+ 235:pattern_play.c ****         clear_notekey_leds();
+ 647               		.loc 1 235 11 is_stmt 0 view .LVU203
+ 648 030e 8FE0      		ldi r24,lo8(15)
+ 649               	.LVL69:
+ 235:pattern_play.c ****         clear_notekey_leds();
+ 650               		.loc 1 235 11 view .LVU204
+ 651 0310 0E94 0000 		call just_pressed
+ 652               	.LVL70:
+ 235:pattern_play.c ****         clear_notekey_leds();
+ 653               		.loc 1 235 10 view .LVU205
+ 654 0314 8111      		cpse r24,__zero_reg__
+ 655 0316 00C0      		rjmp .L32
+ 235:pattern_play.c ****         clear_notekey_leds();
+ 656               		.loc 1 235 35 discriminator 1 view .LVU206
+ 657 0318 8EE0      		ldi r24,lo8(14)
+ 658 031a 0E94 0000 		call just_pressed
+ 659               	.LVL71:
+ 235:pattern_play.c ****         clear_notekey_leds();
+ 660               		.loc 1 235 32 discriminator 1 view .LVU207
+ 661 031e 8823      		tst r24
+ 662 0320 01F0      		breq .L36
+ 663               	.L32:
+ 236:pattern_play.c ****         clear_blinking_leds();
+ 664               		.loc 1 236 9 is_stmt 1 view .LVU208
+ 665 0322 0E94 0000 		call clear_notekey_leds
+ 666               	.LVL72:
+ 237:pattern_play.c ****         clear_led(LED_CHAIN);
+ 667               		.loc 1 237 9 view .LVU209
+ 668 0326 0E94 0000 		call clear_blinking_leds
+ 669               	.LVL73:
+ 238:pattern_play.c ****       }
+ 670               		.loc 1 238 9 view .LVU210
+ 671 032a 82E2      		ldi r24,lo8(34)
+ 672 032c 0E94 0000 		call clear_led
+ 673               	.LVL74:
+ 674               	.L36:
+ 242:pattern_play.c ****         clear_led(LED_DOWN);
+ 675               		.loc 1 242 7 view .LVU211
+ 242:pattern_play.c ****         clear_led(LED_DOWN);
+ 676               		.loc 1 242 11 is_stmt 0 view .LVU212
+ 677 0330 8FE0      		ldi r24,lo8(15)
+ 678 0332 0E94 0000 		call is_pressed
+ 679               	.LVL75:
+ 242:pattern_play.c ****         clear_led(LED_DOWN);
+ 680               		.loc 1 242 10 view .LVU213
+ 681 0336 8823      		tst r24
+ 682 0338 01F4      		brne .+2
+ 683 033a 00C0      		rjmp .L37
+ 243:pattern_play.c ****         set_led(LED_UP);
+ 684               		.loc 1 243 9 is_stmt 1 view .LVU214
+ 685 033c 84E0      		ldi r24,lo8(4)
+ 686 033e 0E94 0000 		call clear_led
+ 687               	.LVL76:
+ 244:pattern_play.c **** 
+ 688               		.loc 1 244 9 view .LVU215
+ 689 0342 83E0      		ldi r24,lo8(3)
+ 690 0344 0E94 0000 		call set_led
+ 691               	.LVL77:
+ 246:pattern_play.c ****           next_pitch_shift = notekey;
+ 692               		.loc 1 246 9 view .LVU216
+ 246:pattern_play.c ****           next_pitch_shift = notekey;
+ 693               		.loc 1 246 12 is_stmt 0 view .LVU217
+ 694 0348 DF3F      		cpi r29,lo8(-1)
+ 695 034a 01F0      		breq .L38
+ 247:pattern_play.c ****         if (curr_pitch_shift >= 0) {
+ 696               		.loc 1 247 11 is_stmt 1 view .LVU218
+ 247:pattern_play.c ****         if (curr_pitch_shift >= 0) {
+ 697               		.loc 1 247 28 is_stmt 0 view .LVU219
+ 698 034c D093 0000 		sts next_pitch_shift,r29
+ 699               	.L38:
+ 248:pattern_play.c ****           if (!is_notekey_led_blink(curr_pitch_shift)) {
+ 700               		.loc 1 248 9 is_stmt 1 view .LVU220
+ 248:pattern_play.c ****           if (!is_notekey_led_blink(curr_pitch_shift)) {
+ 701               		.loc 1 248 30 is_stmt 0 view .LVU221
+ 702 0350 8091 0000 		lds r24,curr_pitch_shift
+ 248:pattern_play.c ****           if (!is_notekey_led_blink(curr_pitch_shift)) {
+ 703               		.loc 1 248 12 view .LVU222
+ 704 0354 87FD      		sbrc r24,7
+ 705 0356 00C0      		rjmp .L40
+ 249:pattern_play.c ****             clear_blinking_leds();
+ 706               		.loc 1 249 11 is_stmt 1 view .LVU223
+ 249:pattern_play.c ****             clear_blinking_leds();
+ 707               		.loc 1 249 16 is_stmt 0 view .LVU224
+ 708 0358 0E94 0000 		call is_notekey_led_blink
+ 709               	.LVL78:
+ 249:pattern_play.c ****             clear_blinking_leds();
+ 710               		.loc 1 249 14 view .LVU225
+ 711 035c 8111      		cpse r24,__zero_reg__
+ 712 035e 00C0      		rjmp .L40
+ 250:pattern_play.c ****             set_notekey_led_blink(curr_pitch_shift);
+ 713               		.loc 1 250 13 is_stmt 1 view .LVU226
+ 714 0360 0E94 0000 		call clear_blinking_leds
+ 715               	.LVL79:
+ 251:pattern_play.c ****           }
+ 716               		.loc 1 251 13 view .LVU227
+ 717 0364 8091 0000 		lds r24,curr_pitch_shift
+ 718 0368 0E94 0000 		call set_notekey_led_blink
+ 719               	.LVL80:
+ 720               	.L40:
+ 254:pattern_play.c ****           set_notekey_led(next_pitch_shift);
+ 721               		.loc 1 254 9 view .LVU228
+ 254:pattern_play.c ****           set_notekey_led(next_pitch_shift);
+ 722               		.loc 1 254 30 is_stmt 0 view .LVU229
+ 723 036c 8091 0000 		lds r24,next_pitch_shift
+ 254:pattern_play.c ****           set_notekey_led(next_pitch_shift);
+ 724               		.loc 1 254 12 view .LVU230
+ 725 0370 9091 0000 		lds r25,curr_pitch_shift
+ 726 0374 8913      		cpse r24,r25
+ 727               	.LVL81:
+ 728               	.L200:
+ 270:pattern_play.c ****       }
+ 729               		.loc 1 270 11 view .LVU231
+ 730 0376 0E94 0000 		call set_notekey_led
+ 731               	.LVL82:
+ 732               	.L43:
+ 275:pattern_play.c ****         curr_pitch_shift = next_pitch_shift;
+ 733               		.loc 1 275 7 is_stmt 1 view .LVU232
+ 275:pattern_play.c ****         curr_pitch_shift = next_pitch_shift;
+ 734               		.loc 1 275 10 is_stmt 0 view .LVU233
+ 735 037a 8091 0000 		lds r24,playing
+ 736 037e 8111      		cpse r24,__zero_reg__
+ 737 0380 00C0      		rjmp .L29
+ 276:pattern_play.c **** 
+ 738               		.loc 1 276 9 is_stmt 1 view .LVU234
+ 276:pattern_play.c **** 
+ 739               		.loc 1 276 26 is_stmt 0 view .LVU235
+ 740 0382 8091 0000 		lds r24,next_pitch_shift
+ 741 0386 8093 0000 		sts curr_pitch_shift,r24
+ 742 038a 00C0      		rjmp .L29
+ 743               	.L31:
+ 276:pattern_play.c **** 
+ 744               		.loc 1 276 26 view .LVU236
+ 745               	.LBE2:
+ 231:pattern_play.c ****       int8_t notekey = get_lowest_notekey_pressed();
+ 746               		.loc 1 231 36 discriminator 1 view .LVU237
+ 747 038c 8EE0      		ldi r24,lo8(14)
+ 748 038e 0E94 0000 		call is_pressed
+ 749               	.LVL83:
+ 231:pattern_play.c ****       int8_t notekey = get_lowest_notekey_pressed();
+ 750               		.loc 1 231 33 discriminator 1 view .LVU238
+ 751 0392 8111      		cpse r24,__zero_reg__
+ 752 0394 00C0      		rjmp .L34
+ 279:pattern_play.c ****         // clear any pitch shift indicators
+ 753               		.loc 1 279 7 is_stmt 1 view .LVU239
+ 279:pattern_play.c ****         // clear any pitch shift indicators
+ 754               		.loc 1 279 11 is_stmt 0 view .LVU240
+ 755 0396 8FE0      		ldi r24,lo8(15)
+ 756 0398 0E94 0000 		call just_released
+ 757               	.LVL84:
+ 279:pattern_play.c ****         // clear any pitch shift indicators
+ 758               		.loc 1 279 10 view .LVU241
+ 759 039c 8823      		tst r24
+ 760 039e 01F4      		brne .+2
+ 761 03a0 00C0      		rjmp .L49
+ 762               	.L51:
+ 281:pattern_play.c ****         clear_blinking_leds();
+ 763               		.loc 1 281 9 is_stmt 1 view .LVU242
+ 764 03a2 0E94 0000 		call clear_notekey_leds
+ 765               	.LVL85:
+ 282:pattern_play.c ****       }
+ 766               		.loc 1 282 9 view .LVU243
+ 767 03a6 0E94 0000 		call clear_blinking_leds
+ 768               	.LVL86:
+ 769               	.L50:
+ 287:pattern_play.c ****       if ((i != 0) || has_bank_knob_changed()) {
+ 770               		.loc 1 287 7 view .LVU244
+ 287:pattern_play.c ****       if ((i != 0) || has_bank_knob_changed()) {
+ 771               		.loc 1 287 11 is_stmt 0 view .LVU245
+ 772 03aa 0E94 0000 		call get_lowest_numkey_pressed
+ 773               	.LVL87:
+ 774 03ae D82F      		mov r29,r24
+ 775               	.LVL88:
+ 288:pattern_play.c ****         if (i != 0) {
+ 776               		.loc 1 288 7 is_stmt 1 view .LVU246
+ 288:pattern_play.c ****         if (i != 0) {
+ 777               		.loc 1 288 10 is_stmt 0 view .LVU247
+ 778 03b0 8111      		cpse r24,__zero_reg__
+ 779 03b2 00C0      		rjmp .L52
+ 288:pattern_play.c ****         if (i != 0) {
+ 780               		.loc 1 288 23 discriminator 1 view .LVU248
+ 781 03b4 0E94 0000 		call has_bank_knob_changed
+ 782               	.LVL89:
+ 288:pattern_play.c ****         if (i != 0) {
+ 783               		.loc 1 288 20 discriminator 1 view .LVU249
+ 784 03b8 8111      		cpse r24,__zero_reg__
+ 785 03ba 00C0      		rjmp .L53
+ 786               	.LVL90:
+ 787               	.L104:
+ 314:pattern_play.c ****         if (next_chain[1] == END_OF_CHAIN && curr_chain[1] == END_OF_CHAIN) {
+ 788               		.loc 1 314 7 is_stmt 1 view .LVU250
+ 314:pattern_play.c ****         if (next_chain[1] == END_OF_CHAIN && curr_chain[1] == END_OF_CHAIN) {
+ 789               		.loc 1 314 12 is_stmt 0 view .LVU251
+ 790 03bc 60E0      		ldi r22,lo8(curr_chain)
+ 791 03be 70E0      		ldi r23,hi8(curr_chain)
+ 792 03c0 80E0      		ldi r24,lo8(next_chain)
+ 793 03c2 90E0      		ldi r25,hi8(next_chain)
+ 794 03c4 0E94 0000 		call chains_equiv
+ 795               	.LVL91:
+ 314:pattern_play.c ****         if (next_chain[1] == END_OF_CHAIN && curr_chain[1] == END_OF_CHAIN) {
+ 796               		.loc 1 314 10 view .LVU252
+ 797 03c8 8111      		cpse r24,__zero_reg__
+ 798 03ca 00C0      		rjmp .L106
+ 315:pattern_play.c ****           // basically single patterns. current blinks
+ 799               		.loc 1 315 9 is_stmt 1 view .LVU253
+ 315:pattern_play.c ****           // basically single patterns. current blinks
+ 800               		.loc 1 315 23 is_stmt 0 view .LVU254
+ 801 03cc 8091 0000 		lds r24,next_chain+1
+ 315:pattern_play.c ****           // basically single patterns. current blinks
+ 802               		.loc 1 315 12 view .LVU255
+ 803 03d0 8F3F      		cpi r24,lo8(-1)
+ 804 03d2 01F4      		brne .L61
+ 315:pattern_play.c ****           // basically single patterns. current blinks
+ 805               		.loc 1 315 56 discriminator 1 view .LVU256
+ 806 03d4 8091 0000 		lds r24,curr_chain+1
+ 315:pattern_play.c ****           // basically single patterns. current blinks
+ 807               		.loc 1 315 43 discriminator 1 view .LVU257
+ 808 03d8 8F3F      		cpi r24,lo8(-1)
+ 809 03da 01F4      		brne .L61
+ 317:pattern_play.c ****         }
+ 810               		.loc 1 317 11 is_stmt 1 view .LVU258
+ 317:pattern_play.c ****         }
+ 811               		.loc 1 317 42 is_stmt 0 view .LVU259
+ 812 03dc 8091 0000 		lds r24,curr_chain
+ 317:pattern_play.c ****         }
+ 813               		.loc 1 317 11 view .LVU260
+ 814 03e0 8F5F      		subi r24,lo8(-(1))
+ 815 03e2 0E94 0000 		call set_numkey_led_blink
+ 816               	.LVL92:
+ 817               	.L61:
+ 818 03e6 F12C      		mov r15,__zero_reg__
+ 819 03e8 E12C      		mov r14,__zero_reg__
+ 820               	.L63:
+ 821               	.LVL93:
+ 322:pattern_play.c ****             break;
+ 822               		.loc 1 322 11 is_stmt 1 view .LVU261
+ 322:pattern_play.c ****             break;
+ 823               		.loc 1 322 25 is_stmt 0 view .LVU262
+ 824 03ea F701      		movw r30,r14
+ 825 03ec E050      		subi r30,lo8(-(next_chain))
+ 826 03ee F040      		sbci r31,hi8(-(next_chain))
+ 827 03f0 8081      		ld r24,Z
+ 322:pattern_play.c ****             break;
+ 828               		.loc 1 322 14 view .LVU263
+ 829 03f2 8930      		cpi r24,lo8(9)
+ 830 03f4 00F0      		brlo .L62
+ 831               	.LVL94:
+ 832               	.L64:
+ 345:pattern_play.c ****     }
+ 833               		.loc 1 345 7 is_stmt 1 view .LVU264
+ 834 03f6 0E94 0000 		call display_curr_pitch_shift_ud
+ 835               	.LVL95:
+ 836 03fa 00C0      		rjmp .L29
+ 837               	.LVL96:
+ 838               	.L37:
+ 839               	.LBB3:
+ 256:pattern_play.c ****         clear_led(LED_UP);
+ 840               		.loc 1 256 14 view .LVU265
+ 256:pattern_play.c ****         clear_led(LED_UP);
+ 841               		.loc 1 256 18 is_stmt 0 view .LVU266
+ 842 03fc 8EE0      		ldi r24,lo8(14)
+ 843 03fe 0E94 0000 		call is_pressed
+ 844               	.LVL97:
+ 256:pattern_play.c ****         clear_led(LED_UP);
+ 845               		.loc 1 256 17 view .LVU267
+ 846 0402 8823      		tst r24
+ 847 0404 01F4      		brne .+2
+ 848 0406 00C0      		rjmp .L43
+ 257:pattern_play.c ****         set_led(LED_DOWN);
+ 849               		.loc 1 257 9 is_stmt 1 view .LVU268
+ 850 0408 83E0      		ldi r24,lo8(3)
+ 851 040a 0E94 0000 		call clear_led
+ 852               	.LVL98:
+ 258:pattern_play.c **** 
+ 853               		.loc 1 258 9 view .LVU269
+ 854 040e 84E0      		ldi r24,lo8(4)
+ 855 0410 0E94 0000 		call set_led
+ 856               	.LVL99:
+ 260:pattern_play.c ****           next_pitch_shift = notekey - OCTAVE; // invert direction
+ 857               		.loc 1 260 9 view .LVU270
+ 260:pattern_play.c ****           next_pitch_shift = notekey - OCTAVE; // invert direction
+ 858               		.loc 1 260 12 is_stmt 0 view .LVU271
+ 859 0414 DF3F      		cpi r29,lo8(-1)
+ 860 0416 01F0      		breq .L45
+ 261:pattern_play.c **** 
+ 861               		.loc 1 261 11 is_stmt 1 view .LVU272
+ 261:pattern_play.c **** 
+ 862               		.loc 1 261 38 is_stmt 0 view .LVU273
+ 863 0418 DC50      		subi r29,lo8(-(-12))
+ 864               	.LVL100:
+ 261:pattern_play.c **** 
+ 865               		.loc 1 261 28 view .LVU274
+ 866 041a D093 0000 		sts next_pitch_shift,r29
+ 867               	.LVL101:
+ 868               	.L45:
+ 263:pattern_play.c ****           if (!is_notekey_led_blink(OCTAVE + curr_pitch_shift)) {
+ 869               		.loc 1 263 9 is_stmt 1 view .LVU275
+ 263:pattern_play.c ****           if (!is_notekey_led_blink(OCTAVE + curr_pitch_shift)) {
+ 870               		.loc 1 263 30 is_stmt 0 view .LVU276
+ 871 041e 8091 0000 		lds r24,curr_pitch_shift
+ 263:pattern_play.c ****           if (!is_notekey_led_blink(OCTAVE + curr_pitch_shift)) {
+ 872               		.loc 1 263 12 view .LVU277
+ 873 0422 1816      		cp __zero_reg__,r24
+ 874 0424 04F0      		brlt .L47
+ 264:pattern_play.c ****             clear_blinking_leds();
+ 875               		.loc 1 264 11 is_stmt 1 view .LVU278
+ 264:pattern_play.c ****             clear_blinking_leds();
+ 876               		.loc 1 264 16 is_stmt 0 view .LVU279
+ 877 0426 845F      		subi r24,lo8(-(12))
+ 878 0428 0E94 0000 		call is_notekey_led_blink
+ 879               	.LVL102:
+ 264:pattern_play.c ****             clear_blinking_leds();
+ 880               		.loc 1 264 14 view .LVU280
+ 881 042c 8111      		cpse r24,__zero_reg__
+ 882 042e 00C0      		rjmp .L47
+ 265:pattern_play.c ****             set_notekey_led_blink(OCTAVE + curr_pitch_shift);
+ 883               		.loc 1 265 13 is_stmt 1 view .LVU281
+ 884 0430 0E94 0000 		call clear_blinking_leds
+ 885               	.LVL103:
+ 266:pattern_play.c ****           }
+ 886               		.loc 1 266 13 view .LVU282
+ 887 0434 8091 0000 		lds r24,curr_pitch_shift
+ 888 0438 845F      		subi r24,lo8(-(12))
+ 889 043a 0E94 0000 		call set_notekey_led_blink
+ 890               	.LVL104:
+ 891               	.L47:
+ 269:pattern_play.c ****           set_notekey_led(OCTAVE + next_pitch_shift);
+ 892               		.loc 1 269 9 view .LVU283
+ 269:pattern_play.c ****           set_notekey_led(OCTAVE + next_pitch_shift);
+ 893               		.loc 1 269 30 is_stmt 0 view .LVU284
+ 894 043e 8091 0000 		lds r24,next_pitch_shift
+ 269:pattern_play.c ****           set_notekey_led(OCTAVE + next_pitch_shift);
+ 895               		.loc 1 269 12 view .LVU285
+ 896 0442 9091 0000 		lds r25,curr_pitch_shift
+ 897 0446 8917      		cp r24,r25
+ 898 0448 01F4      		brne .+2
+ 899 044a 00C0      		rjmp .L43
+ 270:pattern_play.c ****       }
+ 900               		.loc 1 270 11 is_stmt 1 view .LVU286
+ 901 044c 845F      		subi r24,lo8(-(12))
+ 902 044e 00C0      		rjmp .L200
+ 903               	.L49:
+ 270:pattern_play.c ****       }
+ 904               		.loc 1 270 11 is_stmt 0 view .LVU287
+ 905               	.LBE3:
+ 279:pattern_play.c ****         // clear any pitch shift indicators
+ 906               		.loc 1 279 36 discriminator 1 view .LVU288
+ 907 0450 8EE0      		ldi r24,lo8(14)
+ 908 0452 0E94 0000 		call just_released
+ 909               	.LVL105:
+ 279:pattern_play.c ****         // clear any pitch shift indicators
+ 910               		.loc 1 279 33 discriminator 1 view .LVU289
+ 911 0456 8111      		cpse r24,__zero_reg__
+ 912 0458 00C0      		rjmp .L51
+ 913 045a 00C0      		rjmp .L50
+ 914               	.LVL106:
+ 915               	.L57:
+ 301:pattern_play.c **** 
+ 916               		.loc 1 301 13 is_stmt 1 view .LVU290
+ 301:pattern_play.c **** 
+ 917               		.loc 1 301 30 is_stmt 0 view .LVU291
+ 918 045c 8770      		andi r24,lo8(7)
+ 919 045e 00C0      		rjmp .L201
+ 920               	.LVL107:
+ 921               	.L62:
+ 324:pattern_play.c ****         }
+ 922               		.loc 1 324 11 is_stmt 1 discriminator 2 view .LVU292
+ 324:pattern_play.c ****         }
+ 923               		.loc 1 324 36 is_stmt 0 discriminator 2 view .LVU293
+ 924 0460 8081      		ld r24,Z
+ 324:pattern_play.c ****         }
+ 925               		.loc 1 324 11 discriminator 2 view .LVU294
+ 926 0462 8F5F      		subi r24,lo8(-(1))
+ 927 0464 0E94 0000 		call set_numkey_led
+ 928               	.LVL108:
+ 324:pattern_play.c ****         }
+ 929               		.loc 1 324 11 discriminator 2 view .LVU295
+ 930 0468 FFEF      		ldi r31,-1
+ 931 046a EF1A      		sub r14,r31
+ 932 046c FF0A      		sbc r15,r31
+ 933               	.LVL109:
+ 321:pattern_play.c ****           if (next_chain[i] > 8)
+ 934               		.loc 1 321 9 discriminator 2 view .LVU296
+ 935 046e 20E2      		ldi r18,32
+ 936 0470 E216      		cp r14,r18
+ 937 0472 F104      		cpc r15,__zero_reg__
+ 938 0474 01F0      		breq .+2
+ 939 0476 00C0      		rjmp .L63
+ 940 0478 00C0      		rjmp .L64
+ 941               	.LVL110:
+ 942               	.L106:
+ 321:pattern_play.c ****           if (next_chain[i] > 8)
+ 943               		.loc 1 321 9 discriminator 2 view .LVU297
+ 944 047a B12C      		mov r11,__zero_reg__
+ 945 047c A12C      		mov r10,__zero_reg__
+ 946               	.L60:
+ 947               	.LVL111:
+ 328:pattern_play.c ****             break;
+ 948               		.loc 1 328 11 is_stmt 1 view .LVU298
+ 328:pattern_play.c ****             break;
+ 949               		.loc 1 328 25 is_stmt 0 view .LVU299
+ 950 047e C501      		movw r24,r10
+ 951 0480 8050      		subi r24,lo8(-(curr_chain))
+ 952 0482 9040      		sbci r25,hi8(-(curr_chain))
+ 953 0484 7C01      		movw r14,r24
+ 954 0486 FC01      		movw r30,r24
+ 955 0488 8081      		ld r24,Z
+ 328:pattern_play.c ****             break;
+ 956               		.loc 1 328 14 view .LVU300
+ 957 048a 8930      		cpi r24,lo8(9)
+ 958 048c 00F0      		brlo .+2
+ 959 048e 00C0      		rjmp .L64
+ 330:pattern_play.c ****             if (!is_numkey_led_blink(curr_chain[i] + 1)) {
+ 960               		.loc 1 330 11 is_stmt 1 view .LVU301
+ 330:pattern_play.c ****             if (!is_numkey_led_blink(curr_chain[i] + 1)) {
+ 961               		.loc 1 330 14 is_stmt 0 view .LVU302
+ 962 0490 8091 0000 		lds r24,playing
+ 963 0494 8823      		tst r24
+ 964 0496 01F0      		breq .L65
+ 330:pattern_play.c ****             if (!is_numkey_led_blink(curr_chain[i] + 1)) {
+ 965               		.loc 1 330 37 discriminator 1 view .LVU303
+ 966 0498 9081      		ld r25,Z
+ 330:pattern_play.c ****             if (!is_numkey_led_blink(curr_chain[i] + 1)) {
+ 967               		.loc 1 330 54 discriminator 1 view .LVU304
+ 968 049a E091 0000 		lds r30,curr_chain_index
+ 969 049e F0E0      		ldi r31,0
+ 970 04a0 E050      		subi r30,lo8(-(curr_chain))
+ 971 04a2 F040      		sbci r31,hi8(-(curr_chain))
+ 972 04a4 8081      		ld r24,Z
+ 330:pattern_play.c ****             if (!is_numkey_led_blink(curr_chain[i] + 1)) {
+ 973               		.loc 1 330 23 discriminator 1 view .LVU305
+ 974 04a6 9813      		cpse r25,r24
+ 975 04a8 00C0      		rjmp .L65
+ 331:pattern_play.c ****               // if playing, current pattern/track blinks
+ 976               		.loc 1 331 13 is_stmt 1 view .LVU306
+ 331:pattern_play.c ****               // if playing, current pattern/track blinks
+ 977               		.loc 1 331 48 is_stmt 0 view .LVU307
+ 978 04aa F701      		movw r30,r14
+ 979 04ac 8081      		ld r24,Z
+ 331:pattern_play.c ****               // if playing, current pattern/track blinks
+ 980               		.loc 1 331 18 view .LVU308
+ 981 04ae 8F5F      		subi r24,lo8(-(1))
+ 982 04b0 0E94 0000 		call is_numkey_led_blink
+ 983               	.LVL112:
+ 331:pattern_play.c ****               // if playing, current pattern/track blinks
+ 984               		.loc 1 331 16 view .LVU309
+ 985 04b4 8111      		cpse r24,__zero_reg__
+ 986 04b6 00C0      		rjmp .L66
+ 333:pattern_play.c ****               set_numkey_led_blink(curr_chain[i] + 1);
+ 987               		.loc 1 333 15 is_stmt 1 view .LVU310
+ 333:pattern_play.c ****               set_numkey_led_blink(curr_chain[i] + 1);
+ 988               		.loc 1 333 42 is_stmt 0 view .LVU311
+ 989 04b8 F701      		movw r30,r14
+ 990 04ba 8081      		ld r24,Z
+ 333:pattern_play.c ****               set_numkey_led_blink(curr_chain[i] + 1);
+ 991               		.loc 1 333 15 view .LVU312
+ 992 04bc 8F5F      		subi r24,lo8(-(1))
+ 993 04be 0E94 0000 		call clear_numkey_led
+ 994               	.LVL113:
+ 334:pattern_play.c ****             }
+ 995               		.loc 1 334 15 is_stmt 1 view .LVU313
+ 334:pattern_play.c ****             }
+ 996               		.loc 1 334 46 is_stmt 0 view .LVU314
+ 997 04c2 F701      		movw r30,r14
+ 998 04c4 8081      		ld r24,Z
+ 334:pattern_play.c ****             }
+ 999               		.loc 1 334 15 view .LVU315
+ 1000 04c6 8F5F      		subi r24,lo8(-(1))
+ 1001 04c8 0E94 0000 		call set_numkey_led_blink
+ 1002               	.LVL114:
+ 1003               	.L66:
+ 334:pattern_play.c ****             }
+ 1004               		.loc 1 334 15 view .LVU316
+ 1005 04cc FFEF      		ldi r31,-1
+ 1006 04ce AF1A      		sub r10,r31
+ 1007 04d0 BF0A      		sbc r11,r31
+ 1008               	.LVL115:
+ 327:pattern_play.c ****           if (curr_chain[i] > 8)
+ 1009               		.loc 1 327 9 discriminator 2 view .LVU317
+ 1010 04d2 20E2      		ldi r18,32
+ 1011 04d4 A216      		cp r10,r18
+ 1012 04d6 B104      		cpc r11,__zero_reg__
+ 1013 04d8 01F4      		brne .L60
+ 1014 04da 00C0      		rjmp .L64
+ 1015               	.LVL116:
+ 1016               	.L65:
+ 338:pattern_play.c ****               clear_blinking_leds();
+ 1017               		.loc 1 338 13 is_stmt 1 view .LVU318
+ 338:pattern_play.c ****               clear_blinking_leds();
+ 1018               		.loc 1 338 47 is_stmt 0 view .LVU319
+ 1019 04dc F701      		movw r30,r14
+ 1020 04de 8081      		ld r24,Z
+ 338:pattern_play.c ****               clear_blinking_leds();
+ 1021               		.loc 1 338 17 view .LVU320
+ 1022 04e0 8F5F      		subi r24,lo8(-(1))
+ 1023 04e2 0E94 0000 		call is_numkey_led_blink
+ 1024               	.LVL117:
+ 338:pattern_play.c ****               clear_blinking_leds();
+ 1025               		.loc 1 338 16 view .LVU321
+ 1026 04e6 8111      		cpse r24,__zero_reg__
+ 339:pattern_play.c ****             // all other patterns in chain solid
+ 1027               		.loc 1 339 15 is_stmt 1 view .LVU322
+ 1028 04e8 0E94 0000 		call clear_blinking_leds
+ 1029               	.LVL118:
+ 1030               	.L67:
+ 341:pattern_play.c ****           }
+ 1031               		.loc 1 341 13 view .LVU323
+ 341:pattern_play.c ****           }
+ 1032               		.loc 1 341 38 is_stmt 0 view .LVU324
+ 1033 04ec F701      		movw r30,r14
+ 1034 04ee 8081      		ld r24,Z
+ 341:pattern_play.c ****           }
+ 1035               		.loc 1 341 13 view .LVU325
+ 1036 04f0 8F5F      		subi r24,lo8(-(1))
+ 1037 04f2 0E94 0000 		call set_numkey_led
+ 1038               	.LVL119:
+ 1039 04f6 00C0      		rjmp .L66
+ 1040               	.LVL120:
+ 1041               	.L69:
+ 370:pattern_play.c ****         ((sync == MIDI_SYNC) && (midi_cmd == MIDI_STOP)) ||
+ 1042               		.loc 1 370 37 discriminator 1 view .LVU326
+ 1043 04f8 81E0      		ldi r24,lo8(1)
+ 1044 04fa 0E94 0000 		call just_pressed
+ 1045               	.LVL121:
+ 370:pattern_play.c ****         ((sync == MIDI_SYNC) && (midi_cmd == MIDI_STOP)) ||
+ 1046               		.loc 1 370 34 discriminator 1 view .LVU327
+ 1047 04fe 8823      		tst r24
+ 1048 0500 01F4      		brne .+2
+ 1049 0502 00C0      		rjmp .L72
+ 370:pattern_play.c ****         ((sync == MIDI_SYNC) && (midi_cmd == MIDI_STOP)) ||
+ 1050               		.loc 1 370 58 discriminator 3 view .LVU328
+ 1051 0504 8091 0000 		lds r24,playing
+ 1052 0508 8823      		tst r24
+ 1053 050a 01F4      		brne .+2
+ 1054 050c 00C0      		rjmp .L72
+ 1055               	.L75:
+ 374:pattern_play.c ****       note_off(0);
+ 1056               		.loc 1 374 7 is_stmt 1 view .LVU329
+ 374:pattern_play.c ****       note_off(0);
+ 1057               		.loc 1 374 15 is_stmt 0 view .LVU330
+ 1058 050e 1092 0000 		sts playing,__zero_reg__
+ 375:pattern_play.c ****       midi_stop();
+ 1059               		.loc 1 375 7 is_stmt 1 view .LVU331
+ 1060 0512 80E0      		ldi r24,0
+ 1061 0514 0E94 0000 		call note_off
+ 1062               	.LVL122:
+ 376:pattern_play.c **** 
+ 1063               		.loc 1 376 7 view .LVU332
+ 1064 0518 0E94 0000 		call midi_stop
+ 1065               	.LVL123:
+ 378:pattern_play.c ****         dinsync_stop();
+ 1066               		.loc 1 378 7 view .LVU333
+ 378:pattern_play.c ****         dinsync_stop();
+ 1067               		.loc 1 378 10 is_stmt 0 view .LVU334
+ 1068 051c 8091 0000 		lds r24,sync
+ 1069 0520 8130      		cpi r24,lo8(1)
+ 1070 0522 01F0      		breq .L74
+ 379:pattern_play.c **** 
+ 1071               		.loc 1 379 9 is_stmt 1 view .LVU335
+ 1072 0524 0E94 0000 		call dinsync_stop
+ 1073               	.LVL124:
+ 1074               	.L74:
+ 381:pattern_play.c ****       clear_blinking_leds();
+ 1075               		.loc 1 381 7 view .LVU336
+ 1076 0528 81E2      		ldi r24,lo8(33)
+ 1077 052a 0E94 0000 		call clear_led
+ 1078               	.LVL125:
+ 382:pattern_play.c ****       clear_bank_leds();
+ 1079               		.loc 1 382 7 view .LVU337
+ 1080 052e 0E94 0000 		call clear_blinking_leds
+ 1081               	.LVL126:
+ 383:pattern_play.c ****       if (ANYPATTERNPLAYFUNC)
+ 1082               		.loc 1 383 7 view .LVU338
+ 1083 0532 0E94 0000 		call clear_bank_leds
+ 1084               	.LVL127:
+ 384:pattern_play.c ****         set_bank_led(bank);
+ 1085               		.loc 1 384 7 view .LVU339
+ 384:pattern_play.c ****         set_bank_led(bank);
+ 1086               		.loc 1 384 11 is_stmt 0 view .LVU340
+ 1087 0536 8091 0000 		lds r24,function
+ 1088 053a 8B30      		cpi r24,lo8(11)
+ 1089 053c 01F0      		breq .L79
+ 384:pattern_play.c ****         set_bank_led(bank);
+ 1090               		.loc 1 384 11 discriminator 2 view .LVU341
+ 1091 053e 877F      		andi r24,lo8(-9)
+ 1092 0540 8730      		cpi r24,lo8(7)
+ 1093 0542 01F0      		breq .+2
+ 1094 0544 00C0      		rjmp .L80
+ 1095               	.L79:
+ 385:pattern_play.c ****       else
+ 1096               		.loc 1 385 9 is_stmt 1 view .LVU342
+ 1097 0546 8091 0000 		lds r24,bank
+ 1098               	.L202:
+ 387:pattern_play.c ****     } else if (((sync == INTERNAL_SYNC) && just_pressed(KEY_RS) && !playing) ||
+ 1099               		.loc 1 387 9 is_stmt 0 view .LVU343
+ 1100 054a 0E94 0000 		call set_bank_led
+ 1101               	.LVL128:
+ 1102               	.L81:
+ 427:pattern_play.c ****       // midi sync clock ticks
+ 1103               		.loc 1 427 5 is_stmt 1 view .LVU344
+ 427:pattern_play.c ****       // midi sync clock ticks
+ 1104               		.loc 1 427 8 is_stmt 0 view .LVU345
+ 1105 054e 8091 0000 		lds r24,playing
+ 1106 0552 8823      		tst r24
+ 1107 0554 01F4      		brne .+2
+ 1108 0556 00C0      		rjmp .L91
+ 429:pattern_play.c ****         midisync_clocked -= MIDISYNC_PPQ / 8;
+ 1109               		.loc 1 429 7 is_stmt 1 view .LVU346
+ 429:pattern_play.c ****         midisync_clocked -= MIDISYNC_PPQ / 8;
+ 1110               		.loc 1 429 17 is_stmt 0 view .LVU347
+ 1111 0558 8091 0000 		lds r24,sync
+ 429:pattern_play.c ****         midisync_clocked -= MIDISYNC_PPQ / 8;
+ 1112               		.loc 1 429 10 view .LVU348
+ 1113 055c 8230      		cpi r24,lo8(2)
+ 1114 055e 01F0      		breq .+2
+ 1115 0560 00C0      		rjmp .L92
+ 429:pattern_play.c ****         midisync_clocked -= MIDISYNC_PPQ / 8;
+ 1116               		.loc 1 429 52 discriminator 1 view .LVU349
+ 1117 0562 8091 0000 		lds r24,midisync_clocked
+ 1118 0566 9091 0000 		lds r25,midisync_clocked+1
+ 429:pattern_play.c ****         midisync_clocked -= MIDISYNC_PPQ / 8;
+ 1119               		.loc 1 429 31 discriminator 1 view .LVU350
+ 1120 056a 1816      		cp __zero_reg__,r24
+ 1121 056c 1906      		cpc __zero_reg__,r25
+ 1122 056e 04F0      		brlt .+2
+ 1123 0570 00C0      		rjmp .L91
+ 430:pattern_play.c ****         do_tempo();
+ 1124               		.loc 1 430 9 is_stmt 1 view .LVU351
+ 430:pattern_play.c ****         do_tempo();
+ 1125               		.loc 1 430 26 is_stmt 0 view .LVU352
+ 1126 0572 8091 0000 		lds r24,midisync_clocked
+ 1127 0576 9091 0000 		lds r25,midisync_clocked+1
+ 1128 057a 0397      		sbiw r24,3
+ 1129 057c 9093 0000 		sts midisync_clocked+1,r25
+ 1130 0580 8093 0000 		sts midisync_clocked,r24
+ 431:pattern_play.c ****         continue;
+ 1131               		.loc 1 431 9 is_stmt 1 view .LVU353
+ 1132               	.L199:
+ 437:pattern_play.c ****         continue;
+ 1133               		.loc 1 437 9 view .LVU354
+ 1134 0584 0E94 0000 		call do_tempo
+ 1135               	.LVL129:
+ 438:pattern_play.c ****       }
+ 1136               		.loc 1 438 9 view .LVU355
+ 1137 0588 00C0      		rjmp .L15
+ 1138               	.L194:
+ 371:pattern_play.c ****         ((sync == DIN_SYNC) && dinsync_stopped())) {
+ 1139               		.loc 1 371 58 is_stmt 0 discriminator 1 view .LVU356
+ 1140 058a 8130      		cpi r24,lo8(1)
+ 1141 058c 01F4      		brne .L78
+ 372:pattern_play.c ****       // putstring("stop\n\r");
+ 1142               		.loc 1 372 32 view .LVU357
+ 1143 058e 0E94 0000 		call dinsync_stopped
+ 1144               	.LVL130:
+ 372:pattern_play.c ****       // putstring("stop\n\r");
+ 1145               		.loc 1 372 29 view .LVU358
+ 1146 0592 8111      		cpse r24,__zero_reg__
+ 1147 0594 00C0      		rjmp .L75
+ 1148               	.L78:
+ 388:pattern_play.c ****                ((sync == MIDI_SYNC) &&
+ 1149               		.loc 1 388 12 is_stmt 1 view .LVU359
+ 388:pattern_play.c ****                ((sync == MIDI_SYNC) &&
+ 1150               		.loc 1 388 15 is_stmt 0 view .LVU360
+ 1151 0596 8091 0000 		lds r24,sync
+ 1152 059a 8111      		cpse r24,__zero_reg__
+ 1153 059c 00C0      		rjmp .L82
+ 388:pattern_play.c ****                ((sync == MIDI_SYNC) &&
+ 1154               		.loc 1 388 44 discriminator 1 view .LVU361
+ 1155 059e 81E0      		ldi r24,lo8(1)
+ 1156 05a0 0E94 0000 		call just_pressed
+ 1157               	.LVL131:
+ 388:pattern_play.c ****                ((sync == MIDI_SYNC) &&
+ 1158               		.loc 1 388 41 discriminator 1 view .LVU362
+ 1159 05a4 8823      		tst r24
+ 1160 05a6 01F4      		brne .+2
+ 1161 05a8 00C0      		rjmp .L82
+ 388:pattern_play.c ****                ((sync == MIDI_SYNC) &&
+ 1162               		.loc 1 388 65 discriminator 3 view .LVU363
+ 1163 05aa 8091 0000 		lds r24,playing
+ 1164 05ae 8111      		cpse r24,__zero_reg__
+ 1165 05b0 00C0      		rjmp .L82
+ 1166               	.L85:
+ 392:pattern_play.c ****       // putstring("start\n\r");
+ 1167               		.loc 1 392 7 is_stmt 1 view .LVU364
+ 1168 05b2 81E2      		ldi r24,lo8(33)
+ 1169 05b4 0E94 0000 		call set_led
+ 1170               	.LVL132:
+ 395:pattern_play.c ****         load_pattern(bank, curr_chain[0]);
+ 1171               		.loc 1 395 7 view .LVU365
+ 395:pattern_play.c ****         load_pattern(bank, curr_chain[0]);
+ 1172               		.loc 1 395 11 is_stmt 0 view .LVU366
+ 1173 05b8 8091 0000 		lds r24,function
+ 1174 05bc 8B30      		cpi r24,lo8(11)
+ 1175 05be 01F4      		brne .L196
+ 1176               	.L83:
+ 396:pattern_play.c ****       else {
+ 1177               		.loc 1 396 9 is_stmt 1 view .LVU367
+ 1178 05c0 6091 0000 		lds r22,curr_chain
+ 1179 05c4 8091 0000 		lds r24,bank
+ 1180 05c8 0E94 0000 		call load_pattern
+ 1181               	.LVL133:
+ 1182               	.L88:
+ 402:pattern_play.c ****       /*
+ 1183               		.loc 1 402 7 view .LVU368
+ 402:pattern_play.c ****       /*
+ 1184               		.loc 1 402 17 is_stmt 0 view .LVU369
+ 1185 05cc 1092 0000 		sts curr_note,__zero_reg__
+ 412:pattern_play.c ****         curr_chain_index = 0;   // index into current chain
+ 1186               		.loc 1 412 7 is_stmt 1 view .LVU370
+ 412:pattern_play.c ****         curr_chain_index = 0;   // index into current chain
+ 1187               		.loc 1 412 10 is_stmt 0 view .LVU371
+ 1188 05d0 8091 0000 		lds r24,sync
+ 1189 05d4 8230      		cpi r24,lo8(2)
+ 1190 05d6 01F4      		brne .L89
+ 412:pattern_play.c ****         curr_chain_index = 0;   // index into current chain
+ 1191               		.loc 1 412 11 discriminator 1 view .LVU372
+ 1192 05d8 CB3F      		cpi r28,lo8(-5)
+ 1193 05da 01F0      		breq .L90
+ 1194               	.L89:
+ 413:pattern_play.c ****         curr_pattern_index = 0; // index into current pattern in chain
+ 1195               		.loc 1 413 9 is_stmt 1 view .LVU373
+ 413:pattern_play.c ****         curr_pattern_index = 0; // index into current pattern in chain
+ 1196               		.loc 1 413 26 is_stmt 0 view .LVU374
+ 1197 05dc 1092 0000 		sts curr_chain_index,__zero_reg__
+ 414:pattern_play.c ****         curr_track_index = 0;   // index into current pattern in chain
+ 1198               		.loc 1 414 9 is_stmt 1 view .LVU375
+ 414:pattern_play.c ****         curr_track_index = 0;   // index into current pattern in chain
+ 1199               		.loc 1 414 28 is_stmt 0 view .LVU376
+ 1200 05e0 1092 0000 		sts curr_pattern_index,__zero_reg__
+ 415:pattern_play.c ****       }
+ 1201               		.loc 1 415 9 is_stmt 1 view .LVU377
+ 415:pattern_play.c ****       }
+ 1202               		.loc 1 415 26 is_stmt 0 view .LVU378
+ 1203 05e4 1092 0000 		sts curr_track_index,__zero_reg__
+ 1204               	.L90:
+ 418:pattern_play.c ****       dinsync_counter = 0;
+ 1205               		.loc 1 418 7 is_stmt 1 view .LVU379
+ 418:pattern_play.c ****       dinsync_counter = 0;
+ 1206               		.loc 1 418 20 is_stmt 0 view .LVU380
+ 1207 05e8 1092 0000 		sts note_counter,__zero_reg__
+ 419:pattern_play.c ****       dinsync_clocked = 0;
+ 1208               		.loc 1 419 7 is_stmt 1 view .LVU381
+ 419:pattern_play.c ****       dinsync_clocked = 0;
+ 1209               		.loc 1 419 23 is_stmt 0 view .LVU382
+ 1210 05ec 1092 0000 		sts dinsync_counter,__zero_reg__
+ 420:pattern_play.c ****       playing = TRUE;
+ 1211               		.loc 1 420 7 is_stmt 1 view .LVU383
+ 420:pattern_play.c ****       playing = TRUE;
+ 1212               		.loc 1 420 23 is_stmt 0 view .LVU384
+ 1213 05f0 1092 0000 		sts dinsync_clocked+1,__zero_reg__
+ 1214 05f4 1092 0000 		sts dinsync_clocked,__zero_reg__
+ 421:pattern_play.c ****       midi_putchar(MIDI_START);
+ 1215               		.loc 1 421 7 is_stmt 1 view .LVU385
+ 421:pattern_play.c ****       midi_putchar(MIDI_START);
+ 1216               		.loc 1 421 15 is_stmt 0 view .LVU386
+ 1217 05f8 81E0      		ldi r24,lo8(1)
+ 1218 05fa 8093 0000 		sts playing,r24
+ 422:pattern_play.c ****       if (sync != DIN_SYNC)
+ 1219               		.loc 1 422 7 is_stmt 1 view .LVU387
+ 1220 05fe 8AEF      		ldi r24,lo8(-6)
+ 1221 0600 0E94 0000 		call midi_putchar
+ 1222               	.LVL134:
+ 423:pattern_play.c ****         dinsync_start();
+ 1223               		.loc 1 423 7 view .LVU388
+ 423:pattern_play.c ****         dinsync_start();
+ 1224               		.loc 1 423 10 is_stmt 0 view .LVU389
+ 1225 0604 8091 0000 		lds r24,sync
+ 1226 0608 8130      		cpi r24,lo8(1)
+ 1227 060a 01F4      		brne .+2
+ 1228 060c 00C0      		rjmp .L81
+ 424:pattern_play.c ****     }
+ 1229               		.loc 1 424 9 is_stmt 1 view .LVU390
+ 1230 060e 0E94 0000 		call dinsync_start
+ 1231               	.LVL135:
+ 1232 0612 00C0      		rjmp .L81
+ 1233               	.L80:
+ 387:pattern_play.c ****     } else if (((sync == INTERNAL_SYNC) && just_pressed(KEY_RS) && !playing) ||
+ 1234               		.loc 1 387 9 view .LVU391
+ 1235 0614 8091 0000 		lds r24,bank
+ 1236 0618 8770      		andi r24,lo8(7)
+ 1237 061a 00C0      		rjmp .L202
+ 1238               	.L195:
+ 390:pattern_play.c ****                ((sync == DIN_SYNC) && dinsync_started())) {
+ 1239               		.loc 1 390 76 is_stmt 0 view .LVU392
+ 1240 061c 8130      		cpi r24,lo8(1)
+ 1241 061e 01F0      		breq .+2
+ 1242 0620 00C0      		rjmp .L81
+ 391:pattern_play.c ****       set_led(LED_RS);
+ 1243               		.loc 1 391 39 view .LVU393
+ 1244 0622 0E94 0000 		call dinsync_started
+ 1245               	.LVL136:
+ 391:pattern_play.c ****       set_led(LED_RS);
+ 1246               		.loc 1 391 36 view .LVU394
+ 1247 0626 8111      		cpse r24,__zero_reg__
+ 1248 0628 00C0      		rjmp .L85
+ 1249 062a 00C0      		rjmp .L81
+ 1250               	.L196:
+ 395:pattern_play.c ****         load_pattern(bank, curr_chain[0]);
+ 1251               		.loc 1 395 11 discriminator 2 view .LVU395
+ 1252 062c 877F      		andi r24,lo8(-9)
+ 1253 062e 8730      		cpi r24,lo8(7)
+ 1254 0630 01F0      		breq .L83
+ 398:pattern_play.c ****         curr_patt = track_buff[0];
+ 1255               		.loc 1 398 9 is_stmt 1 view .LVU396
+ 1256 0632 6091 0000 		lds r22,curr_chain
+ 1257 0636 8091 0000 		lds r24,bank
+ 1258 063a 8770      		andi r24,lo8(7)
+ 1259 063c 0E94 0000 		call load_track
+ 1260               	.LVL137:
+ 399:pattern_play.c ****         load_curr_patt(); // ignore pitch shift returned
+ 1261               		.loc 1 399 9 view .LVU397
+ 399:pattern_play.c ****         load_curr_patt(); // ignore pitch shift returned
+ 1262               		.loc 1 399 31 is_stmt 0 view .LVU398
+ 1263 0640 8091 0000 		lds r24,track_buff
+ 1264 0644 9091 0000 		lds r25,track_buff+1
+ 399:pattern_play.c ****         load_curr_patt(); // ignore pitch shift returned
+ 1265               		.loc 1 399 19 view .LVU399
+ 1266 0648 9093 0000 		sts curr_patt+1,r25
+ 1267 064c 8093 0000 		sts curr_patt,r24
+ 400:pattern_play.c ****       }
+ 1268               		.loc 1 400 9 is_stmt 1 view .LVU400
+ 1269 0650 0E94 0000 		call load_curr_patt
+ 1270               	.LVL138:
+ 1271 0654 00C0      		rjmp .L88
+ 1272               	.L92:
+ 435:pattern_play.c ****         dinsync_clocked -= DINSYNC_PPQ / 8;
+ 1273               		.loc 1 435 12 view .LVU401
+ 435:pattern_play.c ****         dinsync_clocked -= DINSYNC_PPQ / 8;
+ 1274               		.loc 1 435 15 is_stmt 0 view .LVU402
+ 1275 0656 8130      		cpi r24,lo8(1)
+ 1276 0658 01F4      		brne .L91
+ 435:pattern_play.c ****         dinsync_clocked -= DINSYNC_PPQ / 8;
+ 1277               		.loc 1 435 55 discriminator 1 view .LVU403
+ 1278 065a 8091 0000 		lds r24,dinsync_clocked
+ 1279 065e 9091 0000 		lds r25,dinsync_clocked+1
+ 435:pattern_play.c ****         dinsync_clocked -= DINSYNC_PPQ / 8;
+ 1280               		.loc 1 435 35 discriminator 1 view .LVU404
+ 1281 0662 1816      		cp __zero_reg__,r24
+ 1282 0664 1906      		cpc __zero_reg__,r25
+ 1283 0666 04F4      		brge .L91
+ 436:pattern_play.c ****         do_tempo();
+ 1284               		.loc 1 436 9 is_stmt 1 view .LVU405
+ 436:pattern_play.c ****         do_tempo();
+ 1285               		.loc 1 436 25 is_stmt 0 view .LVU406
+ 1286 0668 8091 0000 		lds r24,dinsync_clocked
+ 1287 066c 9091 0000 		lds r25,dinsync_clocked+1
+ 1288 0670 0397      		sbiw r24,3
+ 1289 0672 9093 0000 		sts dinsync_clocked+1,r25
+ 1290 0676 8093 0000 		sts dinsync_clocked,r24
+ 1291 067a 00C0      		rjmp .L199
+ 1292               	.L91:
+ 442:pattern_play.c ****       all_slide = !all_slide;
+ 1293               		.loc 1 442 5 is_stmt 1 view .LVU407
+ 442:pattern_play.c ****       all_slide = !all_slide;
+ 1294               		.loc 1 442 9 is_stmt 0 view .LVU408
+ 1295 067c 86E1      		ldi r24,lo8(22)
+ 1296 067e 0E94 0000 		call just_pressed
+ 1297               	.LVL139:
+ 442:pattern_play.c ****       all_slide = !all_slide;
+ 1298               		.loc 1 442 8 view .LVU409
+ 1299 0682 8823      		tst r24
+ 1300 0684 01F0      		breq .L94
+ 443:pattern_play.c ****       if (all_slide)
+ 1301               		.loc 1 443 7 is_stmt 1 view .LVU410
+ 443:pattern_play.c ****       if (all_slide)
+ 1302               		.loc 1 443 19 is_stmt 0 view .LVU411
+ 1303 0686 8091 0000 		lds r24,all_slide
+ 1304 068a 91E0      		ldi r25,lo8(1)
+ 1305 068c 8111      		cpse r24,__zero_reg__
+ 1306 068e 90E0      		ldi r25,0
+ 1307               	.L95:
+ 443:pattern_play.c ****       if (all_slide)
+ 1308               		.loc 1 443 17 view .LVU412
+ 1309 0690 9093 0000 		sts all_slide,r25
+ 444:pattern_play.c ****         set_led(LED_SLIDE);
+ 1310               		.loc 1 444 7 is_stmt 1 view .LVU413
+ 444:pattern_play.c ****         set_led(LED_SLIDE);
+ 1311               		.loc 1 444 10 is_stmt 0 view .LVU414
+ 1312 0694 8111      		cpse r24,__zero_reg__
+ 1313 0696 00C0      		rjmp .L96
+ 445:pattern_play.c ****       else
+ 1314               		.loc 1 445 9 is_stmt 1 view .LVU415
+ 1315 0698 82E0      		ldi r24,lo8(2)
+ 1316 069a 0E94 0000 		call set_led
+ 1317               	.LVL140:
+ 1318               	.L94:
+ 450:pattern_play.c ****       all_accent = !all_accent;
+ 1319               		.loc 1 450 5 view .LVU416
+ 450:pattern_play.c ****       all_accent = !all_accent;
+ 1320               		.loc 1 450 9 is_stmt 0 view .LVU417
+ 1321 069e 85E1      		ldi r24,lo8(21)
+ 1322 06a0 0E94 0000 		call just_pressed
+ 1323               	.LVL141:
+ 450:pattern_play.c ****       all_accent = !all_accent;
+ 1324               		.loc 1 450 8 view .LVU418
+ 1325 06a4 8823      		tst r24
+ 1326 06a6 01F0      		breq .L97
+ 451:pattern_play.c ****       if (all_accent)
+ 1327               		.loc 1 451 7 is_stmt 1 view .LVU419
+ 451:pattern_play.c ****       if (all_accent)
+ 1328               		.loc 1 451 20 is_stmt 0 view .LVU420
+ 1329 06a8 8091 0000 		lds r24,all_accent
+ 1330 06ac 91E0      		ldi r25,lo8(1)
+ 1331 06ae 8111      		cpse r24,__zero_reg__
+ 1332 06b0 90E0      		ldi r25,0
+ 1333               	.L98:
+ 451:pattern_play.c ****       if (all_accent)
+ 1334               		.loc 1 451 18 view .LVU421
+ 1335 06b2 9093 0000 		sts all_accent,r25
+ 452:pattern_play.c ****         set_led(LED_ACCENT);
+ 1336               		.loc 1 452 7 is_stmt 1 view .LVU422
+ 452:pattern_play.c ****         set_led(LED_ACCENT);
+ 1337               		.loc 1 452 10 is_stmt 0 view .LVU423
+ 1338 06b6 8111      		cpse r24,__zero_reg__
+ 1339 06b8 00C0      		rjmp .L99
+ 453:pattern_play.c ****       else
+ 1340               		.loc 1 453 9 is_stmt 1 view .LVU424
+ 1341 06ba 81E0      		ldi r24,lo8(1)
+ 1342 06bc 0E94 0000 		call set_led
+ 1343               	.LVL142:
+ 1344               	.L97:
+ 458:pattern_play.c ****       all_rest = !all_rest;
+ 1345               		.loc 1 458 5 view .LVU425
+ 458:pattern_play.c ****       all_rest = !all_rest;
+ 1346               		.loc 1 458 9 is_stmt 0 view .LVU426
+ 1347 06c0 84E1      		ldi r24,lo8(20)
+ 1348 06c2 0E94 0000 		call just_pressed
+ 1349               	.LVL143:
+ 458:pattern_play.c ****       all_rest = !all_rest;
+ 1350               		.loc 1 458 8 view .LVU427
+ 1351 06c6 8823      		tst r24
+ 1352 06c8 01F4      		brne .+2
+ 1353 06ca 00C0      		rjmp .L15
+ 459:pattern_play.c ****       if (all_rest)
+ 1354               		.loc 1 459 7 is_stmt 1 view .LVU428
+ 459:pattern_play.c ****       if (all_rest)
+ 1355               		.loc 1 459 18 is_stmt 0 view .LVU429
+ 1356 06cc 8091 0000 		lds r24,all_rest
+ 1357 06d0 91E0      		ldi r25,lo8(1)
+ 1358 06d2 8111      		cpse r24,__zero_reg__
+ 1359 06d4 90E0      		ldi r25,0
+ 1360               	.L100:
+ 459:pattern_play.c ****       if (all_rest)
+ 1361               		.loc 1 459 16 view .LVU430
+ 1362 06d6 9093 0000 		sts all_rest,r25
+ 460:pattern_play.c ****         set_led(LED_REST);
+ 1363               		.loc 1 460 7 is_stmt 1 view .LVU431
+ 460:pattern_play.c ****         set_led(LED_REST);
+ 1364               		.loc 1 460 10 is_stmt 0 view .LVU432
+ 1365 06da 8111      		cpse r24,__zero_reg__
+ 1366 06dc 00C0      		rjmp .L101
+ 461:pattern_play.c ****       else
+ 1367               		.loc 1 461 9 is_stmt 1 view .LVU433
+ 1368 06de 88E0      		ldi r24,lo8(8)
+ 1369 06e0 0E94 0000 		call set_led
+ 1370               	.LVL144:
+ 1371 06e4 00C0      		rjmp .L15
+ 1372               	.L96:
+ 447:pattern_play.c ****     }
+ 1373               		.loc 1 447 9 view .LVU434
+ 1374 06e6 82E0      		ldi r24,lo8(2)
+ 1375 06e8 0E94 0000 		call clear_led
+ 1376               	.LVL145:
+ 1377 06ec 00C0      		rjmp .L94
+ 1378               	.L99:
+ 455:pattern_play.c ****     }
+ 1379               		.loc 1 455 9 view .LVU435
+ 1380 06ee 81E0      		ldi r24,lo8(1)
+ 1381 06f0 0E94 0000 		call clear_led
+ 1382               	.LVL146:
+ 1383 06f4 00C0      		rjmp .L97
+ 1384               	.L101:
+ 463:pattern_play.c ****     }
+ 1385               		.loc 1 463 9 view .LVU436
+ 1386 06f6 88E0      		ldi r24,lo8(8)
+ 1387 06f8 0E94 0000 		call clear_led
+ 1388               	.LVL147:
+ 1389 06fc 00C0      		rjmp .L15
+ 1390               	.LVL148:
+ 1391               	.L53:
+ 289:pattern_play.c ****           clear_numkey_leds();
+ 1392               		.loc 1 289 9 view .LVU437
+ 298:pattern_play.c ****             next_bank = bank;
+ 1393               		.loc 1 298 11 view .LVU438
+ 298:pattern_play.c ****             next_bank = bank;
+ 1394               		.loc 1 298 15 is_stmt 0 view .LVU439
+ 1395 06fe 9091 0000 		lds r25,function
+ 1396 0702 8091 0000 		lds r24,bank
+ 1397 0706 9B30      		cpi r25,lo8(11)
+ 1398 0708 01F0      		breq .L201
+ 298:pattern_play.c ****             next_bank = bank;
+ 1399               		.loc 1 298 15 discriminator 2 view .LVU440
+ 1400 070a 977F      		andi r25,lo8(-9)
+ 1401 070c 9730      		cpi r25,lo8(7)
+ 1402 070e 01F0      		breq .+2
+ 1403 0710 00C0      		rjmp .L57
+ 1404               	.L201:
+ 301:pattern_play.c **** 
+ 1405               		.loc 1 301 23 view .LVU441
+ 1406 0712 8093 0000 		sts next_bank,r24
+ 303:pattern_play.c ****             curr_bank = next_bank;
+ 1407               		.loc 1 303 11 is_stmt 1 view .LVU442
+ 303:pattern_play.c ****             curr_bank = next_bank;
+ 1408               		.loc 1 303 14 is_stmt 0 view .LVU443
+ 1409 0716 8091 0000 		lds r24,playing
+ 1410 071a 8111      		cpse r24,__zero_reg__
+ 1411 071c 00C0      		rjmp .L104
+ 304:pattern_play.c ****         }
+ 1412               		.loc 1 304 13 is_stmt 1 view .LVU444
+ 304:pattern_play.c ****         }
+ 1413               		.loc 1 304 23 is_stmt 0 view .LVU445
+ 1414 071e 8091 0000 		lds r24,next_bank
+ 1415 0722 8093 0000 		sts curr_bank,r24
+ 1416 0726 00C0      		rjmp .L56
+ 1417               	.LVL149:
+ 1418               	.L52:
+ 289:pattern_play.c ****           clear_numkey_leds();
+ 1419               		.loc 1 289 9 is_stmt 1 view .LVU446
+ 290:pattern_play.c ****           buff_chain[0] = next_chain[0] = i - 1;
+ 1420               		.loc 1 290 11 view .LVU447
+ 1421 0728 0E94 0000 		call clear_numkey_leds
+ 1422               	.LVL150:
+ 291:pattern_play.c ****           buff_chain[1] = next_chain[1] = 0xFF;
+ 1423               		.loc 1 291 11 view .LVU448
+ 291:pattern_play.c ****           buff_chain[1] = next_chain[1] = 0xFF;
+ 1424               		.loc 1 291 45 is_stmt 0 view .LVU449
+ 1425 072c D150      		subi r29,lo8(-(-1))
+ 1426               	.LVL151:
+ 291:pattern_play.c ****           buff_chain[1] = next_chain[1] = 0xFF;
+ 1427               		.loc 1 291 41 view .LVU450
+ 1428 072e D093 0000 		sts next_chain,r29
+ 291:pattern_play.c ****           buff_chain[1] = next_chain[1] = 0xFF;
+ 1429               		.loc 1 291 25 view .LVU451
+ 1430 0732 D093 0000 		sts buff_chain,r29
+ 292:pattern_play.c **** 
+ 1431               		.loc 1 292 11 is_stmt 1 view .LVU452
+ 292:pattern_play.c **** 
+ 1432               		.loc 1 292 41 is_stmt 0 view .LVU453
+ 1433 0736 D092 0000 		sts next_chain+1,r13
+ 292:pattern_play.c **** 
+ 1434               		.loc 1 292 25 view .LVU454
+ 1435 073a D092 0000 		sts buff_chain+1,r13
+ 294:pattern_play.c ****             for (i = 0; i < MAX_CHAIN; i++)
+ 1436               		.loc 1 294 11 is_stmt 1 view .LVU455
+ 294:pattern_play.c ****             for (i = 0; i < MAX_CHAIN; i++)
+ 1437               		.loc 1 294 14 is_stmt 0 view .LVU456
+ 1438 073e 8091 0000 		lds r24,playing
+ 1439 0742 8111      		cpse r24,__zero_reg__
+ 1440 0744 00C0      		rjmp .L104
+ 1441 0746 90E0      		ldi r25,0
+ 1442 0748 80E0      		ldi r24,0
+ 1443               	.LVL152:
+ 1444               	.L55:
+ 296:pattern_play.c ****         } else {
+ 1445               		.loc 1 296 15 is_stmt 1 discriminator 3 view .LVU457
+ 296:pattern_play.c ****         } else {
+ 1446               		.loc 1 296 41 is_stmt 0 discriminator 3 view .LVU458
+ 1447 074a FC01      		movw r30,r24
+ 1448 074c E050      		subi r30,lo8(-(next_chain))
+ 1449 074e F040      		sbci r31,hi8(-(next_chain))
+ 1450 0750 2081      		ld r18,Z
+ 296:pattern_play.c ****         } else {
+ 1451               		.loc 1 296 29 discriminator 3 view .LVU459
+ 1452 0752 FC01      		movw r30,r24
+ 1453 0754 E050      		subi r30,lo8(-(curr_chain))
+ 1454 0756 F040      		sbci r31,hi8(-(curr_chain))
+ 1455 0758 2083      		st Z,r18
+ 1456               	.LVL153:
+ 296:pattern_play.c ****         } else {
+ 1457               		.loc 1 296 29 discriminator 3 view .LVU460
+ 1458 075a 0196      		adiw r24,1
+ 1459               	.LVL154:
+ 295:pattern_play.c ****               curr_chain[i] = next_chain[i];
+ 1460               		.loc 1 295 13 discriminator 3 view .LVU461
+ 1461 075c 8032      		cpi r24,32
+ 1462 075e 9105      		cpc r25,__zero_reg__
+ 1463 0760 01F4      		brne .L55
+ 1464               	.LVL155:
+ 1465               	.L56:
+ 306:pattern_play.c ****           clear_bank_leds();
+ 1466               		.loc 1 306 9 is_stmt 1 view .LVU462
+ 307:pattern_play.c ****           set_bank_led(next_bank);
+ 1467               		.loc 1 307 11 view .LVU463
+ 1468 0762 0E94 0000 		call clear_bank_leds
+ 1469               	.LVL156:
+ 308:pattern_play.c ****           curr_pitch_shift = next_pitch_shift;
+ 1470               		.loc 1 308 11 view .LVU464
+ 1471 0766 8091 0000 		lds r24,next_bank
+ 1472 076a 0E94 0000 		call set_bank_led
+ 1473               	.LVL157:
+ 309:pattern_play.c ****         }
+ 1474               		.loc 1 309 11 view .LVU465
+ 309:pattern_play.c ****         }
+ 1475               		.loc 1 309 28 is_stmt 0 view .LVU466
+ 1476 076e 8091 0000 		lds r24,next_pitch_shift
+ 1477 0772 8093 0000 		sts curr_pitch_shift,r24
+ 1478 0776 00C0      		rjmp .L104
+ 1479               		.cfi_endproc
+ 1480               	.LFE1:
+ 1482               	.global	tap_tempo_timer
+ 1483               		.section .bss
+ 1486               	tap_tempo_timer:
+ 1487 0000 0000      		.zero	2
+ 1488               		.comm	playing,1,1
+ 1489               	.global	next_bank
+ 1492               	next_bank:
+ 1493 0002 00        		.zero	1
+ 1494               	.global	curr_bank
+ 1497               	curr_bank:
+ 1498 0003 00        		.zero	1
+ 1499               	.global	all_rest
+ 1502               	all_rest:
+ 1503 0004 00        		.zero	1
+ 1504               	.global	all_slide
+ 1507               	all_slide:
+ 1508 0005 00        		.zero	1
+ 1509               	.global	all_accent
+ 1512               	all_accent:
+ 1513 0006 00        		.zero	1
+ 1514               	.global	buff_chain_len
+ 1517               	buff_chain_len:
+ 1518 0007 00        		.zero	1
+ 1519               		.comm	buff_chain,32,1
+ 1520               		.comm	next_chain,32,1
+ 1521               		.comm	curr_chain_index,1,1
+ 1522               		.comm	curr_chain,32,1
+ 1523               		.text
+ 1524               	.Letext0:
+ 1525               		.file 2 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdint.h"
+ 1526               		.file 3 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdio.h"
+ 1527               		.file 4 "switch.h"
+ 1528               		.file 5 "led.h"
+ 1529               		.file 6 "main.h"
+ 1530               		.file 7 "dinsync.h"
+ 1531               		.file 8 "midi.h"
+ 1532               		.file 9 "pattern.h"
+ 1533               		.file 10 "track.h"
+ 1534               		.file 11 "synth.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 pattern_play.c
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:12     .text:0000000000000000 chains_equiv
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:80     .text:0000000000000032 do_patterntrack_play
+                            *COM*:0000000000000020 curr_chain
+                            *COM*:0000000000000020 next_chain
+                            *COM*:0000000000000001 playing
+                            *COM*:0000000000000001 curr_chain_index
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:1497   .bss:0000000000000003 curr_bank
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:1492   .bss:0000000000000002 next_bank
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:1507   .bss:0000000000000005 all_slide
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:1502   .bss:0000000000000004 all_rest
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:1512   .bss:0000000000000006 all_accent
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:1486   .bss:0000000000000000 tap_tempo_timer
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccSejnWT.s:1517   .bss:0000000000000007 buff_chain_len
+                            *COM*:0000000000000020 buff_chain
+
+UNDEFINED SYMBOLS
+function
+sync
+turn_on_tempo
+dinsync_set_in
+clear_all_leds
+clear_blinking_leds
+set_numkey_led
+curr_track_index
+curr_pattern_index
+curr_patt
+next_pitch_shift
+curr_pitch_shift
+clear_bank_leds
+bank
+set_bank_led
+read_switches
+dinsync_stop
+midi_stop
+clock_leds
+turn_off_tempo
+dinsync_set_out
+just_pressed
+__udivmodhi4
+change_tempo
+clear_notekey_leds
+set_led
+just_released
+clear_led
+is_pressed
+get_lowest_numkey_just_pressed
+midi_recv_cmd
+midi_in_addr
+midi_getch
+midi_getchar
+load_pattern
+clear_numkey_leds
+get_lowest_notekey_pressed
+is_notekey_led_blink
+set_notekey_led_blink
+set_notekey_led
+get_lowest_numkey_pressed
+has_bank_knob_changed
+set_numkey_led_blink
+display_curr_pitch_shift_ud
+is_numkey_led_blink
+clear_numkey_led
+note_off
+midisync_clocked
+do_tempo
+dinsync_stopped
+curr_note
+note_counter
+dinsync_counter
+dinsync_clocked
+midi_putchar
+dinsync_start
+dinsync_started
+load_track
+track_buff
+load_curr_patt
+__do_clear_bss

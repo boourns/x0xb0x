@@ -50,6 +50,7 @@ extern uint8_t sync;
 extern volatile uint8_t note_counter;
 extern volatile uint8_t dinsync_counter;
 extern volatile int16_t dinsync_clocked, midisync_clocked;
+extern uint8_t midi_in_addr;
 
 // pattern running info
 extern volatile uint8_t curr_pattern_index;
@@ -349,16 +350,18 @@ void do_patterntrack_play(void) {
       midi_cmd = midi_recv_cmd(); // returns 0 if no midi commands waiting
       
       // pattern bank/location control via midi
-      if ((midi_cmd == MIDI_SONG_SELECT) && midi_getch()) {
-        midi_data = midi_getchar();
-        if (! (midi_data & 0x80))  {
-          curr_bank = midi_data / 8; // override the bank!
-          curr_chain[0] = buff_chain[0] = next_chain[0] = midi_data % 8;
+
+      if ((midi_cmd >> 4 == 0xc) && midi_getch()) {
+        midi_cmd = midi_getchar();
+        if (! (midi_cmd & 0x80))  {
+          curr_bank = midi_cmd / 8; // override the bank!
+          curr_chain[0] = buff_chain[0] = next_chain[0] = midi_cmd % 8;
           curr_chain[1] = buff_chain[1] = next_chain[1] = 0xFF;
           load_pattern(bank, curr_chain[0]);
 
           clear_numkey_leds();
-          set_numkey_led(next_pattern_chain[0]+1);
+          set_numkey_led(curr_chain[0]+1);
+          midi_cmd = 0;
         }
       }
       

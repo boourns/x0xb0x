@@ -1,0 +1,249 @@
+   1               		.file	"synth.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	note_on
+  12               	note_on:
+  13               	.LVL0:
+  14               	.LFB1:
+  15               		.file 1 "synth.c"
+   1:synth.c       **** /*
+   2:synth.c       ****  * The software for the x0xb0x is available for use in accordance with the
+   3:synth.c       ****  * following open source license (MIT License). For more information about
+   4:synth.c       ****  * OS licensing, please visit -> http://www.opensource.org/
+   5:synth.c       ****  *
+   6:synth.c       ****  * For more information about the x0xb0x project, please visit
+   7:synth.c       ****  * -> http://www.ladyada.net/make/x0xb0x
+   8:synth.c       ****  *
+   9:synth.c       ****  *                                     *****
+  10:synth.c       ****  * Copyright (c) 2005 Limor Fried
+  11:synth.c       ****  *
+  12:synth.c       ****  * Permission is hereby granted, free of charge, to any person obtaining a
+  13:synth.c       ****  * copy of this software and associated documentation files (the "Software"),
+  14:synth.c       ****  * to deal in the Software without restriction, including without limitation
+  15:synth.c       ****  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+  16:synth.c       ****  * and/or sell copies of the Software, and to permit persons to whom the
+  17:synth.c       ****  * Software is furnished to do so, subject to the following conditions:
+  18:synth.c       ****  *
+  19:synth.c       ****  * The above copyright notice and this permission notice shall be included in
+  20:synth.c       ****  * all copies or substantial portions of the Software.
+  21:synth.c       ****  *
+  22:synth.c       ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  23:synth.c       ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  24:synth.c       ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  25:synth.c       ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  26:synth.c       ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+  27:synth.c       ****  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+  28:synth.c       ****  * IN THE SOFTWARE.
+  29:synth.c       ****  *                                     *****
+  30:synth.c       ****  *
+  31:synth.c       ****  */
+  32:synth.c       **** 
+  33:synth.c       **** #include <avr/io.h>
+  34:synth.c       **** #include <stdio.h>
+  35:synth.c       **** #include "synth.h"
+  36:synth.c       **** #include "main.h"
+  37:synth.c       **** 
+  38:synth.c       **** /* Pitch shift variables:
+  39:synth.c       ****  * These define the 'current' pitch shift (for the currently playing pattern)
+  40:synth.c       ****  * and the 'next' pitch shift, which will take effect on the next loop
+  41:synth.c       ****  * A pitch shift of 0 means no shift, -12 is octave down, 12 is octave up, etc.
+  42:synth.c       ****  */
+  43:synth.c       **** int8_t curr_pitch_shift = 0;
+  44:synth.c       **** int8_t next_pitch_shift = 0;
+  45:synth.c       **** 
+  46:synth.c       **** /* Note On:
+  47:synth.c       ****  * This function takes a 6 bit 'note' (0x0 thru 0x3F), one bit of slide
+  48:synth.c       ****  * and one bit of accent and performs the proper low level gating. Changing
+  49:synth.c       ****  * this function can affect how the synth sounds.
+  50:synth.c       ****  * Note that accent is active low.
+  51:synth.c       ****  */
+  52:synth.c       **** void note_on(uint8_t note, uint8_t slide, uint8_t accent) {
+  16               		.loc 1 52 59 view -0
+  17               		.cfi_startproc
+  18               	/* prologue: function */
+  19               	/* frame size = 0 */
+  20               	/* stack size = 0 */
+  21               	.L__stack_usage = 0
+  53:synth.c       ****   uint8_t i = 0;
+  22               		.loc 1 53 3 view .LVU1
+  54:synth.c       ****   cbi(NOTELATCH_PORT, NOTELATCH_PIN);
+  23               		.loc 1 54 3 view .LVU2
+  24 0000 3A98      		cbi 0x7,2
+  55:synth.c       **** 
+  56:synth.c       ****   // Do not allow the note to go higher than the highest note (0x3F)
+  57:synth.c       ****   if (note > 0x3F)
+  25               		.loc 1 57 3 view .LVU3
+  26               	.LVL1:
+  58:synth.c       ****     note = 0x3F;
+  59:synth.c       **** 
+  60:synth.c       ****   // Basically turn slide and accent flags into bit flags for the note port
+  61:synth.c       ****   if (slide != 0)
+  27               		.loc 1 61 3 view .LVU4
+  28               		.loc 1 61 6 is_stmt 0 view .LVU5
+  29 0002 6111      		cpse r22,__zero_reg__
+  62:synth.c       ****     slide = 0x40;
+  30               		.loc 1 62 11 view .LVU6
+  31 0004 60E4      		ldi r22,lo8(64)
+  32               	.LVL2:
+  33               	.L2:
+  63:synth.c       **** 
+  64:synth.c       ****   if (accent == 0)
+  34               		.loc 1 64 3 is_stmt 1 view .LVU7
+  65:synth.c       ****     accent = 0x80;
+  66:synth.c       ****   else
+  67:synth.c       ****     accent = 0;
+  35               		.loc 1 67 12 is_stmt 0 view .LVU8
+  36 0006 90E0      		ldi r25,0
+  64:synth.c       ****     accent = 0x80;
+  37               		.loc 1 64 6 view .LVU9
+  38 0008 4111      		cpse r20,__zero_reg__
+  39 000a 00C0      		rjmp .L3
+  65:synth.c       ****     accent = 0x80;
+  40               		.loc 1 65 12 view .LVU10
+  41 000c 90E8      		ldi r25,lo8(-128)
+  42               	.L3:
+  43               	.LVL3:
+  68:synth.c       **** 
+  69:synth.c       ****   // output the note, set the latch, and strike the gate
+  70:synth.c       ****   if (note != REST) {
+  44               		.loc 1 70 3 is_stmt 1 view .LVU11
+  45               		.loc 1 70 6 is_stmt 0 view .LVU12
+  46 000e 8823      		tst r24
+  47 0010 01F0      		breq .L4
+  71:synth.c       ****     NOTE_PORT = note | slide | accent;
+  48               		.loc 1 71 5 is_stmt 1 view .LVU13
+  49               		.loc 1 71 15 is_stmt 0 view .LVU14
+  50 0012 8034      		cpi r24,lo8(64)
+  51 0014 00F0      		brlo .L5
+  52 0016 8FE3      		ldi r24,lo8(63)
+  53               	.LVL4:
+  54               	.L5:
+  55               		.loc 1 71 15 view .LVU15
+  56 0018 862B      		or r24,r22
+  57 001a 892B      		or r24,r25
+  58 001c 85BB      		out 0x15,r24
+  72:synth.c       ****     // 30ns setup time?
+  73:synth.c       ****     sbi(NOTELATCH_PORT, NOTELATCH_PIN);
+  59               		.loc 1 73 5 is_stmt 1 view .LVU16
+  60 001e 3A9A      		sbi 0x7,2
+  74:synth.c       ****     // 10 uS
+  75:synth.c       ****     while (i < 40) {
+  61               		.loc 1 75 5 view .LVU17
+  62               	.LVL5:
+  76:synth.c       ****       i++;
+  77:synth.c       ****     }
+  78:synth.c       ****     sbi(GATE_PORT, GATE_PIN);
+  63               		.loc 1 78 5 view .LVU18
+  64 0020 399A      		sbi 0x7,1
+  65 0022 0895      		ret
+  66               	.LVL6:
+  67               	.L4:
+  79:synth.c       ****   } else {
+  80:synth.c       ****     // gate is not restruck during rest, and note is not latched, but one can
+  81:synth.c       ****     // slide to/from a rest and rests can have accent (tip to memology)
+  82:synth.c       ****     NOTE_PORT = slide | accent;
+  68               		.loc 1 82 5 view .LVU19
+  69               		.loc 1 82 15 is_stmt 0 view .LVU20
+  70 0024 862F      		mov r24,r22
+  71               	.LVL7:
+  72               		.loc 1 82 15 view .LVU21
+  73 0026 892B      		or r24,r25
+  74 0028 85BB      		out 0x15,r24
+  75               	/* epilogue start */
+  83:synth.c       ****   }
+  84:synth.c       **** 
+  85:synth.c       ****   // Debugging: print out notes as they are played
+  86:synth.c       ****   /*
+  87:synth.c       ****     putstring("Note on: 0x");
+  88:synth.c       ****     putnum_uh(note); uart_putchar(' ');
+  89:synth.c       ****     if (accent == 0) {
+  90:synth.c       ****     putstring(" w/accent ");
+  91:synth.c       ****     }
+  92:synth.c       ****     if (slide) {
+  93:synth.c       ****      putstring(" w/slide ");
+  94:synth.c       ****      }
+  95:synth.c       ****      putstring("\n\r");
+  96:synth.c       ****   */
+  97:synth.c       **** }
+  76               		.loc 1 97 1 view .LVU22
+  77 002a 0895      		ret
+  78               		.cfi_endproc
+  79               	.LFE1:
+  81               	.global	note_off
+  83               	note_off:
+  84               	.LVL8:
+  85               	.LFB2:
+  98:synth.c       **** 
+  99:synth.c       **** /* Note off:
+ 100:synth.c       ****  * This is essentially used to reset the gate/latch pins and also
+ 101:synth.c       ****  * deals with the pecularities of sliding (gate is not reset on slide).
+ 102:synth.c       ****  */
+ 103:synth.c       **** void note_off(uint8_t slide) {
+  86               		.loc 1 103 30 is_stmt 1 view -0
+  87               		.cfi_startproc
+  88               	/* prologue: function */
+  89               	/* frame size = 0 */
+  90               	/* stack size = 0 */
+  91               	.L__stack_usage = 0
+ 104:synth.c       ****   /*
+ 105:synth.c       ****   putstring("Note off\n\r");
+ 106:synth.c       ****   */
+ 107:synth.c       **** 
+ 108:synth.c       ****   if (slide) {
+  92               		.loc 1 108 3 view .LVU24
+  93               		.loc 1 108 6 is_stmt 0 view .LVU25
+  94 002c 8823      		tst r24
+  95 002e 01F0      		breq .L10
+ 109:synth.c       ****     sbi(NOTE_PORT, 6);
+  96               		.loc 1 109 5 is_stmt 1 view .LVU26
+  97 0030 AE9A      		sbi 0x15,6
+  98               	.L11:
+ 110:synth.c       ****   } else {
+ 111:synth.c       ****     cbi(GATE_PORT, GATE_PIN);
+ 112:synth.c       ****   }
+ 113:synth.c       **** 
+ 114:synth.c       ****   cbi(NOTELATCH_PORT, NOTELATCH_PIN);
+  99               		.loc 1 114 3 view .LVU27
+ 100 0032 3A98      		cbi 0x7,2
+ 101               	/* epilogue start */
+ 115:synth.c       **** }
+ 102               		.loc 1 115 1 is_stmt 0 view .LVU28
+ 103 0034 0895      		ret
+ 104               	.L10:
+ 111:synth.c       ****   }
+ 105               		.loc 1 111 5 is_stmt 1 view .LVU29
+ 106 0036 3998      		cbi 0x7,1
+ 107 0038 00C0      		rjmp .L11
+ 108               		.cfi_endproc
+ 109               	.LFE2:
+ 111               	.global	next_pitch_shift
+ 112               		.section .bss
+ 115               	next_pitch_shift:
+ 116 0000 00        		.zero	1
+ 117               	.global	curr_pitch_shift
+ 120               	curr_pitch_shift:
+ 121 0001 00        		.zero	1
+ 122               		.text
+ 123               	.Letext0:
+ 124               		.file 2 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdint.h"
+ 125               		.file 3 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdio.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 synth.c
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cch24hcW.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cch24hcW.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cch24hcW.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cch24hcW.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cch24hcW.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cch24hcW.s:12     .text:0000000000000000 note_on
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cch24hcW.s:83     .text:000000000000002c note_off
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cch24hcW.s:115    .bss:0000000000000000 next_pitch_shift
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cch24hcW.s:120    .bss:0000000000000001 curr_pitch_shift
+
+UNDEFINED SYMBOLS
+__do_clear_bss
