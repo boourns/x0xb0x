@@ -73,7 +73,14 @@ volatile static uint8_t tail_idx = 0;
 SIGNAL(SIG_USART0_RECV) {
   char c = UDR0;
 
-  if (c == MIDI_CLOCK) {
+  if (c == MIDI_START) {
+    // we handle the clock counter here so that it is processed in order, otherwise
+    // we potentially skip a clock
+
+    midisync_clocked = 0;
+    
+    // don't return, let MIDI_START be enqueued for the rest of the start logic
+  } else if (c == MIDI_CLOCK) {
 
     // raise dinsync clk immediately, and also sched. to drop clock
     // (MIDISYNC -> DINSYNC conversion);
@@ -82,8 +89,8 @@ SIGNAL(SIG_USART0_RECV) {
       dinsync_clock_timeout = 5;      // in 5ms drop the edge, is this enough?
     }
 
-    if (!playing)
-      return;
+    //if (!playing)
+    //  return;
     midisync_clocked++;
     return;
   }

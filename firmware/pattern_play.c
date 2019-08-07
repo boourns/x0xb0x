@@ -344,38 +344,26 @@ void do_patterntrack_play(void) {
       display_curr_pitch_shift_ud();
     }
 
-    if (playing) {
-      // midi sync clock ticks
-      if ((sync == MIDI_SYNC) && (midisync_clocked > 0)) {
-        midisync_clocked -= MIDISYNC_PPQ / 8;
-        do_tempo();
-        continue;
-      }
-      // din sync clock ticks
-      else if ((sync == DIN_SYNC) && (dinsync_clocked > 0)) {
-        dinsync_clocked -= DINSYNC_PPQ / 8;
-        do_tempo();
-        continue;
-      }
-    }
-
     // if syncing by MIDI, look for midi commands
     if (sync == MIDI_SYNC) {
       midi_cmd = midi_recv_cmd(); // returns 0 if no midi commands waiting
-      /*
+      
       // pattern bank/location control via midi
       if ((midi_cmd == MIDI_SONG_SELECT) && midi_getch()) {
         midi_data = midi_getchar();
         if (! (midi_data & 0x80))  {
-          next_bank = midi_data / 8; // override the bank!
-          next_pattern_chain[0] = midi_data % 8;
-          next_pattern_chain[1] = 0xFF;
+          curr_bank = midi_data / 8; // override the bank!
+          curr_chain[0] = buff_chain[0] = next_chain[0] = midi_data % 8;
+          curr_chain[1] = buff_chain[1] = next_chain[1] = 0xFF;
+          load_pattern(bank, curr_chain[0]);
+
           clear_numkey_leds();
           set_numkey_led(next_pattern_chain[0]+1);
         }
       }
-      */
+      
     }
+
     if (((sync == INTERNAL_SYNC) && just_pressed(KEY_RS) && playing) ||
         ((sync == MIDI_SYNC) && (midi_cmd == MIDI_STOP)) ||
         ((sync == DIN_SYNC) && dinsync_stopped())) {
@@ -383,6 +371,7 @@ void do_patterntrack_play(void) {
       playing = FALSE;
       note_off(0);
       midi_stop();
+
       if (sync != DIN_SYNC)
         dinsync_stop();
 
@@ -424,13 +413,27 @@ void do_patterntrack_play(void) {
       }
 
       note_counter = 0;
-      midisync_clocked = 0;
       dinsync_counter = 0;
       dinsync_clocked = 0;
       playing = TRUE;
       midi_putchar(MIDI_START);
       if (sync != DIN_SYNC)
         dinsync_start();
+    }
+
+    if (playing) {
+      // midi sync clock ticks
+      if ((sync == MIDI_SYNC) && (midisync_clocked > 0)) {
+        midisync_clocked -= MIDISYNC_PPQ / 8;
+        do_tempo();
+        continue;
+      }
+      // din sync clock ticks
+      else if ((sync == DIN_SYNC) && (dinsync_clocked > 0)) {
+        dinsync_clocked -= DINSYNC_PPQ / 8;
+        do_tempo();
+        continue;
+      }
     }
 
     if (just_pressed(KEY_SLIDE)) {
