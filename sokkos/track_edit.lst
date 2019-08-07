@@ -1,0 +1,2511 @@
+   1               		.file	"track_edit.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	get_pitchshift_from_patt
+  12               	get_pitchshift_from_patt:
+  13               	.LVL0:
+  14               	.LFB2:
+  15               		.file 1 "track_edit.c"
+   1:track_edit.c  **** /* 
+   2:track_edit.c  ****  * The software for the x0xb0x is available for use in accordance with the 
+   3:track_edit.c  ****  * following open source license (MIT License). For more information about
+   4:track_edit.c  ****  * OS licensing, please visit -> http://www.opensource.org/
+   5:track_edit.c  ****  *
+   6:track_edit.c  ****  * For more information about the x0xb0x project, please visit
+   7:track_edit.c  ****  * -> http://www.ladyada.net/make/x0xb0x
+   8:track_edit.c  ****  *
+   9:track_edit.c  ****  *                                     *****
+  10:track_edit.c  ****  * Copyright (c) 2005 Limor Fried
+  11:track_edit.c  ****  *
+  12:track_edit.c  ****  * Permission is hereby granted, free of charge, to any person obtaining a 
+  13:track_edit.c  ****  * copy of this software and associated documentation files (the "Software"), 
+  14:track_edit.c  ****  * to deal in the Software without restriction, including without limitation 
+  15:track_edit.c  ****  * the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+  16:track_edit.c  ****  * and/or sell copies of the Software, and to permit persons to whom the 
+  17:track_edit.c  ****  * Software is furnished to do so, subject to the following conditions:
+  18:track_edit.c  ****  *
+  19:track_edit.c  ****  * The above copyright notice and this permission notice shall be included in 
+  20:track_edit.c  ****  * all copies or substantial portions of the Software.
+  21:track_edit.c  ****  *
+  22:track_edit.c  ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+  23:track_edit.c  ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+  24:track_edit.c  ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+  25:track_edit.c  ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+  26:track_edit.c  ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+  27:track_edit.c  ****  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+  28:track_edit.c  ****  * IN THE SOFTWARE.
+  29:track_edit.c  ****  *                                     *****
+  30:track_edit.c  ****  *
+  31:track_edit.c  ****  */
+  32:track_edit.c  **** 
+  33:track_edit.c  **** #include <inttypes.h>
+  34:track_edit.c  **** #include <stdio.h>
+  35:track_edit.c  **** #include <avr/interrupt.h>
+  36:track_edit.c  **** #include "track.h"
+  37:track_edit.c  **** #include "pattern.h"
+  38:track_edit.c  **** #include "switch.h"
+  39:track_edit.c  **** #include "led.h"
+  40:track_edit.c  **** #include "main.h"
+  41:track_edit.c  **** #include "eeprom.h"
+  42:track_edit.c  **** #include "synth.h"
+  43:track_edit.c  **** #include "delay.h"
+  44:track_edit.c  **** #include "midi.h"
+  45:track_edit.c  **** #include "dinsync.h"
+  46:track_edit.c  **** 
+  47:track_edit.c  **** 
+  48:track_edit.c  **** extern uint8_t function, bank;
+  49:track_edit.c  **** 
+  50:track_edit.c  **** volatile uint8_t curr_track_index;
+  51:track_edit.c  **** uint8_t play_loaded_track;
+  52:track_edit.c  **** uint16_t curr_patt;
+  53:track_edit.c  **** uint8_t track_location, track_bank;
+  54:track_edit.c  **** volatile uint16_t track_buff[TRACK_SIZE];
+  55:track_edit.c  **** 
+  56:track_edit.c  **** extern volatile uint8_t all_accent, all_slide, all_rest; // all the time
+  57:track_edit.c  **** extern int8_t curr_pitch_shift;
+  58:track_edit.c  **** 
+  59:track_edit.c  **** extern uint8_t play_loaded_pattern, curr_pattern_index;
+  60:track_edit.c  **** 
+  61:track_edit.c  **** uint8_t in_stepwrite_mode, in_run_mode;
+  62:track_edit.c  **** 
+  63:track_edit.c  **** extern uint8_t sync;
+  64:track_edit.c  **** 
+  65:track_edit.c  **** extern volatile uint8_t curr_note;
+  66:track_edit.c  **** extern volatile uint8_t note_counter;
+  67:track_edit.c  **** 
+  68:track_edit.c  **** extern uint8_t PATT_LENGTH;
+  69:track_edit.c  **** 
+  70:track_edit.c  **** void do_track_edit(void) {
+  71:track_edit.c  ****   uint8_t i;
+  72:track_edit.c  **** 
+  73:track_edit.c  ****   turn_on_tempo();
+  74:track_edit.c  **** 
+  75:track_edit.c  ****   // initialize
+  76:track_edit.c  ****   track_bank = bank % 8;
+  77:track_edit.c  ****   track_location = 0;
+  78:track_edit.c  **** 
+  79:track_edit.c  ****   in_stepwrite_mode = FALSE;
+  80:track_edit.c  ****   in_run_mode = FALSE;
+  81:track_edit.c  ****   play_loaded_track = FALSE;
+  82:track_edit.c  ****   play_loaded_pattern = FALSE;
+  83:track_edit.c  ****   curr_track_index = 0;
+  84:track_edit.c  ****   curr_patt = END_OF_TRACK;
+  85:track_edit.c  ****   sync = INTERNAL_SYNC;
+  86:track_edit.c  **** 
+  87:track_edit.c  ****   clear_bank_leds();
+  88:track_edit.c  ****   clear_blinking_leds();
+  89:track_edit.c  **** 
+  90:track_edit.c  ****   while (1) {
+  91:track_edit.c  ****     read_switches();
+  92:track_edit.c  **** 
+  93:track_edit.c  ****       // oops i guess they want something else, return!
+  94:track_edit.c  ****     if (function != EDIT_TRACK_FUNC) {
+  95:track_edit.c  ****       // stop playing any notes
+  96:track_edit.c  ****       turn_off_tempo();
+  97:track_edit.c  ****       play_loaded_track = play_loaded_pattern = 0;
+  98:track_edit.c  **** 
+  99:track_edit.c  ****       // turn off notes playing
+ 100:track_edit.c  ****       note_off(0);
+ 101:track_edit.c  **** 
+ 102:track_edit.c  ****       // clear the LEDs
+ 103:track_edit.c  ****       clear_all_leds();
+ 104:track_edit.c  ****       clock_leds();
+ 105:track_edit.c  **** 
+ 106:track_edit.c  ****       return;
+ 107:track_edit.c  ****     }
+ 108:track_edit.c  ****     
+ 109:track_edit.c  ****     // this is when they select which bank (1-8)& position(1-8)
+ 110:track_edit.c  ****     // for the track to edit
+ 111:track_edit.c  ****     if (!in_stepwrite_mode && !in_run_mode) {
+ 112:track_edit.c  ****       if (has_bank_knob_changed()) {
+ 113:track_edit.c  **** 	//putstring("changed track bank\n\r");
+ 114:track_edit.c  **** 	track_bank = bank % 8;
+ 115:track_edit.c  **** 	load_track(track_bank, track_location);
+ 116:track_edit.c  **** 	clear_bank_leds();  // track changed, clear the prev indicator
+ 117:track_edit.c  ****       }
+ 118:track_edit.c  ****       set_bank_led(track_bank);  // show the track being edited
+ 119:track_edit.c  ****       
+ 120:track_edit.c  ****       i = get_lowest_numkey_pressed(); 
+ 121:track_edit.c  ****       if (i != 0) {
+ 122:track_edit.c  **** 	clear_notekey_leds();
+ 123:track_edit.c  **** 	track_location = i-1;
+ 124:track_edit.c  **** 	load_track(track_bank, track_location);
+ 125:track_edit.c  ****       }
+ 126:track_edit.c  ****       set_numkey_led(track_location+1);
+ 127:track_edit.c  ****     }
+ 128:track_edit.c  **** 
+ 129:track_edit.c  ****     // if they hit run/stop, play the track in 
+ 130:track_edit.c  ****     if (just_pressed(KEY_RS)) {
+ 131:track_edit.c  ****       if (in_run_mode) {
+ 132:track_edit.c  **** 	stop_track_run_mode(); 	// stop run mode
+ 133:track_edit.c  ****       } else {
+ 134:track_edit.c  **** 	// stop stepwrite mode
+ 135:track_edit.c  **** 	if (in_stepwrite_mode) {
+ 136:track_edit.c  **** 	  stop_track_stepwrite_mode();
+ 137:track_edit.c  **** 	}
+ 138:track_edit.c  **** 	start_track_run_mode();
+ 139:track_edit.c  ****       }
+ 140:track_edit.c  ****     }
+ 141:track_edit.c  **** 
+ 142:track_edit.c  ****     // do common stuff for both run and stepwritemode
+ 143:track_edit.c  ****     // ie. blink the bank led for the track index
+ 144:track_edit.c  ****     // show the current pattern's bank in the bank leds
+ 145:track_edit.c  ****     // show RAS leds, or DONE if end of track
+ 146:track_edit.c  ****     if (in_run_mode || in_stepwrite_mode) {
+ 147:track_edit.c  ****       // show the current position in the edited track
+ 148:track_edit.c  ****       if (!is_bank_led_blink(curr_track_index))
+ 149:track_edit.c  **** 	clear_blinking_leds();
+ 150:track_edit.c  ****       set_bank_led_blink(curr_track_index); 
+ 151:track_edit.c  **** 
+ 152:track_edit.c  ****       if (curr_patt == END_OF_TRACK) {
+ 153:track_edit.c  **** 	clear_note_leds();
+ 154:track_edit.c  **** 	// the 'end of track' (0xFFFF) lights up DONE
+ 155:track_edit.c  **** 	set_led(LED_DONE);
+ 156:track_edit.c  ****       } else {
+ 157:track_edit.c  **** 	clear_led(LED_DONE);                 // make sure DONE isn't on anymore
+ 158:track_edit.c  **** 	set_bank_led((curr_patt >> 3) & 0xF);    // show the bank of the current pattern
+ 159:track_edit.c  **** 	
+ 160:track_edit.c  **** 	// show RAS
+ 161:track_edit.c  **** 	if (curr_patt & TRACK_REST_FLAG)
+ 162:track_edit.c  **** 	  set_led(LED_REST);
+ 163:track_edit.c  **** 	else
+ 164:track_edit.c  **** 	  clear_led(LED_REST);
+ 165:track_edit.c  **** 
+ 166:track_edit.c  **** 	if (curr_patt & TRACK_ACCENT_FLAG)
+ 167:track_edit.c  **** 	  set_led(LED_ACCENT);
+ 168:track_edit.c  **** 	else
+ 169:track_edit.c  **** 	  clear_led(LED_ACCENT);
+ 170:track_edit.c  **** 
+ 171:track_edit.c  **** 	if (curr_patt & TRACK_SLIDE_FLAG)
+ 172:track_edit.c  **** 	  set_led(LED_SLIDE);
+ 173:track_edit.c  **** 	else
+ 174:track_edit.c  **** 	  clear_led(LED_SLIDE);
+ 175:track_edit.c  ****       }
+ 176:track_edit.c  ****     }
+ 177:track_edit.c  **** 	  
+ 178:track_edit.c  ****     // handle both incrementing/decrementing the track index in stepwrite
+ 179:track_edit.c  ****     // as well as starting stepwrite
+ 180:track_edit.c  ****     if ((just_pressed(KEY_NEXT) || just_pressed(KEY_PREV)) && !in_run_mode) {
+ 181:track_edit.c  ****       note_off(0);  // if something -was- playing, kill it
+ 182:track_edit.c  **** 
+ 183:track_edit.c  ****       if (in_stepwrite_mode) {
+ 184:track_edit.c  **** 	if (just_pressed(KEY_NEXT)) {
+ 185:track_edit.c  **** 	  // step forward in the track
+ 186:track_edit.c  **** 	  if (((curr_track_index+1) >= TRACK_SIZE) ||
+ 187:track_edit.c  **** 	      (track_buff[curr_track_index] == END_OF_TRACK))
+ 188:track_edit.c  **** 	    curr_track_index = 0;   // got to the end of the track, loop back to beginning
+ 189:track_edit.c  **** 	  else
+ 190:track_edit.c  **** 	    curr_track_index++;
+ 191:track_edit.c  **** 	} else {  // just pressed key prev
+ 192:track_edit.c  **** 	  // step backwards in the track
+ 193:track_edit.c  **** 	  if (curr_track_index == 0) {
+ 194:track_edit.c  **** 	    // search thru the buffer -forward- to find the EOT
+ 195:track_edit.c  **** 	    while ((curr_track_index+1 < TRACK_SIZE) && 
+ 196:track_edit.c  **** 		   (track_buff[curr_track_index] != END_OF_TRACK))
+ 197:track_edit.c  **** 	      curr_track_index++;
+ 198:track_edit.c  **** 	  } else {
+ 199:track_edit.c  **** 	    curr_track_index--;
+ 200:track_edit.c  **** 	  }
+ 201:track_edit.c  **** 	}
+ 202:track_edit.c  ****       } else if (just_pressed(KEY_NEXT)) {
+ 203:track_edit.c  **** 	// not in stepwrite mode, starting stepwrite mode
+ 204:track_edit.c  **** 	start_track_stepwrite_mode();
+ 205:track_edit.c  **** 	curr_track_index = 0;
+ 206:track_edit.c  ****       }
+ 207:track_edit.c  ****       
+ 208:track_edit.c  ****       // grab the current pattern in the track
+ 209:track_edit.c  ****       curr_patt = track_buff[curr_track_index];
+ 210:track_edit.c  ****       
+ 211:track_edit.c  ****       play_loaded_pattern = FALSE; 
+ 212:track_edit.c  **** 
+ 213:track_edit.c  ****       if (curr_patt != END_OF_TRACK) {
+ 214:track_edit.c  **** 	/*
+ 215:track_edit.c  **** 	  putstring("curr patt = loc "); putnum_ud(curr_patt & 0x7);
+ 216:track_edit.c  **** 	  putstring(" in bank "); putnum_ud(curr_patt>>3 & 0xF);
+ 217:track_edit.c  **** 	  putstring("\n\r");
+ 218:track_edit.c  **** 	*/
+ 219:track_edit.c  **** 
+ 220:track_edit.c  **** 	// get the pattern's RAS & pitch shift
+ 221:track_edit.c  **** 	curr_pitch_shift = load_curr_patt();
+ 222:track_edit.c  **** 
+ 223:track_edit.c  **** 	// start playing from beginning of pattern
+ 224:track_edit.c  **** 	curr_pattern_index = 0;
+ 225:track_edit.c  **** 	// wait for the next 'note on'
+ 226:track_edit.c  **** 	while (note_counter & 0x1);
+ 227:track_edit.c  **** 
+ 228:track_edit.c  **** 	// tell the tempo interrupt to start playing the pattern on loop
+ 229:track_edit.c  **** 	play_loaded_pattern = TRUE;
+ 230:track_edit.c  ****       }
+ 231:track_edit.c  ****     }
+ 232:track_edit.c  ****   
+ 233:track_edit.c  ****     // cope with saving the current buffer and quitting step mode if in it
+ 234:track_edit.c  ****     if (just_pressed(KEY_DONE)) {
+ 235:track_edit.c  ****       if (in_stepwrite_mode) {
+ 236:track_edit.c  **** 	if (curr_track_index+1 < TRACK_SIZE) {
+ 237:track_edit.c  **** 	  // set an EOT marker if necc.
+ 238:track_edit.c  **** 	  track_buff[curr_track_index+1] = END_OF_TRACK;
+ 239:track_edit.c  **** 	}
+ 240:track_edit.c  **** 	curr_patt = END_OF_TRACK;              // cleans up LEDs
+ 241:track_edit.c  **** 	// stop the mode, and any playing
+ 242:track_edit.c  **** 	stop_track_stepwrite_mode();           
+ 243:track_edit.c  **** 	clear_led(LED_DONE);
+ 244:track_edit.c  ****       }
+ 245:track_edit.c  ****       // and write it to memory
+ 246:track_edit.c  ****       write_track(track_bank, track_location); 
+ 247:track_edit.c  ****     }
+ 248:track_edit.c  ****   
+ 249:track_edit.c  ****     // deal with specifics for stepwrite mode:
+ 250:track_edit.c  ****     // changing the track's patterns, RAS and pitchshift changes
+ 251:track_edit.c  ****     if (in_stepwrite_mode) {
+ 252:track_edit.c  ****       if (curr_patt != END_OF_TRACK) {
+ 253:track_edit.c  **** 	// handle RAS keypresses -> modifications to current pattern
+ 254:track_edit.c  **** 	
+ 255:track_edit.c  **** 	if (just_pressed(KEY_REST)) {
+ 256:track_edit.c  **** 	  curr_patt = (track_buff[curr_track_index] ^= TRACK_REST_FLAG);
+ 257:track_edit.c  **** 	  all_rest = (curr_patt & TRACK_REST_FLAG) >> 8;
+ 258:track_edit.c  **** 	}
+ 259:track_edit.c  **** 	if (just_pressed(KEY_ACCENT)) {
+ 260:track_edit.c  **** 	  curr_patt = (track_buff[curr_track_index] ^= TRACK_ACCENT_FLAG);
+ 261:track_edit.c  **** 	  all_accent = (curr_patt & TRACK_ACCENT_FLAG) >> 8;
+ 262:track_edit.c  **** 	}
+ 263:track_edit.c  **** 	if (just_pressed(KEY_SLIDE)) {
+ 264:track_edit.c  **** 	  curr_patt = (track_buff[curr_track_index] ^= TRACK_SLIDE_FLAG);
+ 265:track_edit.c  **** 	  all_slide = (curr_patt & TRACK_SLIDE_FLAG) >> 8;
+ 266:track_edit.c  **** 	}
+ 267:track_edit.c  **** 	
+ 268:track_edit.c  **** 	// handle U/D keypresses -> pitch shifting
+ 269:track_edit.c  **** 	if (is_pressed(KEY_UP) || is_pressed(KEY_DOWN)) {
+ 270:track_edit.c  **** 	  uint16_t notekey = get_lowest_notekey_pressed();
+ 271:track_edit.c  **** 	  
+ 272:track_edit.c  **** 	  if (just_pressed(KEY_UP) || just_pressed(KEY_DOWN)) {
+ 273:track_edit.c  **** 	    clear_blinking_leds();
+ 274:track_edit.c  **** 	    clear_notekey_leds();
+ 275:track_edit.c  **** 	    clear_led(LED_UP);
+ 276:track_edit.c  **** 	    clear_led(LED_DOWN);
+ 277:track_edit.c  **** 	  }
+ 278:track_edit.c  **** 	  
+ 279:track_edit.c  **** 	  if (is_pressed(KEY_UP)) {
+ 280:track_edit.c  **** 	    set_led(LED_UP);
+ 281:track_edit.c  **** 	    
+ 282:track_edit.c  **** 	    if (notekey != -1) {
+ 283:track_edit.c  **** 	      clear_blinking_leds();
+ 284:track_edit.c  **** 	      // set the new pitchshift
+ 285:track_edit.c  **** 	      curr_patt = (curr_patt & 0xE0FF) | (notekey << 8);
+ 286:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 287:track_edit.c  **** 	    }
+ 288:track_edit.c  **** 	    // display the pitchshift
+ 289:track_edit.c  **** 	    curr_pitch_shift = get_pitchshift_from_patt(curr_patt);
+ 290:track_edit.c  **** 	    set_notekey_led_blink(curr_pitch_shift);
+ 291:track_edit.c  **** 	  } else if (is_pressed(KEY_DOWN)) {
+ 292:track_edit.c  **** 	    set_led(LED_DOWN);
+ 293:track_edit.c  **** 	    
+ 294:track_edit.c  **** 	    if (notekey != -1) {
+ 295:track_edit.c  **** 	      clear_blinking_leds();
+ 296:track_edit.c  **** 	      // set the new pitchshift
+ 297:track_edit.c  **** 	      curr_patt = (curr_patt & 0xE0FF) | (((notekey - OCTAVE) & 0x1F) << 8);
+ 298:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 299:track_edit.c  **** 	    }
+ 300:track_edit.c  **** 	    
+ 301:track_edit.c  **** 	    curr_pitch_shift = get_pitchshift_from_patt(curr_patt);
+ 302:track_edit.c  **** 	    set_notekey_led_blink(OCTAVE + curr_pitch_shift);
+ 303:track_edit.c  **** 	  }
+ 304:track_edit.c  **** 	} else {
+ 305:track_edit.c  **** 	  if (just_released(KEY_UP) || just_released(KEY_DOWN)) {
+ 306:track_edit.c  **** 	    // clear up LEDs if not shifting
+ 307:track_edit.c  **** 	    clear_led(LED_UP);
+ 308:track_edit.c  **** 	    clear_led(LED_DOWN);
+ 309:track_edit.c  **** 	    clear_blinking_leds();
+ 310:track_edit.c  **** 	  }
+ 311:track_edit.c  **** 	}
+ 312:track_edit.c  ****       }
+ 313:track_edit.c  ****       
+ 314:track_edit.c  ****       // see if they changed the bank / pressed numkey
+ 315:track_edit.c  ****       //    -> change current pattern
+ 316:track_edit.c  ****       if (! (is_pressed(KEY_UP) || is_pressed(KEY_DOWN))) {
+ 317:track_edit.c  **** 	i = get_lowest_numkey_just_pressed();
+ 318:track_edit.c  **** 	if ((i != 0) || has_bank_knob_changed()) {
+ 319:track_edit.c  **** 	  clear_numkey_leds();
+ 320:track_edit.c  **** 	  clear_bank_leds();
+ 321:track_edit.c  **** 	  if (i == 0) {
+ 322:track_edit.c  **** 	    if (curr_patt == END_OF_TRACK)
+ 323:track_edit.c  **** 	      i = 0;
+ 324:track_edit.c  **** 	    else
+ 325:track_edit.c  **** 	      i = curr_patt & 0x7;
+ 326:track_edit.c  **** 	  } else {
+ 327:track_edit.c  **** 	    i--;
+ 328:track_edit.c  **** 	  }
+ 329:track_edit.c  **** 	  play_loaded_pattern = FALSE;
+ 330:track_edit.c  **** 	  note_off(0);
+ 331:track_edit.c  **** 	  curr_patt = (bank << 3) | i;
+ 332:track_edit.c  **** 	  track_buff[curr_track_index] = curr_patt;
+ 333:track_edit.c  **** 	  load_pattern(bank, i);
+ 334:track_edit.c  **** 	  curr_pattern_index = 0;
+ 335:track_edit.c  **** 	  all_rest = all_accent = all_slide = FALSE;
+ 336:track_edit.c  **** 	  curr_pitch_shift = 0;
+ 337:track_edit.c  **** 	  play_loaded_pattern = TRUE;
+ 338:track_edit.c  **** 	}
+ 339:track_edit.c  **** 
+ 340:track_edit.c  **** 	// while we're at it, show the pitch shift
+ 341:track_edit.c  **** 	display_curr_pitch_shift_ud();
+ 342:track_edit.c  **** 	  
+ 343:track_edit.c  **** 	// show the pattern location and pattern bank
+ 344:track_edit.c  **** 	set_single_numkey_led((curr_patt & 0x7) + 1);
+ 345:track_edit.c  ****       }
+ 346:track_edit.c  ****     }
+ 347:track_edit.c  **** 
+ 348:track_edit.c  ****     if (in_run_mode) {
+ 349:track_edit.c  **** 	// while we're at it, show the pitch shift
+ 350:track_edit.c  **** 	display_curr_pitch_shift_ud();
+ 351:track_edit.c  **** 	  
+ 352:track_edit.c  **** 	// show the pattern location and pattern bank
+ 353:track_edit.c  **** 	set_single_numkey_led((curr_patt & 0x7) + 1);
+ 354:track_edit.c  ****     }
+ 355:track_edit.c  ****   }
+ 356:track_edit.c  **** }
+ 357:track_edit.c  **** 
+ 358:track_edit.c  **** 
+ 359:track_edit.c  **** int8_t get_pitchshift_from_patt(uint16_t patt) { 
+  16               		.loc 1 359 48 view -0
+  17               		.cfi_startproc
+  18               	/* prologue: function */
+  19               	/* frame size = 0 */
+  20               	/* stack size = 0 */
+  21               	.L__stack_usage = 0
+ 360:track_edit.c  ****  int8_t shift;
+  22               		.loc 1 360 2 view .LVU1
+ 361:track_edit.c  **** 
+ 362:track_edit.c  ****   shift = (patt >> 8) & 0x1F;
+  23               		.loc 1 362 3 view .LVU2
+  24               		.loc 1 362 9 is_stmt 0 view .LVU3
+  25 0000 892F      		mov r24,r25
+  26               	.LVL1:
+  27               		.loc 1 362 9 view .LVU4
+  28 0002 8F71      		andi r24,lo8(31)
+  29               	.LVL2:
+ 363:track_edit.c  ****   if (shift & 0x10)
+  30               		.loc 1 363 3 is_stmt 1 view .LVU5
+  31               		.loc 1 363 6 is_stmt 0 view .LVU6
+  32 0004 94FD      		sbrc r25,4
+ 364:track_edit.c  ****     shift |= 0xE0;      // extend signed 5-bit int
+  33               		.loc 1 364 5 is_stmt 1 view .LVU7
+  34               		.loc 1 364 11 is_stmt 0 view .LVU8
+  35 0006 806E      		ori r24,lo8(-32)
+  36               	.LVL3:
+ 365:track_edit.c  **** 
+ 366:track_edit.c  ****   return shift;
+  37               		.loc 1 366 3 is_stmt 1 view .LVU9
+  38               	.L1:
+  39               	/* epilogue start */
+ 367:track_edit.c  **** 
+ 368:track_edit.c  **** }
+  40               		.loc 1 368 1 is_stmt 0 view .LVU10
+  41 0008 0895      		ret
+  42               		.cfi_endproc
+  43               	.LFE2:
+  45               	.global	display_curr_pitch_shift_ud
+  47               	display_curr_pitch_shift_ud:
+  48               	.LFB3:
+ 369:track_edit.c  **** void display_curr_pitch_shift_ud(void) {
+  49               		.loc 1 369 40 is_stmt 1 view -0
+  50               		.cfi_startproc
+  51               	/* prologue: function */
+  52               	/* frame size = 0 */
+  53               	/* stack size = 0 */
+  54               	.L__stack_usage = 0
+ 370:track_edit.c  ****   if (curr_pitch_shift == 0) {
+  55               		.loc 1 370 3 view .LVU12
+  56               		.loc 1 370 24 is_stmt 0 view .LVU13
+  57 000a 8091 0000 		lds r24,curr_pitch_shift
+  58               		.loc 1 370 6 view .LVU14
+  59 000e 8111      		cpse r24,__zero_reg__
+  60 0010 00C0      		rjmp .L7
+ 371:track_edit.c  ****     clear_led(LED_UP);
+  61               		.loc 1 371 5 is_stmt 1 view .LVU15
+  62 0012 83E0      		ldi r24,lo8(3)
+  63 0014 0E94 0000 		call clear_led
+  64               	.LVL4:
+ 372:track_edit.c  ****     clear_led(LED_DOWN);
+  65               		.loc 1 372 5 view .LVU16
+  66               	.L10:
+ 373:track_edit.c  ****   } else if (curr_pitch_shift < 0) {
+ 374:track_edit.c  ****     clear_led(LED_UP);
+ 375:track_edit.c  ****     set_led(LED_DOWN);
+ 376:track_edit.c  ****   } else {
+ 377:track_edit.c  ****     set_led(LED_UP);
+ 378:track_edit.c  ****     clear_led(LED_DOWN);
+  67               		.loc 1 378 5 view .LVU17
+  68 0018 84E0      		ldi r24,lo8(4)
+  69 001a 0E94 0000 		call clear_led
+  70               	.LVL5:
+  71               	/* epilogue start */
+ 379:track_edit.c  ****   }
+ 380:track_edit.c  **** }
+  72               		.loc 1 380 1 is_stmt 0 view .LVU18
+  73 001e 0895      		ret
+  74               	.L7:
+ 373:track_edit.c  ****   } else if (curr_pitch_shift < 0) {
+  75               		.loc 1 373 10 is_stmt 1 view .LVU19
+ 373:track_edit.c  ****   } else if (curr_pitch_shift < 0) {
+  76               		.loc 1 373 13 is_stmt 0 view .LVU20
+  77 0020 87FF      		sbrs r24,7
+  78 0022 00C0      		rjmp .L9
+ 374:track_edit.c  ****     set_led(LED_DOWN);
+  79               		.loc 1 374 5 is_stmt 1 view .LVU21
+  80 0024 83E0      		ldi r24,lo8(3)
+  81 0026 0E94 0000 		call clear_led
+  82               	.LVL6:
+ 375:track_edit.c  ****   } else {
+  83               		.loc 1 375 5 view .LVU22
+  84 002a 84E0      		ldi r24,lo8(4)
+  85 002c 0E94 0000 		call set_led
+  86               	.LVL7:
+  87 0030 0895      		ret
+  88               	.L9:
+ 377:track_edit.c  ****     clear_led(LED_DOWN);
+  89               		.loc 1 377 5 view .LVU23
+  90 0032 83E0      		ldi r24,lo8(3)
+  91 0034 0E94 0000 		call set_led
+  92               	.LVL8:
+  93 0038 00C0      		rjmp .L10
+  94               		.cfi_endproc
+  95               	.LFE3:
+  97               	.global	start_track_stepwrite_mode
+  99               	start_track_stepwrite_mode:
+ 100               	.LFB4:
+ 381:track_edit.c  **** 
+ 382:track_edit.c  **** void start_track_stepwrite_mode(void) {
+ 101               		.loc 1 382 39 view -0
+ 102               		.cfi_startproc
+ 103               	/* prologue: function */
+ 104               	/* frame size = 0 */
+ 105               	/* stack size = 0 */
+ 106               	.L__stack_usage = 0
+ 383:track_edit.c  ****   in_stepwrite_mode = TRUE;
+ 107               		.loc 1 383 3 view .LVU25
+ 108               		.loc 1 383 21 is_stmt 0 view .LVU26
+ 109 003a 81E0      		ldi r24,lo8(1)
+ 110 003c 8093 0000 		sts in_stepwrite_mode,r24
+ 384:track_edit.c  ****   set_led(LED_NEXT);
+ 111               		.loc 1 384 3 is_stmt 1 view .LVU27
+ 112 0040 84E2      		ldi r24,lo8(36)
+ 113 0042 0E94 0000 		call set_led
+ 114               	.LVL9:
+ 385:track_edit.c  ****   clear_bank_leds();
+ 115               		.loc 1 385 3 view .LVU28
+ 116 0046 0E94 0000 		call clear_bank_leds
+ 117               	.LVL10:
+ 118               	/* epilogue start */
+ 386:track_edit.c  **** }
+ 119               		.loc 1 386 1 is_stmt 0 view .LVU29
+ 120 004a 0895      		ret
+ 121               		.cfi_endproc
+ 122               	.LFE4:
+ 124               	.global	stop_track_stepwrite_mode
+ 126               	stop_track_stepwrite_mode:
+ 127               	.LFB5:
+ 387:track_edit.c  **** 
+ 388:track_edit.c  **** 
+ 389:track_edit.c  **** void stop_track_stepwrite_mode(void) {
+ 128               		.loc 1 389 38 is_stmt 1 view -0
+ 129               		.cfi_startproc
+ 130               	/* prologue: function */
+ 131               	/* frame size = 0 */
+ 132               	/* stack size = 0 */
+ 133               	.L__stack_usage = 0
+ 390:track_edit.c  ****   in_stepwrite_mode = FALSE;
+ 134               		.loc 1 390 3 view .LVU31
+ 135               		.loc 1 390 21 is_stmt 0 view .LVU32
+ 136 004c 1092 0000 		sts in_stepwrite_mode,__zero_reg__
+ 391:track_edit.c  ****   clear_led(LED_NEXT);
+ 137               		.loc 1 391 3 is_stmt 1 view .LVU33
+ 138 0050 84E2      		ldi r24,lo8(36)
+ 139 0052 0E94 0000 		call clear_led
+ 140               	.LVL11:
+ 392:track_edit.c  ****   clear_all_leds();
+ 141               		.loc 1 392 3 view .LVU34
+ 142 0056 0E94 0000 		call clear_all_leds
+ 143               	.LVL12:
+ 393:track_edit.c  ****   clear_blinking_leds();
+ 144               		.loc 1 393 3 view .LVU35
+ 145 005a 0E94 0000 		call clear_blinking_leds
+ 146               	.LVL13:
+ 394:track_edit.c  ****   play_loaded_pattern = FALSE; 
+ 147               		.loc 1 394 3 view .LVU36
+ 148               		.loc 1 394 23 is_stmt 0 view .LVU37
+ 149 005e 1092 0000 		sts play_loaded_pattern,__zero_reg__
+ 395:track_edit.c  ****   note_off(0);
+ 150               		.loc 1 395 3 is_stmt 1 view .LVU38
+ 151 0062 80E0      		ldi r24,0
+ 152 0064 0E94 0000 		call note_off
+ 153               	.LVL14:
+ 154               	/* epilogue start */
+ 396:track_edit.c  **** }
+ 155               		.loc 1 396 1 is_stmt 0 view .LVU39
+ 156 0068 0895      		ret
+ 157               		.cfi_endproc
+ 158               	.LFE5:
+ 160               	.global	load_curr_patt
+ 162               	load_curr_patt:
+ 163               	.LFB7:
+ 397:track_edit.c  ****  
+ 398:track_edit.c  **** void start_track_run_mode(void) {
+ 399:track_edit.c  ****   in_run_mode = TRUE;
+ 400:track_edit.c  ****   set_led(LED_RS);
+ 401:track_edit.c  ****   all_rest = all_slide = all_accent = FALSE;
+ 402:track_edit.c  **** 
+ 403:track_edit.c  ****   play_loaded_pattern = play_loaded_track = FALSE; 
+ 404:track_edit.c  **** 
+ 405:track_edit.c  ****   // theres a little bit of setup to get the track buffer playing
+ 406:track_edit.c  ****   curr_patt = track_buff[0];
+ 407:track_edit.c  ****   if (curr_patt != END_OF_TRACK) {     // clearly, dont play the track if there aint no data in it
+ 408:track_edit.c  **** 
+ 409:track_edit.c  ****     // begin at the first pattern, first note
+ 410:track_edit.c  ****     curr_track_index = 0;
+ 411:track_edit.c  ****     curr_pattern_index = 0;
+ 412:track_edit.c  ****     curr_note = REST; // make it a rest just to avoid sliding
+ 413:track_edit.c  **** 
+ 414:track_edit.c  ****     // load the first pattern
+ 415:track_edit.c  ****     curr_pitch_shift = load_curr_patt();
+ 416:track_edit.c  ****     
+ 417:track_edit.c  ****     // wait for the tempo interrupt to be ready for a note-on
+ 418:track_edit.c  ****     while (note_counter & 0x1);
+ 419:track_edit.c  **** 
+ 420:track_edit.c  ****     // get the tempo interrupt to start playing
+ 421:track_edit.c  ****     play_loaded_track = TRUE;
+ 422:track_edit.c  ****     //putstring("\n\raccent = ");putnum_ud(all_accent);
+ 423:track_edit.c  ****   }
+ 424:track_edit.c  ****   clear_bank_leds();
+ 425:track_edit.c  **** }
+ 426:track_edit.c  **** 
+ 427:track_edit.c  **** // a shortcut function...this code is duplicated a bunch of places.
+ 428:track_edit.c  **** // this just saves codespace
+ 429:track_edit.c  **** uint8_t load_curr_patt(void) {
+ 164               		.loc 1 429 30 is_stmt 1 view -0
+ 165               		.cfi_startproc
+ 166               	/* prologue: function */
+ 167               	/* frame size = 0 */
+ 168               	/* stack size = 0 */
+ 169               	.L__stack_usage = 0
+ 430:track_edit.c  ****   // load the pattern from EEPROM
+ 431:track_edit.c  ****   load_pattern((curr_patt >> 3) & 0xF, curr_patt & 0x7);
+ 170               		.loc 1 431 3 view .LVU41
+ 171 006a 8091 0000 		lds r24,curr_patt
+ 172 006e 9091 0000 		lds r25,curr_patt+1
+ 173 0072 682F      		mov r22,r24
+ 174 0074 6770      		andi r22,lo8(7)
+ 175               		.loc 1 431 27 is_stmt 0 view .LVU42
+ 176 0076 23E0      		ldi r18,3
+ 177               		1:
+ 178 0078 9695      		lsr r25
+ 179 007a 8795      		ror r24
+ 180 007c 2A95      		dec r18
+ 181 007e 01F4      		brne 1b
+ 182               		.loc 1 431 3 view .LVU43
+ 183 0080 8F70      		andi r24,lo8(15)
+ 184 0082 0E94 0000 		call load_pattern
+ 185               	.LVL15:
+ 432:track_edit.c  ****   
+ 433:track_edit.c  ****   // get the pattern's RAS & pitch shift
+ 434:track_edit.c  ****   all_rest = (curr_patt & TRACK_REST_FLAG) >> 8;
+ 186               		.loc 1 434 3 is_stmt 1 view .LVU44
+ 187               		.loc 1 434 44 is_stmt 0 view .LVU45
+ 188 0086 8091 0000 		lds r24,curr_patt
+ 189 008a 9091 0000 		lds r25,curr_patt+1
+ 190 008e AC01      		movw r20,r24
+ 191 0090 252F      		mov r18,r21
+ 192 0092 2078      		andi r18,lo8(-128)
+ 193               		.loc 1 434 12 view .LVU46
+ 194 0094 2093 0000 		sts all_rest,r18
+ 435:track_edit.c  ****   all_accent = (curr_patt & TRACK_ACCENT_FLAG) >> 8;
+ 195               		.loc 1 435 3 is_stmt 1 view .LVU47
+ 196               		.loc 1 435 48 is_stmt 0 view .LVU48
+ 197 0098 252F      		mov r18,r21
+ 198 009a 2074      		andi r18,lo8(64)
+ 199               		.loc 1 435 14 view .LVU49
+ 200 009c 2093 0000 		sts all_accent,r18
+ 436:track_edit.c  ****   all_slide = (curr_patt & TRACK_SLIDE_FLAG) >> 8;
+ 201               		.loc 1 436 3 is_stmt 1 view .LVU50
+ 202               		.loc 1 436 46 is_stmt 0 view .LVU51
+ 203 00a0 252F      		mov r18,r21
+ 204 00a2 2072      		andi r18,lo8(32)
+ 205               		.loc 1 436 13 view .LVU52
+ 206 00a4 2093 0000 		sts all_slide,r18
+ 437:track_edit.c  ****   curr_pattern_index = 0;
+ 207               		.loc 1 437 3 is_stmt 1 view .LVU53
+ 208               		.loc 1 437 22 is_stmt 0 view .LVU54
+ 209 00a8 1092 0000 		sts curr_pattern_index,__zero_reg__
+ 438:track_edit.c  **** 
+ 439:track_edit.c  ****   return get_pitchshift_from_patt(curr_patt);
+ 210               		.loc 1 439 3 is_stmt 1 view .LVU55
+ 211               		.loc 1 439 10 is_stmt 0 view .LVU56
+ 212 00ac 0E94 0000 		call get_pitchshift_from_patt
+ 213               	.LVL16:
+ 214               	/* epilogue start */
+ 440:track_edit.c  **** }
+ 215               		.loc 1 440 1 view .LVU57
+ 216 00b0 0895      		ret
+ 217               		.cfi_endproc
+ 218               	.LFE7:
+ 220               	.global	start_track_run_mode
+ 222               	start_track_run_mode:
+ 223               	.LFB6:
+ 398:track_edit.c  ****   in_run_mode = TRUE;
+ 224               		.loc 1 398 33 is_stmt 1 view -0
+ 225               		.cfi_startproc
+ 226               	/* prologue: function */
+ 227               	/* frame size = 0 */
+ 228               	/* stack size = 0 */
+ 229               	.L__stack_usage = 0
+ 399:track_edit.c  ****   set_led(LED_RS);
+ 230               		.loc 1 399 3 view .LVU59
+ 399:track_edit.c  ****   set_led(LED_RS);
+ 231               		.loc 1 399 15 is_stmt 0 view .LVU60
+ 232 00b2 81E0      		ldi r24,lo8(1)
+ 233 00b4 8093 0000 		sts in_run_mode,r24
+ 400:track_edit.c  ****   all_rest = all_slide = all_accent = FALSE;
+ 234               		.loc 1 400 3 is_stmt 1 view .LVU61
+ 235 00b8 81E2      		ldi r24,lo8(33)
+ 236 00ba 0E94 0000 		call set_led
+ 237               	.LVL17:
+ 401:track_edit.c  **** 
+ 238               		.loc 1 401 3 view .LVU62
+ 401:track_edit.c  **** 
+ 239               		.loc 1 401 37 is_stmt 0 view .LVU63
+ 240 00be 1092 0000 		sts all_accent,__zero_reg__
+ 401:track_edit.c  **** 
+ 241               		.loc 1 401 24 view .LVU64
+ 242 00c2 1092 0000 		sts all_slide,__zero_reg__
+ 401:track_edit.c  **** 
+ 243               		.loc 1 401 12 view .LVU65
+ 244 00c6 1092 0000 		sts all_rest,__zero_reg__
+ 403:track_edit.c  **** 
+ 245               		.loc 1 403 3 is_stmt 1 view .LVU66
+ 403:track_edit.c  **** 
+ 246               		.loc 1 403 43 is_stmt 0 view .LVU67
+ 247 00ca 1092 0000 		sts play_loaded_track,__zero_reg__
+ 403:track_edit.c  **** 
+ 248               		.loc 1 403 23 view .LVU68
+ 249 00ce 1092 0000 		sts play_loaded_pattern,__zero_reg__
+ 406:track_edit.c  ****   if (curr_patt != END_OF_TRACK) {     // clearly, dont play the track if there aint no data in it
+ 250               		.loc 1 406 3 is_stmt 1 view .LVU69
+ 406:track_edit.c  ****   if (curr_patt != END_OF_TRACK) {     // clearly, dont play the track if there aint no data in it
+ 251               		.loc 1 406 25 is_stmt 0 view .LVU70
+ 252 00d2 8091 0000 		lds r24,track_buff
+ 253 00d6 9091 0000 		lds r25,track_buff+1
+ 406:track_edit.c  ****   if (curr_patt != END_OF_TRACK) {     // clearly, dont play the track if there aint no data in it
+ 254               		.loc 1 406 13 view .LVU71
+ 255 00da 9093 0000 		sts curr_patt+1,r25
+ 256 00de 8093 0000 		sts curr_patt,r24
+ 407:track_edit.c  **** 
+ 257               		.loc 1 407 3 is_stmt 1 view .LVU72
+ 407:track_edit.c  **** 
+ 258               		.loc 1 407 6 is_stmt 0 view .LVU73
+ 259 00e2 0196      		adiw r24,1
+ 260 00e4 01F0      		breq .L15
+ 410:track_edit.c  ****     curr_pattern_index = 0;
+ 261               		.loc 1 410 5 is_stmt 1 view .LVU74
+ 410:track_edit.c  ****     curr_pattern_index = 0;
+ 262               		.loc 1 410 22 is_stmt 0 view .LVU75
+ 263 00e6 1092 0000 		sts curr_track_index,__zero_reg__
+ 411:track_edit.c  ****     curr_note = REST; // make it a rest just to avoid sliding
+ 264               		.loc 1 411 5 is_stmt 1 view .LVU76
+ 411:track_edit.c  ****     curr_note = REST; // make it a rest just to avoid sliding
+ 265               		.loc 1 411 24 is_stmt 0 view .LVU77
+ 266 00ea 1092 0000 		sts curr_pattern_index,__zero_reg__
+ 412:track_edit.c  **** 
+ 267               		.loc 1 412 5 is_stmt 1 view .LVU78
+ 412:track_edit.c  **** 
+ 268               		.loc 1 412 15 is_stmt 0 view .LVU79
+ 269 00ee 1092 0000 		sts curr_note,__zero_reg__
+ 415:track_edit.c  ****     
+ 270               		.loc 1 415 5 is_stmt 1 view .LVU80
+ 415:track_edit.c  ****     
+ 271               		.loc 1 415 24 is_stmt 0 view .LVU81
+ 272 00f2 0E94 0000 		call load_curr_patt
+ 273               	.LVL18:
+ 415:track_edit.c  ****     
+ 274               		.loc 1 415 22 view .LVU82
+ 275 00f6 8093 0000 		sts curr_pitch_shift,r24
+ 418:track_edit.c  **** 
+ 276               		.loc 1 418 5 is_stmt 1 view .LVU83
+ 277               	.L16:
+ 418:track_edit.c  **** 
+ 278               		.loc 1 418 31 discriminator 1 view .LVU84
+ 418:track_edit.c  **** 
+ 279               		.loc 1 418 25 is_stmt 0 discriminator 1 view .LVU85
+ 280 00fa 8091 0000 		lds r24,note_counter
+ 418:track_edit.c  **** 
+ 281               		.loc 1 418 11 discriminator 1 view .LVU86
+ 282 00fe 80FD      		sbrc r24,0
+ 283 0100 00C0      		rjmp .L16
+ 421:track_edit.c  ****     //putstring("\n\raccent = ");putnum_ud(all_accent);
+ 284               		.loc 1 421 5 is_stmt 1 view .LVU87
+ 421:track_edit.c  ****     //putstring("\n\raccent = ");putnum_ud(all_accent);
+ 285               		.loc 1 421 23 is_stmt 0 view .LVU88
+ 286 0102 81E0      		ldi r24,lo8(1)
+ 287 0104 8093 0000 		sts play_loaded_track,r24
+ 288               	.L15:
+ 424:track_edit.c  **** }
+ 289               		.loc 1 424 3 is_stmt 1 view .LVU89
+ 290 0108 0E94 0000 		call clear_bank_leds
+ 291               	.LVL19:
+ 292               	/* epilogue start */
+ 425:track_edit.c  **** 
+ 293               		.loc 1 425 1 is_stmt 0 view .LVU90
+ 294 010c 0895      		ret
+ 295               		.cfi_endproc
+ 296               	.LFE6:
+ 298               	.global	stop_track_run_mode
+ 300               	stop_track_run_mode:
+ 301               	.LFB8:
+ 441:track_edit.c  **** 
+ 442:track_edit.c  **** void stop_track_run_mode(void) {
+ 302               		.loc 1 442 32 is_stmt 1 view -0
+ 303               		.cfi_startproc
+ 304               	/* prologue: function */
+ 305               	/* frame size = 0 */
+ 306               	/* stack size = 0 */
+ 307               	.L__stack_usage = 0
+ 443:track_edit.c  ****   in_run_mode = FALSE;   
+ 308               		.loc 1 443 3 view .LVU92
+ 309               		.loc 1 443 15 is_stmt 0 view .LVU93
+ 310 010e 1092 0000 		sts in_run_mode,__zero_reg__
+ 444:track_edit.c  ****   play_loaded_pattern = FALSE;
+ 311               		.loc 1 444 3 is_stmt 1 view .LVU94
+ 312               		.loc 1 444 23 is_stmt 0 view .LVU95
+ 313 0112 1092 0000 		sts play_loaded_pattern,__zero_reg__
+ 445:track_edit.c  ****   play_loaded_track = FALSE;
+ 314               		.loc 1 445 3 is_stmt 1 view .LVU96
+ 315               		.loc 1 445 21 is_stmt 0 view .LVU97
+ 316 0116 1092 0000 		sts play_loaded_track,__zero_reg__
+ 446:track_edit.c  ****   note_off(0);
+ 317               		.loc 1 446 3 is_stmt 1 view .LVU98
+ 318 011a 80E0      		ldi r24,0
+ 319 011c 0E94 0000 		call note_off
+ 320               	.LVL20:
+ 447:track_edit.c  ****   clear_all_leds();
+ 321               		.loc 1 447 3 view .LVU99
+ 322 0120 0E94 0000 		call clear_all_leds
+ 323               	.LVL21:
+ 448:track_edit.c  ****   clear_blinking_leds();
+ 324               		.loc 1 448 3 view .LVU100
+ 325 0124 0E94 0000 		call clear_blinking_leds
+ 326               	.LVL22:
+ 449:track_edit.c  ****   has_bank_knob_changed();
+ 327               		.loc 1 449 3 view .LVU101
+ 328 0128 0E94 0000 		call has_bank_knob_changed
+ 329               	.LVL23:
+ 330               	/* epilogue start */
+ 450:track_edit.c  **** }
+ 331               		.loc 1 450 1 is_stmt 0 view .LVU102
+ 332 012c 0895      		ret
+ 333               		.cfi_endproc
+ 334               	.LFE8:
+ 336               	.global	load_track
+ 338               	load_track:
+ 339               	.LVL24:
+ 340               	.LFB9:
+ 451:track_edit.c  **** 
+ 452:track_edit.c  **** void load_track(uint8_t bank, uint8_t track_loc) {
+ 341               		.loc 1 452 50 is_stmt 1 view -0
+ 342               		.cfi_startproc
+ 343               		.loc 1 452 50 is_stmt 0 view .LVU104
+ 344 012e EF92      		push r14
+ 345               		.cfi_def_cfa_offset 3
+ 346               		.cfi_offset 14, -2
+ 347 0130 FF92      		push r15
+ 348               		.cfi_def_cfa_offset 4
+ 349               		.cfi_offset 15, -3
+ 350 0132 0F93      		push r16
+ 351               		.cfi_def_cfa_offset 5
+ 352               		.cfi_offset 16, -4
+ 353 0134 1F93      		push r17
+ 354               		.cfi_def_cfa_offset 6
+ 355               		.cfi_offset 17, -5
+ 356 0136 CF93      		push r28
+ 357               		.cfi_def_cfa_offset 7
+ 358               		.cfi_offset 28, -6
+ 359 0138 DF93      		push r29
+ 360               		.cfi_def_cfa_offset 8
+ 361               		.cfi_offset 29, -7
+ 362               	/* prologue: function */
+ 363               	/* frame size = 0 */
+ 364               	/* stack size = 6 */
+ 365               	.L__stack_usage = 6
+ 453:track_edit.c  ****   uint8_t i;
+ 366               		.loc 1 453 3 is_stmt 1 view .LVU105
+ 454:track_edit.c  ****   uint16_t track_addr;
+ 367               		.loc 1 454 3 view .LVU106
+ 455:track_edit.c  **** 
+ 456:track_edit.c  ****   track_addr = TRACK_MEM + (bank*BANK_SIZE + track_loc*TRACK_SIZE)*2;
+ 368               		.loc 1 456 3 view .LVU107
+ 369               		.loc 1 456 44 is_stmt 0 view .LVU108
+ 370 013a 98E0      		ldi r25,lo8(8)
+ 371 013c 899F      		mul r24,r25
+ 372 013e E001      		movw r28,r0
+ 373 0140 1124      		clr __zero_reg__
+ 374 0142 C60F      		add r28,r22
+ 375 0144 D11D      		adc r29,__zero_reg__
+ 376               		.loc 1 456 67 view .LVU109
+ 377 0146 45E0      		ldi r20,5
+ 378               		1:
+ 379 0148 CC0F      		lsl r28
+ 380 014a DD1F      		rol r29
+ 381 014c 4A95      		dec r20
+ 382 014e 01F4      		brne 1b
+ 383               		.loc 1 456 14 view .LVU110
+ 384 0150 D85F      		subi r29,-8
+ 385               	.LVL25:
+ 457:track_edit.c  **** 
+ 458:track_edit.c  ****   /*
+ 459:track_edit.c  ****   putstring("reading track ["); 
+ 460:track_edit.c  ****   putnum_ud(bank); putstring(", "); putnum_ud(track_loc);
+ 461:track_edit.c  ****   putstring(" @ 0x");
+ 462:track_edit.c  ****   putnum_uh(track_addr);
+ 463:track_edit.c  ****   putstring("\n\r");
+ 464:track_edit.c  ****   */
+ 465:track_edit.c  **** 
+ 466:track_edit.c  ****   for (i=0; i < TRACK_SIZE; i++) {
+ 386               		.loc 1 466 3 is_stmt 1 view .LVU111
+ 456:track_edit.c  **** 
+ 387               		.loc 1 456 14 is_stmt 0 view .LVU112
+ 388 0152 F12C      		mov r15,__zero_reg__
+ 389 0154 E12C      		mov r14,__zero_reg__
+ 390               	.LVL26:
+ 391               	.L23:
+ 467:track_edit.c  ****     track_buff[i] = spieeprom_read(track_addr + 2*i) << 8;
+ 392               		.loc 1 467 5 is_stmt 1 discriminator 3 view .LVU113
+ 393               		.loc 1 467 21 is_stmt 0 discriminator 3 view .LVU114
+ 394 0156 CE01      		movw r24,r28
+ 395 0158 0E94 0000 		call spieeprom_read
+ 396               	.LVL27:
+ 397 015c 90E0      		ldi r25,0
+ 398               		.loc 1 467 54 discriminator 3 view .LVU115
+ 399 015e 982F      		mov r25,r24
+ 400 0160 8827      		clr r24
+ 401               		.loc 1 467 19 discriminator 3 view .LVU116
+ 402 0162 8701      		movw r16,r14
+ 403 0164 000F      		lsl r16
+ 404 0166 111F      		rol r17
+ 405 0168 0050      		subi r16,lo8(-(track_buff))
+ 406 016a 1040      		sbci r17,hi8(-(track_buff))
+ 407 016c F801      		movw r30,r16
+ 408 016e 9183      		std Z+1,r25
+ 409 0170 8083      		st Z,r24
+ 468:track_edit.c  ****     track_buff[i] |= spieeprom_read(track_addr + 2*i + 1);
+ 410               		.loc 1 468 5 is_stmt 1 discriminator 3 view .LVU117
+ 411               		.loc 1 468 22 is_stmt 0 discriminator 3 view .LVU118
+ 412 0172 CE01      		movw r24,r28
+ 413 0174 0196      		adiw r24,1
+ 414 0176 0E94 0000 		call spieeprom_read
+ 415               	.LVL28:
+ 416               		.loc 1 468 19 discriminator 3 view .LVU119
+ 417 017a F801      		movw r30,r16
+ 418 017c 2081      		ld r18,Z
+ 419 017e 3181      		ldd r19,Z+1
+ 420 0180 282B      		or r18,r24
+ 421 0182 3183      		std Z+1,r19
+ 422 0184 2083      		st Z,r18
+ 423               	.LVL29:
+ 424               		.loc 1 468 19 discriminator 3 view .LVU120
+ 425 0186 FFEF      		ldi r31,-1
+ 426 0188 EF1A      		sub r14,r31
+ 427 018a FF0A      		sbc r15,r31
+ 428               	.LVL30:
+ 429               		.loc 1 468 19 discriminator 3 view .LVU121
+ 430 018c 2296      		adiw r28,2
+ 466:track_edit.c  ****     track_buff[i] = spieeprom_read(track_addr + 2*i) << 8;
+ 431               		.loc 1 466 3 discriminator 3 view .LVU122
+ 432 018e 80E1      		ldi r24,16
+ 433 0190 E816      		cp r14,r24
+ 434 0192 F104      		cpc r15,__zero_reg__
+ 435 0194 01F4      		brne .L23
+ 436               	/* epilogue start */
+ 469:track_edit.c  ****   }
+ 470:track_edit.c  **** }
+ 437               		.loc 1 470 1 view .LVU123
+ 438 0196 CDB7      		in r28,__SP_L__
+ 439 0198 DEB7      		in r29,__SP_H__
+ 440 019a E6E0      		ldi r30, lo8(6)
+ 441 019c 0C94 0000 		jmp __epilogue_restores__ + ((18 - 6) * 2)
+ 442               		.cfi_endproc
+ 443               	.LFE9:
+ 445               	.global	write_track
+ 447               	write_track:
+ 448               	.LVL31:
+ 449               	.LFB10:
+ 471:track_edit.c  **** 
+ 472:track_edit.c  **** void write_track(uint8_t bank, uint8_t track_loc) {
+ 450               		.loc 1 472 51 is_stmt 1 view -0
+ 451               		.cfi_startproc
+ 452               		.loc 1 472 51 is_stmt 0 view .LVU125
+ 453 01a0 EF92      		push r14
+ 454               		.cfi_def_cfa_offset 3
+ 455               		.cfi_offset 14, -2
+ 456 01a2 FF92      		push r15
+ 457               		.cfi_def_cfa_offset 4
+ 458               		.cfi_offset 15, -3
+ 459 01a4 0F93      		push r16
+ 460               		.cfi_def_cfa_offset 5
+ 461               		.cfi_offset 16, -4
+ 462 01a6 1F93      		push r17
+ 463               		.cfi_def_cfa_offset 6
+ 464               		.cfi_offset 17, -5
+ 465 01a8 CF93      		push r28
+ 466               		.cfi_def_cfa_offset 7
+ 467               		.cfi_offset 28, -6
+ 468 01aa DF93      		push r29
+ 469               		.cfi_def_cfa_offset 8
+ 470               		.cfi_offset 29, -7
+ 471               	/* prologue: function */
+ 472               	/* frame size = 0 */
+ 473               	/* stack size = 6 */
+ 474               	.L__stack_usage = 6
+ 473:track_edit.c  ****   uint8_t i;
+ 475               		.loc 1 473 3 is_stmt 1 view .LVU126
+ 474:track_edit.c  ****   uint16_t track_addr;
+ 476               		.loc 1 474 3 view .LVU127
+ 475:track_edit.c  **** 
+ 476:track_edit.c  ****   track_addr = TRACK_MEM + (bank*BANK_SIZE + track_loc*TRACK_SIZE)*2;  
+ 477               		.loc 1 476 3 view .LVU128
+ 478               		.loc 1 476 44 is_stmt 0 view .LVU129
+ 479 01ac 28E0      		ldi r18,lo8(8)
+ 480 01ae 829F      		mul r24,r18
+ 481 01b0 E001      		movw r28,r0
+ 482 01b2 1124      		clr __zero_reg__
+ 483 01b4 C60F      		add r28,r22
+ 484 01b6 D11D      		adc r29,__zero_reg__
+ 485               		.loc 1 476 67 view .LVU130
+ 486 01b8 35E0      		ldi r19,5
+ 487               		1:
+ 488 01ba CC0F      		lsl r28
+ 489 01bc DD1F      		rol r29
+ 490 01be 3A95      		dec r19
+ 491 01c0 01F4      		brne 1b
+ 492               		.loc 1 476 14 view .LVU131
+ 493 01c2 D85F      		subi r29,-8
+ 494               	.LVL32:
+ 477:track_edit.c  **** 
+ 478:track_edit.c  ****   /*
+ 479:track_edit.c  ****   putstring("write track ["); 
+ 480:track_edit.c  ****   putnum_ud(bank); putstring(", "); putnum_ud(track_loc);
+ 481:track_edit.c  ****   putstring(" @ 0x");
+ 482:track_edit.c  ****   putnum_uh(track_addr);
+ 483:track_edit.c  ****   putstring("\n\r");
+ 484:track_edit.c  ****   */
+ 485:track_edit.c  **** 
+ 486:track_edit.c  ****   for (i=0; i < TRACK_SIZE; i++) {
+ 495               		.loc 1 486 3 is_stmt 1 view .LVU132
+ 476:track_edit.c  **** 
+ 496               		.loc 1 476 14 is_stmt 0 view .LVU133
+ 497 01c4 10E0      		ldi r17,0
+ 498 01c6 00E0      		ldi r16,0
+ 499               	.LVL33:
+ 500               	.L26:
+ 487:track_edit.c  ****     spieeprom_write(track_buff[i]>>8, track_addr + 2*i);
+ 501               		.loc 1 487 5 is_stmt 1 discriminator 3 view .LVU134
+ 502               		.loc 1 487 31 is_stmt 0 discriminator 3 view .LVU135
+ 503 01c8 C801      		movw r24,r16
+ 504 01ca 880F      		lsl r24
+ 505 01cc 991F      		rol r25
+ 506 01ce FC01      		movw r30,r24
+ 507 01d0 E050      		subi r30,lo8(-(track_buff))
+ 508 01d2 F040      		sbci r31,hi8(-(track_buff))
+ 509 01d4 7F01      		movw r14,r30
+ 510 01d6 8081      		ld r24,Z
+ 511 01d8 9181      		ldd r25,Z+1
+ 512               		.loc 1 487 5 discriminator 3 view .LVU136
+ 513 01da BE01      		movw r22,r28
+ 514 01dc 892F      		mov r24,r25
+ 515 01de 0E94 0000 		call spieeprom_write
+ 516               	.LVL34:
+ 488:track_edit.c  ****     spieeprom_write(track_buff[i] & 0xFF, track_addr + 2*i + 1);
+ 517               		.loc 1 488 5 is_stmt 1 discriminator 3 view .LVU137
+ 518               		.loc 1 488 31 is_stmt 0 discriminator 3 view .LVU138
+ 519 01e2 F701      		movw r30,r14
+ 520 01e4 8081      		ld r24,Z
+ 521 01e6 9181      		ldd r25,Z+1
+ 522               		.loc 1 488 5 discriminator 3 view .LVU139
+ 523 01e8 BE01      		movw r22,r28
+ 524 01ea 6F5F      		subi r22,-1
+ 525 01ec 7F4F      		sbci r23,-1
+ 526 01ee 0E94 0000 		call spieeprom_write
+ 527               	.LVL35:
+ 528               		.loc 1 488 5 discriminator 3 view .LVU140
+ 529 01f2 0F5F      		subi r16,-1
+ 530 01f4 1F4F      		sbci r17,-1
+ 531               	.LVL36:
+ 532               		.loc 1 488 5 discriminator 3 view .LVU141
+ 533 01f6 2296      		adiw r28,2
+ 486:track_edit.c  ****     spieeprom_write(track_buff[i]>>8, track_addr + 2*i);
+ 534               		.loc 1 486 3 discriminator 3 view .LVU142
+ 535 01f8 0031      		cpi r16,16
+ 536 01fa 1105      		cpc r17,__zero_reg__
+ 537 01fc 01F4      		brne .L26
+ 538               	/* epilogue start */
+ 489:track_edit.c  ****   }
+ 490:track_edit.c  **** }
+ 539               		.loc 1 490 1 view .LVU143
+ 540 01fe CDB7      		in r28,__SP_L__
+ 541 0200 DEB7      		in r29,__SP_H__
+ 542 0202 E6E0      		ldi r30, lo8(6)
+ 543 0204 0C94 0000 		jmp __epilogue_restores__ + ((18 - 6) * 2)
+ 544               		.cfi_endproc
+ 545               	.LFE10:
+ 547               	.global	do_track_edit
+ 549               	do_track_edit:
+ 550               	.LFB1:
+  70:track_edit.c  ****   uint8_t i;
+ 551               		.loc 1 70 26 is_stmt 1 view -0
+ 552               		.cfi_startproc
+ 553 0208 EF92      		push r14
+ 554               		.cfi_def_cfa_offset 3
+ 555               		.cfi_offset 14, -2
+ 556 020a FF92      		push r15
+ 557               		.cfi_def_cfa_offset 4
+ 558               		.cfi_offset 15, -3
+ 559 020c 0F93      		push r16
+ 560               		.cfi_def_cfa_offset 5
+ 561               		.cfi_offset 16, -4
+ 562 020e 1F93      		push r17
+ 563               		.cfi_def_cfa_offset 6
+ 564               		.cfi_offset 17, -5
+ 565 0210 CF93      		push r28
+ 566               		.cfi_def_cfa_offset 7
+ 567               		.cfi_offset 28, -6
+ 568 0212 DF93      		push r29
+ 569               		.cfi_def_cfa_offset 8
+ 570               		.cfi_offset 29, -7
+ 571               	/* prologue: function */
+ 572               	/* frame size = 0 */
+ 573               	/* stack size = 6 */
+ 574               	.L__stack_usage = 6
+  71:track_edit.c  **** 
+ 575               		.loc 1 71 3 view .LVU145
+  73:track_edit.c  **** 
+ 576               		.loc 1 73 3 view .LVU146
+ 577 0214 0E94 0000 		call turn_on_tempo
+ 578               	.LVL37:
+  76:track_edit.c  ****   track_location = 0;
+ 579               		.loc 1 76 3 view .LVU147
+  76:track_edit.c  ****   track_location = 0;
+ 580               		.loc 1 76 21 is_stmt 0 view .LVU148
+ 581 0218 8091 0000 		lds r24,bank
+ 582 021c 8770      		andi r24,lo8(7)
+  76:track_edit.c  ****   track_location = 0;
+ 583               		.loc 1 76 14 view .LVU149
+ 584 021e 8093 0000 		sts track_bank,r24
+  77:track_edit.c  **** 
+ 585               		.loc 1 77 3 is_stmt 1 view .LVU150
+  77:track_edit.c  **** 
+ 586               		.loc 1 77 18 is_stmt 0 view .LVU151
+ 587 0222 1092 0000 		sts track_location,__zero_reg__
+  79:track_edit.c  ****   in_run_mode = FALSE;
+ 588               		.loc 1 79 3 is_stmt 1 view .LVU152
+  79:track_edit.c  ****   in_run_mode = FALSE;
+ 589               		.loc 1 79 21 is_stmt 0 view .LVU153
+ 590 0226 1092 0000 		sts in_stepwrite_mode,__zero_reg__
+  80:track_edit.c  ****   play_loaded_track = FALSE;
+ 591               		.loc 1 80 3 is_stmt 1 view .LVU154
+  80:track_edit.c  ****   play_loaded_track = FALSE;
+ 592               		.loc 1 80 15 is_stmt 0 view .LVU155
+ 593 022a 1092 0000 		sts in_run_mode,__zero_reg__
+  81:track_edit.c  ****   play_loaded_pattern = FALSE;
+ 594               		.loc 1 81 3 is_stmt 1 view .LVU156
+  81:track_edit.c  ****   play_loaded_pattern = FALSE;
+ 595               		.loc 1 81 21 is_stmt 0 view .LVU157
+ 596 022e 1092 0000 		sts play_loaded_track,__zero_reg__
+  82:track_edit.c  ****   curr_track_index = 0;
+ 597               		.loc 1 82 3 is_stmt 1 view .LVU158
+  82:track_edit.c  ****   curr_track_index = 0;
+ 598               		.loc 1 82 23 is_stmt 0 view .LVU159
+ 599 0232 1092 0000 		sts play_loaded_pattern,__zero_reg__
+  83:track_edit.c  ****   curr_patt = END_OF_TRACK;
+ 600               		.loc 1 83 3 is_stmt 1 view .LVU160
+  83:track_edit.c  ****   curr_patt = END_OF_TRACK;
+ 601               		.loc 1 83 20 is_stmt 0 view .LVU161
+ 602 0236 1092 0000 		sts curr_track_index,__zero_reg__
+  84:track_edit.c  ****   sync = INTERNAL_SYNC;
+ 603               		.loc 1 84 3 is_stmt 1 view .LVU162
+  84:track_edit.c  ****   sync = INTERNAL_SYNC;
+ 604               		.loc 1 84 13 is_stmt 0 view .LVU163
+ 605 023a 8FEF      		ldi r24,lo8(-1)
+ 606 023c 9FEF      		ldi r25,lo8(-1)
+ 607 023e 9093 0000 		sts curr_patt+1,r25
+ 608 0242 8093 0000 		sts curr_patt,r24
+  85:track_edit.c  **** 
+ 609               		.loc 1 85 3 is_stmt 1 view .LVU164
+  85:track_edit.c  **** 
+ 610               		.loc 1 85 8 is_stmt 0 view .LVU165
+ 611 0246 1092 0000 		sts sync,__zero_reg__
+  87:track_edit.c  ****   clear_blinking_leds();
+ 612               		.loc 1 87 3 is_stmt 1 view .LVU166
+ 613 024a 0E94 0000 		call clear_bank_leds
+ 614               	.LVL38:
+  88:track_edit.c  **** 
+ 615               		.loc 1 88 3 view .LVU167
+ 616 024e 0E94 0000 		call clear_blinking_leds
+ 617               	.LVL39:
+ 240:track_edit.c  **** 	// stop the mode, and any playing
+ 618               		.loc 1 240 12 is_stmt 0 view .LVU168
+ 619 0252 0FEF      		ldi r16,lo8(-1)
+ 620 0254 1FEF      		ldi r17,lo8(-1)
+ 621 0256 EE24      		clr r14
+ 622 0258 EA94      		dec r14
+ 623 025a FE2C      		mov r15,r14
+ 624               	.L89:
+  90:track_edit.c  ****     read_switches();
+ 625               		.loc 1 90 3 is_stmt 1 view .LVU169
+  91:track_edit.c  **** 
+ 626               		.loc 1 91 5 view .LVU170
+ 627 025c 0E94 0000 		call read_switches
+ 628               	.LVL40:
+  94:track_edit.c  ****       // stop playing any notes
+ 629               		.loc 1 94 5 view .LVU171
+  94:track_edit.c  ****       // stop playing any notes
+ 630               		.loc 1 94 8 is_stmt 0 view .LVU172
+ 631 0260 8091 0000 		lds r24,function
+ 632 0264 8130      		cpi r24,lo8(1)
+ 633 0266 01F0      		breq .+2
+ 634 0268 00C0      		rjmp .L149
+ 111:track_edit.c  ****       if (has_bank_knob_changed()) {
+ 635               		.loc 1 111 5 is_stmt 1 view .LVU173
+ 111:track_edit.c  ****       if (has_bank_knob_changed()) {
+ 636               		.loc 1 111 28 is_stmt 0 view .LVU174
+ 637 026a 8091 0000 		lds r24,in_stepwrite_mode
+ 638 026e 9091 0000 		lds r25,in_run_mode
+ 639 0272 892B      		or r24,r25
+ 640 0274 01F4      		brne .L30
+ 112:track_edit.c  **** 	//putstring("changed track bank\n\r");
+ 641               		.loc 1 112 7 is_stmt 1 view .LVU175
+ 112:track_edit.c  **** 	//putstring("changed track bank\n\r");
+ 642               		.loc 1 112 11 is_stmt 0 view .LVU176
+ 643 0276 0E94 0000 		call has_bank_knob_changed
+ 644               	.LVL41:
+ 112:track_edit.c  **** 	//putstring("changed track bank\n\r");
+ 645               		.loc 1 112 10 view .LVU177
+ 646 027a 8823      		tst r24
+ 647 027c 01F0      		breq .L31
+ 114:track_edit.c  **** 	load_track(track_bank, track_location);
+ 648               		.loc 1 114 2 is_stmt 1 view .LVU178
+ 114:track_edit.c  **** 	load_track(track_bank, track_location);
+ 649               		.loc 1 114 20 is_stmt 0 view .LVU179
+ 650 027e 8091 0000 		lds r24,bank
+ 651 0282 8770      		andi r24,lo8(7)
+ 114:track_edit.c  **** 	load_track(track_bank, track_location);
+ 652               		.loc 1 114 13 view .LVU180
+ 653 0284 8093 0000 		sts track_bank,r24
+ 115:track_edit.c  **** 	clear_bank_leds();  // track changed, clear the prev indicator
+ 654               		.loc 1 115 2 is_stmt 1 view .LVU181
+ 655 0288 6091 0000 		lds r22,track_location
+ 656 028c 0E94 0000 		call load_track
+ 657               	.LVL42:
+ 116:track_edit.c  ****       }
+ 658               		.loc 1 116 2 view .LVU182
+ 659 0290 0E94 0000 		call clear_bank_leds
+ 660               	.LVL43:
+ 661               	.L31:
+ 118:track_edit.c  ****       
+ 662               		.loc 1 118 7 view .LVU183
+ 663 0294 8091 0000 		lds r24,track_bank
+ 664 0298 0E94 0000 		call set_bank_led
+ 665               	.LVL44:
+ 120:track_edit.c  ****       if (i != 0) {
+ 666               		.loc 1 120 7 view .LVU184
+ 120:track_edit.c  ****       if (i != 0) {
+ 667               		.loc 1 120 11 is_stmt 0 view .LVU185
+ 668 029c 0E94 0000 		call get_lowest_numkey_pressed
+ 669               	.LVL45:
+ 670 02a0 C82F      		mov r28,r24
+ 671               	.LVL46:
+ 121:track_edit.c  **** 	clear_notekey_leds();
+ 672               		.loc 1 121 7 is_stmt 1 view .LVU186
+ 121:track_edit.c  **** 	clear_notekey_leds();
+ 673               		.loc 1 121 10 is_stmt 0 view .LVU187
+ 674 02a2 8823      		tst r24
+ 675 02a4 01F0      		breq .L32
+ 122:track_edit.c  **** 	track_location = i-1;
+ 676               		.loc 1 122 2 is_stmt 1 view .LVU188
+ 677 02a6 0E94 0000 		call clear_notekey_leds
+ 678               	.LVL47:
+ 123:track_edit.c  **** 	load_track(track_bank, track_location);
+ 679               		.loc 1 123 2 view .LVU189
+ 123:track_edit.c  **** 	load_track(track_bank, track_location);
+ 680               		.loc 1 123 20 is_stmt 0 view .LVU190
+ 681 02aa 6FEF      		ldi r22,lo8(-1)
+ 682 02ac 6C0F      		add r22,r28
+ 123:track_edit.c  **** 	load_track(track_bank, track_location);
+ 683               		.loc 1 123 17 view .LVU191
+ 684 02ae 6093 0000 		sts track_location,r22
+ 124:track_edit.c  ****       }
+ 685               		.loc 1 124 2 is_stmt 1 view .LVU192
+ 686 02b2 8091 0000 		lds r24,track_bank
+ 687 02b6 0E94 0000 		call load_track
+ 688               	.LVL48:
+ 689               	.L32:
+ 126:track_edit.c  ****     }
+ 690               		.loc 1 126 7 view .LVU193
+ 691 02ba 8091 0000 		lds r24,track_location
+ 692 02be 8F5F      		subi r24,lo8(-(1))
+ 693 02c0 0E94 0000 		call set_numkey_led
+ 694               	.LVL49:
+ 695               	.L30:
+ 130:track_edit.c  ****       if (in_run_mode) {
+ 696               		.loc 1 130 5 view .LVU194
+ 130:track_edit.c  ****       if (in_run_mode) {
+ 697               		.loc 1 130 9 is_stmt 0 view .LVU195
+ 698 02c4 81E0      		ldi r24,lo8(1)
+ 699 02c6 0E94 0000 		call just_pressed
+ 700               	.LVL50:
+ 130:track_edit.c  ****       if (in_run_mode) {
+ 701               		.loc 1 130 8 view .LVU196
+ 702 02ca 8823      		tst r24
+ 703 02cc 01F0      		breq .L33
+ 131:track_edit.c  **** 	stop_track_run_mode(); 	// stop run mode
+ 704               		.loc 1 131 7 is_stmt 1 view .LVU197
+ 131:track_edit.c  **** 	stop_track_run_mode(); 	// stop run mode
+ 705               		.loc 1 131 10 is_stmt 0 view .LVU198
+ 706 02ce 8091 0000 		lds r24,in_run_mode
+ 707 02d2 8823      		tst r24
+ 708 02d4 01F4      		brne .+2
+ 709 02d6 00C0      		rjmp .L34
+ 132:track_edit.c  ****       } else {
+ 710               		.loc 1 132 2 is_stmt 1 view .LVU199
+ 711 02d8 0E94 0000 		call stop_track_run_mode
+ 712               	.LVL51:
+ 713               	.L33:
+ 146:track_edit.c  ****       // show the current position in the edited track
+ 714               		.loc 1 146 5 view .LVU200
+ 146:track_edit.c  ****       // show the current position in the edited track
+ 715               		.loc 1 146 21 is_stmt 0 view .LVU201
+ 716 02dc 8091 0000 		lds r24,in_run_mode
+ 717 02e0 9091 0000 		lds r25,in_stepwrite_mode
+ 718 02e4 892B      		or r24,r25
+ 719 02e6 01F0      		breq .L36
+ 148:track_edit.c  **** 	clear_blinking_leds();
+ 720               		.loc 1 148 7 is_stmt 1 view .LVU202
+ 148:track_edit.c  **** 	clear_blinking_leds();
+ 721               		.loc 1 148 12 is_stmt 0 view .LVU203
+ 722 02e8 8091 0000 		lds r24,curr_track_index
+ 723 02ec 0E94 0000 		call is_bank_led_blink
+ 724               	.LVL52:
+ 148:track_edit.c  **** 	clear_blinking_leds();
+ 725               		.loc 1 148 10 view .LVU204
+ 726 02f0 8111      		cpse r24,__zero_reg__
+ 727 02f2 00C0      		rjmp .L37
+ 149:track_edit.c  ****       set_bank_led_blink(curr_track_index); 
+ 728               		.loc 1 149 2 is_stmt 1 view .LVU205
+ 729 02f4 0E94 0000 		call clear_blinking_leds
+ 730               	.LVL53:
+ 731               	.L37:
+ 150:track_edit.c  **** 
+ 732               		.loc 1 150 7 view .LVU206
+ 733 02f8 8091 0000 		lds r24,curr_track_index
+ 734 02fc 0E94 0000 		call set_bank_led_blink
+ 735               	.LVL54:
+ 152:track_edit.c  **** 	clear_note_leds();
+ 736               		.loc 1 152 7 view .LVU207
+ 152:track_edit.c  **** 	clear_note_leds();
+ 737               		.loc 1 152 10 is_stmt 0 view .LVU208
+ 738 0300 8091 0000 		lds r24,curr_patt
+ 739 0304 9091 0000 		lds r25,curr_patt+1
+ 740 0308 0196      		adiw r24,1
+ 741 030a 01F0      		breq .+2
+ 742 030c 00C0      		rjmp .L38
+ 153:track_edit.c  **** 	// the 'end of track' (0xFFFF) lights up DONE
+ 743               		.loc 1 153 2 is_stmt 1 view .LVU209
+ 744 030e 0E94 0000 		call clear_note_leds
+ 745               	.LVL55:
+ 155:track_edit.c  ****       } else {
+ 746               		.loc 1 155 2 view .LVU210
+ 747 0312 80E0      		ldi r24,0
+ 748               	.L150:
+ 172:track_edit.c  **** 	else
+ 749               		.loc 1 172 4 is_stmt 0 view .LVU211
+ 750 0314 0E94 0000 		call set_led
+ 751               	.LVL56:
+ 752               	.L36:
+ 180:track_edit.c  ****       note_off(0);  // if something -was- playing, kill it
+ 753               		.loc 1 180 5 is_stmt 1 view .LVU212
+ 180:track_edit.c  ****       note_off(0);  // if something -was- playing, kill it
+ 754               		.loc 1 180 10 is_stmt 0 view .LVU213
+ 755 0318 88E0      		ldi r24,lo8(8)
+ 756 031a 0E94 0000 		call just_pressed
+ 757               	.LVL57:
+ 180:track_edit.c  ****       note_off(0);  // if something -was- playing, kill it
+ 758               		.loc 1 180 8 view .LVU214
+ 759 031e 8823      		tst r24
+ 760 0320 01F4      		brne .+2
+ 761 0322 00C0      		rjmp .L44
+ 762               	.L47:
+ 180:track_edit.c  ****       note_off(0);  // if something -was- playing, kill it
+ 763               		.loc 1 180 60 view .LVU215
+ 764 0324 8091 0000 		lds r24,in_run_mode
+ 765 0328 8823      		tst r24
+ 766 032a 01F4      		brne .+2
+ 767 032c 00C0      		rjmp .L45
+ 768               	.L48:
+ 234:track_edit.c  ****       if (in_stepwrite_mode) {
+ 769               		.loc 1 234 5 is_stmt 1 view .LVU216
+ 234:track_edit.c  ****       if (in_stepwrite_mode) {
+ 770               		.loc 1 234 9 is_stmt 0 view .LVU217
+ 771 032e 87E1      		ldi r24,lo8(23)
+ 772 0330 0E94 0000 		call just_pressed
+ 773               	.LVL58:
+ 234:track_edit.c  ****       if (in_stepwrite_mode) {
+ 774               		.loc 1 234 8 view .LVU218
+ 775 0334 8823      		tst r24
+ 776 0336 01F0      		breq .L60
+ 235:track_edit.c  **** 	if (curr_track_index+1 < TRACK_SIZE) {
+ 777               		.loc 1 235 7 is_stmt 1 view .LVU219
+ 235:track_edit.c  **** 	if (curr_track_index+1 < TRACK_SIZE) {
+ 778               		.loc 1 235 10 is_stmt 0 view .LVU220
+ 779 0338 8091 0000 		lds r24,in_stepwrite_mode
+ 780 033c 8823      		tst r24
+ 781 033e 01F0      		breq .L61
+ 236:track_edit.c  **** 	  // set an EOT marker if necc.
+ 782               		.loc 1 236 2 is_stmt 1 view .LVU221
+ 236:track_edit.c  **** 	  // set an EOT marker if necc.
+ 783               		.loc 1 236 25 is_stmt 0 view .LVU222
+ 784 0340 8091 0000 		lds r24,curr_track_index
+ 236:track_edit.c  **** 	  // set an EOT marker if necc.
+ 785               		.loc 1 236 5 view .LVU223
+ 786 0344 8F30      		cpi r24,lo8(15)
+ 787 0346 00F4      		brsh .L62
+ 238:track_edit.c  **** 	}
+ 788               		.loc 1 238 4 is_stmt 1 view .LVU224
+ 238:track_edit.c  **** 	}
+ 789               		.loc 1 238 31 is_stmt 0 view .LVU225
+ 790 0348 E091 0000 		lds r30,curr_track_index
+ 791 034c F0E0      		ldi r31,0
+ 238:track_edit.c  **** 	}
+ 792               		.loc 1 238 35 view .LVU226
+ 793 034e EE0F      		lsl r30
+ 794 0350 FF1F      		rol r31
+ 795 0352 E050      		subi r30,lo8(-(track_buff+2))
+ 796 0354 F040      		sbci r31,hi8(-(track_buff+2))
+ 797 0356 1183      		std Z+1,r17
+ 798 0358 0083      		st Z,r16
+ 799               	.L62:
+ 240:track_edit.c  **** 	// stop the mode, and any playing
+ 800               		.loc 1 240 2 is_stmt 1 view .LVU227
+ 240:track_edit.c  **** 	// stop the mode, and any playing
+ 801               		.loc 1 240 12 is_stmt 0 view .LVU228
+ 802 035a F092 0000 		sts curr_patt+1,r15
+ 803 035e E092 0000 		sts curr_patt,r14
+ 242:track_edit.c  **** 	clear_led(LED_DONE);
+ 804               		.loc 1 242 2 is_stmt 1 view .LVU229
+ 805 0362 0E94 0000 		call stop_track_stepwrite_mode
+ 806               	.LVL59:
+ 243:track_edit.c  ****       }
+ 807               		.loc 1 243 2 view .LVU230
+ 808 0366 80E0      		ldi r24,0
+ 809 0368 0E94 0000 		call clear_led
+ 810               	.LVL60:
+ 811               	.L61:
+ 246:track_edit.c  ****     }
+ 812               		.loc 1 246 7 view .LVU231
+ 813 036c 6091 0000 		lds r22,track_location
+ 814 0370 8091 0000 		lds r24,track_bank
+ 815 0374 0E94 0000 		call write_track
+ 816               	.LVL61:
+ 817               	.L60:
+ 251:track_edit.c  ****       if (curr_patt != END_OF_TRACK) {
+ 818               		.loc 1 251 5 view .LVU232
+ 251:track_edit.c  ****       if (curr_patt != END_OF_TRACK) {
+ 819               		.loc 1 251 8 is_stmt 0 view .LVU233
+ 820 0378 8091 0000 		lds r24,in_stepwrite_mode
+ 821 037c 8823      		tst r24
+ 822 037e 01F4      		brne .+2
+ 823 0380 00C0      		rjmp .L64
+ 252:track_edit.c  **** 	// handle RAS keypresses -> modifications to current pattern
+ 824               		.loc 1 252 7 is_stmt 1 view .LVU234
+ 252:track_edit.c  **** 	// handle RAS keypresses -> modifications to current pattern
+ 825               		.loc 1 252 10 is_stmt 0 view .LVU235
+ 826 0382 8091 0000 		lds r24,curr_patt
+ 827 0386 9091 0000 		lds r25,curr_patt+1
+ 828 038a 0196      		adiw r24,1
+ 829 038c 01F4      		brne .+2
+ 830 038e 00C0      		rjmp .L66
+ 255:track_edit.c  **** 	  curr_patt = (track_buff[curr_track_index] ^= TRACK_REST_FLAG);
+ 831               		.loc 1 255 2 is_stmt 1 view .LVU236
+ 255:track_edit.c  **** 	  curr_patt = (track_buff[curr_track_index] ^= TRACK_REST_FLAG);
+ 832               		.loc 1 255 6 is_stmt 0 view .LVU237
+ 833 0390 84E1      		ldi r24,lo8(20)
+ 834 0392 0E94 0000 		call just_pressed
+ 835               	.LVL62:
+ 255:track_edit.c  **** 	  curr_patt = (track_buff[curr_track_index] ^= TRACK_REST_FLAG);
+ 836               		.loc 1 255 5 view .LVU238
+ 837 0396 8823      		tst r24
+ 838 0398 01F0      		breq .L67
+ 256:track_edit.c  **** 	  all_rest = (curr_patt & TRACK_REST_FLAG) >> 8;
+ 839               		.loc 1 256 4 is_stmt 1 view .LVU239
+ 256:track_edit.c  **** 	  all_rest = (curr_patt & TRACK_REST_FLAG) >> 8;
+ 840               		.loc 1 256 46 is_stmt 0 view .LVU240
+ 841 039a E091 0000 		lds r30,curr_track_index
+ 842 039e F0E0      		ldi r31,0
+ 843 03a0 EE0F      		lsl r30
+ 844 03a2 FF1F      		rol r31
+ 845 03a4 E050      		subi r30,lo8(-(track_buff))
+ 846 03a6 F040      		sbci r31,hi8(-(track_buff))
+ 847 03a8 8081      		ld r24,Z
+ 848 03aa 9181      		ldd r25,Z+1
+ 849 03ac 9058      		subi r25,-128
+ 850 03ae 9183      		std Z+1,r25
+ 851 03b0 8083      		st Z,r24
+ 256:track_edit.c  **** 	  all_rest = (curr_patt & TRACK_REST_FLAG) >> 8;
+ 852               		.loc 1 256 14 view .LVU241
+ 853 03b2 9093 0000 		sts curr_patt+1,r25
+ 854 03b6 8093 0000 		sts curr_patt,r24
+ 257:track_edit.c  **** 	}
+ 855               		.loc 1 257 4 is_stmt 1 view .LVU242
+ 257:track_edit.c  **** 	}
+ 856               		.loc 1 257 45 is_stmt 0 view .LVU243
+ 857 03ba 892F      		mov r24,r25
+ 858 03bc 8078      		andi r24,lo8(-128)
+ 257:track_edit.c  **** 	}
+ 859               		.loc 1 257 13 view .LVU244
+ 860 03be 8093 0000 		sts all_rest,r24
+ 861               	.L67:
+ 259:track_edit.c  **** 	  curr_patt = (track_buff[curr_track_index] ^= TRACK_ACCENT_FLAG);
+ 862               		.loc 1 259 2 is_stmt 1 view .LVU245
+ 259:track_edit.c  **** 	  curr_patt = (track_buff[curr_track_index] ^= TRACK_ACCENT_FLAG);
+ 863               		.loc 1 259 6 is_stmt 0 view .LVU246
+ 864 03c2 85E1      		ldi r24,lo8(21)
+ 865 03c4 0E94 0000 		call just_pressed
+ 866               	.LVL63:
+ 259:track_edit.c  **** 	  curr_patt = (track_buff[curr_track_index] ^= TRACK_ACCENT_FLAG);
+ 867               		.loc 1 259 5 view .LVU247
+ 868 03c8 8823      		tst r24
+ 869 03ca 01F0      		breq .L68
+ 260:track_edit.c  **** 	  all_accent = (curr_patt & TRACK_ACCENT_FLAG) >> 8;
+ 870               		.loc 1 260 4 is_stmt 1 view .LVU248
+ 260:track_edit.c  **** 	  all_accent = (curr_patt & TRACK_ACCENT_FLAG) >> 8;
+ 871               		.loc 1 260 46 is_stmt 0 view .LVU249
+ 872 03cc E091 0000 		lds r30,curr_track_index
+ 873 03d0 F0E0      		ldi r31,0
+ 874 03d2 EE0F      		lsl r30
+ 875 03d4 FF1F      		rol r31
+ 876 03d6 E050      		subi r30,lo8(-(track_buff))
+ 877 03d8 F040      		sbci r31,hi8(-(track_buff))
+ 878 03da 8081      		ld r24,Z
+ 879 03dc 9181      		ldd r25,Z+1
+ 880 03de 20E4      		ldi r18,64
+ 881 03e0 9227      		eor r25,r18
+ 882 03e2 9183      		std Z+1,r25
+ 883 03e4 8083      		st Z,r24
+ 260:track_edit.c  **** 	  all_accent = (curr_patt & TRACK_ACCENT_FLAG) >> 8;
+ 884               		.loc 1 260 14 view .LVU250
+ 885 03e6 9093 0000 		sts curr_patt+1,r25
+ 886 03ea 8093 0000 		sts curr_patt,r24
+ 261:track_edit.c  **** 	}
+ 887               		.loc 1 261 4 is_stmt 1 view .LVU251
+ 261:track_edit.c  **** 	}
+ 888               		.loc 1 261 49 is_stmt 0 view .LVU252
+ 889 03ee 892F      		mov r24,r25
+ 890 03f0 8074      		andi r24,lo8(64)
+ 261:track_edit.c  **** 	}
+ 891               		.loc 1 261 15 view .LVU253
+ 892 03f2 8093 0000 		sts all_accent,r24
+ 893               	.L68:
+ 263:track_edit.c  **** 	  curr_patt = (track_buff[curr_track_index] ^= TRACK_SLIDE_FLAG);
+ 894               		.loc 1 263 2 is_stmt 1 view .LVU254
+ 263:track_edit.c  **** 	  curr_patt = (track_buff[curr_track_index] ^= TRACK_SLIDE_FLAG);
+ 895               		.loc 1 263 6 is_stmt 0 view .LVU255
+ 896 03f6 86E1      		ldi r24,lo8(22)
+ 897 03f8 0E94 0000 		call just_pressed
+ 898               	.LVL64:
+ 263:track_edit.c  **** 	  curr_patt = (track_buff[curr_track_index] ^= TRACK_SLIDE_FLAG);
+ 899               		.loc 1 263 5 view .LVU256
+ 900 03fc 8823      		tst r24
+ 901 03fe 01F0      		breq .L69
+ 264:track_edit.c  **** 	  all_slide = (curr_patt & TRACK_SLIDE_FLAG) >> 8;
+ 902               		.loc 1 264 4 is_stmt 1 view .LVU257
+ 264:track_edit.c  **** 	  all_slide = (curr_patt & TRACK_SLIDE_FLAG) >> 8;
+ 903               		.loc 1 264 46 is_stmt 0 view .LVU258
+ 904 0400 E091 0000 		lds r30,curr_track_index
+ 905 0404 F0E0      		ldi r31,0
+ 906 0406 EE0F      		lsl r30
+ 907 0408 FF1F      		rol r31
+ 908 040a E050      		subi r30,lo8(-(track_buff))
+ 909 040c F040      		sbci r31,hi8(-(track_buff))
+ 910 040e 8081      		ld r24,Z
+ 911 0410 9181      		ldd r25,Z+1
+ 912 0412 20E2      		ldi r18,32
+ 913 0414 9227      		eor r25,r18
+ 914 0416 9183      		std Z+1,r25
+ 915 0418 8083      		st Z,r24
+ 264:track_edit.c  **** 	  all_slide = (curr_patt & TRACK_SLIDE_FLAG) >> 8;
+ 916               		.loc 1 264 14 view .LVU259
+ 917 041a 9093 0000 		sts curr_patt+1,r25
+ 918 041e 8093 0000 		sts curr_patt,r24
+ 265:track_edit.c  **** 	}
+ 919               		.loc 1 265 4 is_stmt 1 view .LVU260
+ 265:track_edit.c  **** 	}
+ 920               		.loc 1 265 47 is_stmt 0 view .LVU261
+ 921 0422 892F      		mov r24,r25
+ 922 0424 8072      		andi r24,lo8(32)
+ 265:track_edit.c  **** 	}
+ 923               		.loc 1 265 14 view .LVU262
+ 924 0426 8093 0000 		sts all_slide,r24
+ 925               	.L69:
+ 269:track_edit.c  **** 	  uint16_t notekey = get_lowest_notekey_pressed();
+ 926               		.loc 1 269 2 is_stmt 1 view .LVU263
+ 269:track_edit.c  **** 	  uint16_t notekey = get_lowest_notekey_pressed();
+ 927               		.loc 1 269 6 is_stmt 0 view .LVU264
+ 928 042a 8FE0      		ldi r24,lo8(15)
+ 929 042c 0E94 0000 		call is_pressed
+ 930               	.LVL65:
+ 269:track_edit.c  **** 	  uint16_t notekey = get_lowest_notekey_pressed();
+ 931               		.loc 1 269 5 view .LVU265
+ 932 0430 8823      		tst r24
+ 933 0432 01F4      		brne .+2
+ 934 0434 00C0      		rjmp .L70
+ 935               	.L73:
+ 936               	.LBB2:
+ 270:track_edit.c  **** 	  
+ 937               		.loc 1 270 4 is_stmt 1 view .LVU266
+ 270:track_edit.c  **** 	  
+ 938               		.loc 1 270 23 is_stmt 0 view .LVU267
+ 939 0436 0E94 0000 		call get_lowest_notekey_pressed
+ 940               	.LVL66:
+ 941 043a C82F      		mov r28,r24
+ 942               	.LVL67:
+ 272:track_edit.c  **** 	    clear_blinking_leds();
+ 943               		.loc 1 272 4 is_stmt 1 view .LVU268
+ 272:track_edit.c  **** 	    clear_blinking_leds();
+ 944               		.loc 1 272 8 is_stmt 0 view .LVU269
+ 945 043c 8FE0      		ldi r24,lo8(15)
+ 946               	.LVL68:
+ 272:track_edit.c  **** 	    clear_blinking_leds();
+ 947               		.loc 1 272 8 view .LVU270
+ 948 043e 0E94 0000 		call just_pressed
+ 949               	.LVL69:
+ 272:track_edit.c  **** 	    clear_blinking_leds();
+ 950               		.loc 1 272 7 view .LVU271
+ 951 0442 8111      		cpse r24,__zero_reg__
+ 952 0444 00C0      		rjmp .L71
+ 272:track_edit.c  **** 	    clear_blinking_leds();
+ 953               		.loc 1 272 32 discriminator 1 view .LVU272
+ 954 0446 8EE0      		ldi r24,lo8(14)
+ 955 0448 0E94 0000 		call just_pressed
+ 956               	.LVL70:
+ 272:track_edit.c  **** 	    clear_blinking_leds();
+ 957               		.loc 1 272 29 discriminator 1 view .LVU273
+ 958 044c 8823      		tst r24
+ 959 044e 01F0      		breq .L75
+ 960               	.L71:
+ 273:track_edit.c  **** 	    clear_notekey_leds();
+ 961               		.loc 1 273 6 is_stmt 1 view .LVU274
+ 962 0450 0E94 0000 		call clear_blinking_leds
+ 963               	.LVL71:
+ 274:track_edit.c  **** 	    clear_led(LED_UP);
+ 964               		.loc 1 274 6 view .LVU275
+ 965 0454 0E94 0000 		call clear_notekey_leds
+ 966               	.LVL72:
+ 275:track_edit.c  **** 	    clear_led(LED_DOWN);
+ 967               		.loc 1 275 6 view .LVU276
+ 968 0458 83E0      		ldi r24,lo8(3)
+ 969 045a 0E94 0000 		call clear_led
+ 970               	.LVL73:
+ 276:track_edit.c  **** 	  }
+ 971               		.loc 1 276 6 view .LVU277
+ 972 045e 84E0      		ldi r24,lo8(4)
+ 973 0460 0E94 0000 		call clear_led
+ 974               	.LVL74:
+ 975               	.L75:
+ 270:track_edit.c  **** 	  
+ 976               		.loc 1 270 13 is_stmt 0 view .LVU278
+ 977 0464 0C2E      		mov __tmp_reg__,r28
+ 978 0466 000C      		lsl r0
+ 979 0468 DD0B      		sbc r29,r29
+ 279:track_edit.c  **** 	    set_led(LED_UP);
+ 980               		.loc 1 279 4 is_stmt 1 view .LVU279
+ 279:track_edit.c  **** 	    set_led(LED_UP);
+ 981               		.loc 1 279 8 is_stmt 0 view .LVU280
+ 982 046a 8FE0      		ldi r24,lo8(15)
+ 983 046c 0E94 0000 		call is_pressed
+ 984               	.LVL75:
+ 279:track_edit.c  **** 	    set_led(LED_UP);
+ 985               		.loc 1 279 7 view .LVU281
+ 986 0470 8823      		tst r24
+ 987 0472 01F4      		brne .+2
+ 988 0474 00C0      		rjmp .L76
+ 280:track_edit.c  **** 	    
+ 989               		.loc 1 280 6 is_stmt 1 view .LVU282
+ 990 0476 83E0      		ldi r24,lo8(3)
+ 991 0478 0E94 0000 		call set_led
+ 992               	.LVL76:
+ 282:track_edit.c  **** 	      clear_blinking_leds();
+ 993               		.loc 1 282 6 view .LVU283
+ 282:track_edit.c  **** 	      clear_blinking_leds();
+ 994               		.loc 1 282 9 is_stmt 0 view .LVU284
+ 995 047c CF3F      		cpi r28,-1
+ 996 047e DC07      		cpc r29,r28
+ 997 0480 01F0      		breq .L77
+ 283:track_edit.c  **** 	      // set the new pitchshift
+ 998               		.loc 1 283 8 is_stmt 1 view .LVU285
+ 999 0482 0E94 0000 		call clear_blinking_leds
+ 1000               	.LVL77:
+ 285:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 1001               		.loc 1 285 8 view .LVU286
+ 285:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 1002               		.loc 1 285 31 is_stmt 0 view .LVU287
+ 1003 0486 2091 0000 		lds r18,curr_patt
+ 1004 048a 3091 0000 		lds r19,curr_patt+1
+ 1005 048e 307E      		andi r19,224
+ 285:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 1006               		.loc 1 285 52 view .LVU288
+ 1007 0490 DC2F      		mov r29,r28
+ 1008 0492 CC27      		clr r28
+ 1009               	.LVL78:
+ 285:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 1010               		.loc 1 285 41 view .LVU289
+ 1011 0494 C22B      		or r28,r18
+ 1012 0496 D32B      		or r29,r19
+ 285:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 1013               		.loc 1 285 18 view .LVU290
+ 1014 0498 D093 0000 		sts curr_patt+1,r29
+ 1015 049c C093 0000 		sts curr_patt,r28
+ 286:track_edit.c  **** 	    }
+ 1016               		.loc 1 286 8 is_stmt 1 view .LVU291
+ 286:track_edit.c  **** 	    }
+ 1017               		.loc 1 286 18 is_stmt 0 view .LVU292
+ 1018 04a0 E091 0000 		lds r30,curr_track_index
+ 1019 04a4 F0E0      		ldi r31,0
+ 286:track_edit.c  **** 	    }
+ 1020               		.loc 1 286 37 view .LVU293
+ 1021 04a6 EE0F      		lsl r30
+ 1022 04a8 FF1F      		rol r31
+ 1023 04aa E050      		subi r30,lo8(-(track_buff))
+ 1024 04ac F040      		sbci r31,hi8(-(track_buff))
+ 1025 04ae D183      		std Z+1,r29
+ 1026 04b0 C083      		st Z,r28
+ 1027               	.L77:
+ 289:track_edit.c  **** 	    set_notekey_led_blink(curr_pitch_shift);
+ 1028               		.loc 1 289 6 is_stmt 1 view .LVU294
+ 289:track_edit.c  **** 	    set_notekey_led_blink(curr_pitch_shift);
+ 1029               		.loc 1 289 25 is_stmt 0 view .LVU295
+ 1030 04b2 8091 0000 		lds r24,curr_patt
+ 1031 04b6 9091 0000 		lds r25,curr_patt+1
+ 1032 04ba 0E94 0000 		call get_pitchshift_from_patt
+ 1033               	.LVL79:
+ 289:track_edit.c  **** 	    set_notekey_led_blink(curr_pitch_shift);
+ 1034               		.loc 1 289 23 view .LVU296
+ 1035 04be 8093 0000 		sts curr_pitch_shift,r24
+ 290:track_edit.c  **** 	  } else if (is_pressed(KEY_DOWN)) {
+ 1036               		.loc 1 290 6 is_stmt 1 view .LVU297
+ 1037               	.L153:
+ 302:track_edit.c  **** 	  }
+ 1038               		.loc 1 302 6 is_stmt 0 view .LVU298
+ 1039 04c2 0E94 0000 		call set_notekey_led_blink
+ 1040               	.LVL80:
+ 1041               	.L66:
+ 302:track_edit.c  **** 	  }
+ 1042               		.loc 1 302 6 view .LVU299
+ 1043               	.LBE2:
+ 316:track_edit.c  **** 	i = get_lowest_numkey_just_pressed();
+ 1044               		.loc 1 316 7 is_stmt 1 view .LVU300
+ 316:track_edit.c  **** 	i = get_lowest_numkey_just_pressed();
+ 1045               		.loc 1 316 14 is_stmt 0 view .LVU301
+ 1046 04c6 8FE0      		ldi r24,lo8(15)
+ 1047 04c8 0E94 0000 		call is_pressed
+ 1048               	.LVL81:
+ 316:track_edit.c  **** 	i = get_lowest_numkey_just_pressed();
+ 1049               		.loc 1 316 10 view .LVU302
+ 1050 04cc 8111      		cpse r24,__zero_reg__
+ 1051 04ce 00C0      		rjmp .L64
+ 316:track_edit.c  **** 	i = get_lowest_numkey_just_pressed();
+ 1052               		.loc 1 316 36 discriminator 1 view .LVU303
+ 1053 04d0 8EE0      		ldi r24,lo8(14)
+ 1054 04d2 0E94 0000 		call is_pressed
+ 1055               	.LVL82:
+ 316:track_edit.c  **** 	i = get_lowest_numkey_just_pressed();
+ 1056               		.loc 1 316 11 discriminator 1 view .LVU304
+ 1057 04d6 8111      		cpse r24,__zero_reg__
+ 1058 04d8 00C0      		rjmp .L64
+ 1059               	.LBB3:
+ 317:track_edit.c  **** 	if ((i != 0) || has_bank_knob_changed()) {
+ 1060               		.loc 1 317 2 is_stmt 1 view .LVU305
+ 317:track_edit.c  **** 	if ((i != 0) || has_bank_knob_changed()) {
+ 1061               		.loc 1 317 6 is_stmt 0 view .LVU306
+ 1062 04da 0E94 0000 		call get_lowest_numkey_just_pressed
+ 1063               	.LVL83:
+ 1064 04de C82F      		mov r28,r24
+ 1065               	.LVL84:
+ 318:track_edit.c  **** 	  clear_numkey_leds();
+ 1066               		.loc 1 318 2 is_stmt 1 view .LVU307
+ 318:track_edit.c  **** 	  clear_numkey_leds();
+ 1067               		.loc 1 318 5 is_stmt 0 view .LVU308
+ 1068 04e0 8823      		tst r24
+ 1069 04e2 01F4      		brne .+2
+ 1070 04e4 00C0      		rjmp .L83
+ 1071               	.LVL85:
+ 1072               	.L86:
+ 319:track_edit.c  **** 	  clear_bank_leds();
+ 1073               		.loc 1 319 4 is_stmt 1 view .LVU309
+ 1074 04e6 0E94 0000 		call clear_numkey_leds
+ 1075               	.LVL86:
+ 320:track_edit.c  **** 	  if (i == 0) {
+ 1076               		.loc 1 320 4 view .LVU310
+ 1077 04ea 0E94 0000 		call clear_bank_leds
+ 1078               	.LVL87:
+ 321:track_edit.c  **** 	    if (curr_patt == END_OF_TRACK)
+ 1079               		.loc 1 321 4 view .LVU311
+ 321:track_edit.c  **** 	    if (curr_patt == END_OF_TRACK)
+ 1080               		.loc 1 321 7 is_stmt 0 view .LVU312
+ 1081 04ee CC23      		tst r28
+ 1082 04f0 01F4      		brne .+2
+ 1083 04f2 00C0      		rjmp .L84
+ 327:track_edit.c  **** 	  }
+ 1084               		.loc 1 327 6 is_stmt 1 view .LVU313
+ 327:track_edit.c  **** 	  }
+ 1085               		.loc 1 327 7 is_stmt 0 view .LVU314
+ 1086 04f4 C150      		subi r28,lo8(-(-1))
+ 1087               	.LVL88:
+ 327:track_edit.c  **** 	  }
+ 1088               		.loc 1 327 7 view .LVU315
+ 1089 04f6 00C0      		rjmp .L88
+ 1090               	.LVL89:
+ 1091               	.L34:
+ 327:track_edit.c  **** 	  }
+ 1092               		.loc 1 327 7 view .LVU316
+ 1093               	.LBE3:
+ 135:track_edit.c  **** 	  stop_track_stepwrite_mode();
+ 1094               		.loc 1 135 2 is_stmt 1 view .LVU317
+ 135:track_edit.c  **** 	  stop_track_stepwrite_mode();
+ 1095               		.loc 1 135 5 is_stmt 0 view .LVU318
+ 1096 04f8 8091 0000 		lds r24,in_stepwrite_mode
+ 1097 04fc 8111      		cpse r24,__zero_reg__
+ 136:track_edit.c  **** 	}
+ 1098               		.loc 1 136 4 is_stmt 1 view .LVU319
+ 1099 04fe 0E94 0000 		call stop_track_stepwrite_mode
+ 1100               	.LVL90:
+ 1101               	.L35:
+ 138:track_edit.c  ****       }
+ 1102               		.loc 1 138 2 view .LVU320
+ 1103 0502 0E94 0000 		call start_track_run_mode
+ 1104               	.LVL91:
+ 1105 0506 00C0      		rjmp .L33
+ 1106               	.L38:
+ 157:track_edit.c  **** 	set_bank_led((curr_patt >> 3) & 0xF);    // show the bank of the current pattern
+ 1107               		.loc 1 157 2 view .LVU321
+ 1108 0508 80E0      		ldi r24,0
+ 1109 050a 0E94 0000 		call clear_led
+ 1110               	.LVL92:
+ 158:track_edit.c  **** 	
+ 1111               		.loc 1 158 2 view .LVU322
+ 158:track_edit.c  **** 	
+ 1112               		.loc 1 158 26 is_stmt 0 view .LVU323
+ 1113 050e 8091 0000 		lds r24,curr_patt
+ 1114 0512 9091 0000 		lds r25,curr_patt+1
+ 1115 0516 23E0      		ldi r18,3
+ 1116               		1:
+ 1117 0518 9695      		lsr r25
+ 1118 051a 8795      		ror r24
+ 1119 051c 2A95      		dec r18
+ 1120 051e 01F4      		brne 1b
+ 158:track_edit.c  **** 	
+ 1121               		.loc 1 158 2 view .LVU324
+ 1122 0520 8F70      		andi r24,lo8(15)
+ 1123 0522 0E94 0000 		call set_bank_led
+ 1124               	.LVL93:
+ 161:track_edit.c  **** 	  set_led(LED_REST);
+ 1125               		.loc 1 161 2 is_stmt 1 view .LVU325
+ 161:track_edit.c  **** 	  set_led(LED_REST);
+ 1126               		.loc 1 161 5 is_stmt 0 view .LVU326
+ 1127 0526 8091 0000 		lds r24,curr_patt
+ 1128 052a 9091 0000 		lds r25,curr_patt+1
+ 1129 052e 97FF      		sbrs r25,7
+ 1130 0530 00C0      		rjmp .L39
+ 162:track_edit.c  **** 	else
+ 1131               		.loc 1 162 4 is_stmt 1 view .LVU327
+ 1132 0532 88E0      		ldi r24,lo8(8)
+ 1133 0534 0E94 0000 		call set_led
+ 1134               	.LVL94:
+ 1135               	.L40:
+ 166:track_edit.c  **** 	  set_led(LED_ACCENT);
+ 1136               		.loc 1 166 2 view .LVU328
+ 166:track_edit.c  **** 	  set_led(LED_ACCENT);
+ 1137               		.loc 1 166 5 is_stmt 0 view .LVU329
+ 1138 0538 8091 0000 		lds r24,curr_patt
+ 1139 053c 9091 0000 		lds r25,curr_patt+1
+ 1140 0540 96FF      		sbrs r25,6
+ 1141 0542 00C0      		rjmp .L41
+ 167:track_edit.c  **** 	else
+ 1142               		.loc 1 167 4 is_stmt 1 view .LVU330
+ 1143 0544 81E0      		ldi r24,lo8(1)
+ 1144 0546 0E94 0000 		call set_led
+ 1145               	.LVL95:
+ 1146               	.L42:
+ 171:track_edit.c  **** 	  set_led(LED_SLIDE);
+ 1147               		.loc 1 171 2 view .LVU331
+ 171:track_edit.c  **** 	  set_led(LED_SLIDE);
+ 1148               		.loc 1 171 5 is_stmt 0 view .LVU332
+ 1149 054a 8091 0000 		lds r24,curr_patt
+ 1150 054e 9091 0000 		lds r25,curr_patt+1
+ 1151 0552 95FF      		sbrs r25,5
+ 1152 0554 00C0      		rjmp .L43
+ 172:track_edit.c  **** 	else
+ 1153               		.loc 1 172 4 is_stmt 1 view .LVU333
+ 1154 0556 82E0      		ldi r24,lo8(2)
+ 1155 0558 00C0      		rjmp .L150
+ 1156               	.L39:
+ 164:track_edit.c  **** 
+ 1157               		.loc 1 164 4 view .LVU334
+ 1158 055a 88E0      		ldi r24,lo8(8)
+ 1159 055c 0E94 0000 		call clear_led
+ 1160               	.LVL96:
+ 1161 0560 00C0      		rjmp .L40
+ 1162               	.L41:
+ 169:track_edit.c  **** 
+ 1163               		.loc 1 169 4 view .LVU335
+ 1164 0562 81E0      		ldi r24,lo8(1)
+ 1165 0564 0E94 0000 		call clear_led
+ 1166               	.LVL97:
+ 1167 0568 00C0      		rjmp .L42
+ 1168               	.L43:
+ 174:track_edit.c  ****       }
+ 1169               		.loc 1 174 4 view .LVU336
+ 1170 056a 82E0      		ldi r24,lo8(2)
+ 1171 056c 0E94 0000 		call clear_led
+ 1172               	.LVL98:
+ 1173 0570 00C0      		rjmp .L36
+ 1174               	.L44:
+ 180:track_edit.c  ****       note_off(0);  // if something -was- playing, kill it
+ 1175               		.loc 1 180 36 is_stmt 0 discriminator 2 view .LVU337
+ 1176 0572 83E0      		ldi r24,lo8(3)
+ 1177 0574 0E94 0000 		call just_pressed
+ 1178               	.LVL99:
+ 180:track_edit.c  ****       note_off(0);  // if something -was- playing, kill it
+ 1179               		.loc 1 180 33 discriminator 2 view .LVU338
+ 1180 0578 8111      		cpse r24,__zero_reg__
+ 1181 057a 00C0      		rjmp .L47
+ 1182 057c 00C0      		rjmp .L48
+ 1183               	.L45:
+ 181:track_edit.c  **** 
+ 1184               		.loc 1 181 7 is_stmt 1 view .LVU339
+ 1185 057e 80E0      		ldi r24,0
+ 1186 0580 0E94 0000 		call note_off
+ 1187               	.LVL100:
+ 183:track_edit.c  **** 	if (just_pressed(KEY_NEXT)) {
+ 1188               		.loc 1 183 7 view .LVU340
+ 183:track_edit.c  **** 	if (just_pressed(KEY_NEXT)) {
+ 1189               		.loc 1 183 10 is_stmt 0 view .LVU341
+ 1190 0584 8091 0000 		lds r24,in_stepwrite_mode
+ 1191 0588 8823      		tst r24
+ 1192 058a 01F4      		brne .+2
+ 1193 058c 00C0      		rjmp .L49
+ 184:track_edit.c  **** 	  // step forward in the track
+ 1194               		.loc 1 184 2 is_stmt 1 view .LVU342
+ 184:track_edit.c  **** 	  // step forward in the track
+ 1195               		.loc 1 184 6 is_stmt 0 view .LVU343
+ 1196 058e 88E0      		ldi r24,lo8(8)
+ 1197 0590 0E94 0000 		call just_pressed
+ 1198               	.LVL101:
+ 184:track_edit.c  **** 	  // step forward in the track
+ 1199               		.loc 1 184 5 view .LVU344
+ 1200 0594 8823      		tst r24
+ 1201 0596 01F0      		breq .L50
+ 186:track_edit.c  **** 	      (track_buff[curr_track_index] == END_OF_TRACK))
+ 1202               		.loc 1 186 4 is_stmt 1 view .LVU345
+ 186:track_edit.c  **** 	      (track_buff[curr_track_index] == END_OF_TRACK))
+ 1203               		.loc 1 186 30 is_stmt 0 view .LVU346
+ 1204 0598 8091 0000 		lds r24,curr_track_index
+ 186:track_edit.c  **** 	      (track_buff[curr_track_index] == END_OF_TRACK))
+ 1205               		.loc 1 186 7 view .LVU347
+ 1206 059c 8F30      		cpi r24,lo8(15)
+ 1207 059e 00F4      		brsh .L151
+ 187:track_edit.c  **** 	    curr_track_index = 0;   // got to the end of the track, loop back to beginning
+ 1208               		.loc 1 187 19 discriminator 1 view .LVU348
+ 1209 05a0 E091 0000 		lds r30,curr_track_index
+ 1210 05a4 F0E0      		ldi r31,0
+ 1211 05a6 EE0F      		lsl r30
+ 1212 05a8 FF1F      		rol r31
+ 1213 05aa E050      		subi r30,lo8(-(track_buff))
+ 1214 05ac F040      		sbci r31,hi8(-(track_buff))
+ 1215 05ae 8081      		ld r24,Z
+ 1216 05b0 9181      		ldd r25,Z+1
+ 186:track_edit.c  **** 	      (track_buff[curr_track_index] == END_OF_TRACK))
+ 1217               		.loc 1 186 45 discriminator 1 view .LVU349
+ 1218 05b2 0196      		adiw r24,1
+ 1219 05b4 01F4      		brne .L52
+ 1220               	.L151:
+ 205:track_edit.c  ****       }
+ 1221               		.loc 1 205 2 is_stmt 1 view .LVU350
+ 205:track_edit.c  ****       }
+ 1222               		.loc 1 205 19 is_stmt 0 view .LVU351
+ 1223 05b6 1092 0000 		sts curr_track_index,__zero_reg__
+ 1224 05ba 00C0      		rjmp .L53
+ 1225               	.L52:
+ 190:track_edit.c  **** 	} else {  // just pressed key prev
+ 1226               		.loc 1 190 6 is_stmt 1 view .LVU352
+ 190:track_edit.c  **** 	} else {  // just pressed key prev
+ 1227               		.loc 1 190 22 is_stmt 0 view .LVU353
+ 1228 05bc 8091 0000 		lds r24,curr_track_index
+ 1229 05c0 8F5F      		subi r24,lo8(-(1))
+ 1230               	.L152:
+ 199:track_edit.c  **** 	  }
+ 1231               		.loc 1 199 22 view .LVU354
+ 1232 05c2 8093 0000 		sts curr_track_index,r24
+ 1233 05c6 00C0      		rjmp .L53
+ 1234               	.L50:
+ 193:track_edit.c  **** 	    // search thru the buffer -forward- to find the EOT
+ 1235               		.loc 1 193 4 is_stmt 1 view .LVU355
+ 193:track_edit.c  **** 	    // search thru the buffer -forward- to find the EOT
+ 1236               		.loc 1 193 25 is_stmt 0 view .LVU356
+ 1237 05c8 8091 0000 		lds r24,curr_track_index
+ 193:track_edit.c  **** 	    // search thru the buffer -forward- to find the EOT
+ 1238               		.loc 1 193 7 view .LVU357
+ 1239 05cc 8823      		tst r24
+ 1240 05ce 01F0      		breq .L54
+ 199:track_edit.c  **** 	  }
+ 1241               		.loc 1 199 6 is_stmt 1 view .LVU358
+ 199:track_edit.c  **** 	  }
+ 1242               		.loc 1 199 22 is_stmt 0 view .LVU359
+ 1243 05d0 8091 0000 		lds r24,curr_track_index
+ 1244 05d4 8150      		subi r24,lo8(-(-1))
+ 1245 05d6 00C0      		rjmp .L152
+ 1246               	.L57:
+ 197:track_edit.c  **** 	  } else {
+ 1247               		.loc 1 197 8 is_stmt 1 view .LVU360
+ 197:track_edit.c  **** 	  } else {
+ 1248               		.loc 1 197 24 is_stmt 0 view .LVU361
+ 1249 05d8 8091 0000 		lds r24,curr_track_index
+ 1250 05dc 8F5F      		subi r24,lo8(-(1))
+ 1251 05de 8093 0000 		sts curr_track_index,r24
+ 1252               	.L54:
+ 195:track_edit.c  **** 		   (track_buff[curr_track_index] != END_OF_TRACK))
+ 1253               		.loc 1 195 33 view .LVU362
+ 1254 05e2 8091 0000 		lds r24,curr_track_index
+ 195:track_edit.c  **** 		   (track_buff[curr_track_index] != END_OF_TRACK))
+ 1255               		.loc 1 195 12 view .LVU363
+ 1256 05e6 8F30      		cpi r24,lo8(15)
+ 1257 05e8 00F4      		brsh .L53
+ 196:track_edit.c  **** 	      curr_track_index++;
+ 1258               		.loc 1 196 17 discriminator 1 view .LVU364
+ 1259 05ea E091 0000 		lds r30,curr_track_index
+ 1260 05ee F0E0      		ldi r31,0
+ 1261 05f0 EE0F      		lsl r30
+ 1262 05f2 FF1F      		rol r31
+ 1263 05f4 E050      		subi r30,lo8(-(track_buff))
+ 1264 05f6 F040      		sbci r31,hi8(-(track_buff))
+ 1265 05f8 8081      		ld r24,Z
+ 1266 05fa 9181      		ldd r25,Z+1
+ 195:track_edit.c  **** 		   (track_buff[curr_track_index] != END_OF_TRACK))
+ 1267               		.loc 1 195 47 discriminator 1 view .LVU365
+ 1268 05fc 0196      		adiw r24,1
+ 1269 05fe 01F4      		brne .L57
+ 1270               	.L53:
+ 209:track_edit.c  ****       
+ 1271               		.loc 1 209 7 is_stmt 1 view .LVU366
+ 209:track_edit.c  ****       
+ 1272               		.loc 1 209 29 is_stmt 0 view .LVU367
+ 1273 0600 E091 0000 		lds r30,curr_track_index
+ 1274 0604 F0E0      		ldi r31,0
+ 1275 0606 EE0F      		lsl r30
+ 1276 0608 FF1F      		rol r31
+ 1277 060a E050      		subi r30,lo8(-(track_buff))
+ 1278 060c F040      		sbci r31,hi8(-(track_buff))
+ 1279 060e 8081      		ld r24,Z
+ 1280 0610 9181      		ldd r25,Z+1
+ 209:track_edit.c  ****       
+ 1281               		.loc 1 209 17 view .LVU368
+ 1282 0612 9093 0000 		sts curr_patt+1,r25
+ 1283 0616 8093 0000 		sts curr_patt,r24
+ 211:track_edit.c  **** 
+ 1284               		.loc 1 211 7 is_stmt 1 view .LVU369
+ 211:track_edit.c  **** 
+ 1285               		.loc 1 211 27 is_stmt 0 view .LVU370
+ 1286 061a 1092 0000 		sts play_loaded_pattern,__zero_reg__
+ 213:track_edit.c  **** 	/*
+ 1287               		.loc 1 213 7 is_stmt 1 view .LVU371
+ 213:track_edit.c  **** 	/*
+ 1288               		.loc 1 213 10 is_stmt 0 view .LVU372
+ 1289 061e 0196      		adiw r24,1
+ 1290 0620 01F4      		brne .+2
+ 1291 0622 00C0      		rjmp .L48
+ 221:track_edit.c  **** 
+ 1292               		.loc 1 221 2 is_stmt 1 view .LVU373
+ 221:track_edit.c  **** 
+ 1293               		.loc 1 221 21 is_stmt 0 view .LVU374
+ 1294 0624 0E94 0000 		call load_curr_patt
+ 1295               	.LVL102:
+ 221:track_edit.c  **** 
+ 1296               		.loc 1 221 19 view .LVU375
+ 1297 0628 8093 0000 		sts curr_pitch_shift,r24
+ 224:track_edit.c  **** 	// wait for the next 'note on'
+ 1298               		.loc 1 224 2 is_stmt 1 view .LVU376
+ 224:track_edit.c  **** 	// wait for the next 'note on'
+ 1299               		.loc 1 224 21 is_stmt 0 view .LVU377
+ 1300 062c 1092 0000 		sts curr_pattern_index,__zero_reg__
+ 226:track_edit.c  **** 
+ 1301               		.loc 1 226 2 is_stmt 1 view .LVU378
+ 1302               	.L59:
+ 226:track_edit.c  **** 
+ 1303               		.loc 1 226 28 discriminator 1 view .LVU379
+ 226:track_edit.c  **** 
+ 1304               		.loc 1 226 22 is_stmt 0 discriminator 1 view .LVU380
+ 1305 0630 8091 0000 		lds r24,note_counter
+ 226:track_edit.c  **** 
+ 1306               		.loc 1 226 8 discriminator 1 view .LVU381
+ 1307 0634 80FD      		sbrc r24,0
+ 1308 0636 00C0      		rjmp .L59
+ 229:track_edit.c  ****       }
+ 1309               		.loc 1 229 2 is_stmt 1 view .LVU382
+ 229:track_edit.c  ****       }
+ 1310               		.loc 1 229 22 is_stmt 0 view .LVU383
+ 1311 0638 81E0      		ldi r24,lo8(1)
+ 1312 063a 8093 0000 		sts play_loaded_pattern,r24
+ 1313 063e 00C0      		rjmp .L48
+ 1314               	.L49:
+ 202:track_edit.c  **** 	// not in stepwrite mode, starting stepwrite mode
+ 1315               		.loc 1 202 14 is_stmt 1 view .LVU384
+ 202:track_edit.c  **** 	// not in stepwrite mode, starting stepwrite mode
+ 1316               		.loc 1 202 18 is_stmt 0 view .LVU385
+ 1317 0640 88E0      		ldi r24,lo8(8)
+ 1318 0642 0E94 0000 		call just_pressed
+ 1319               	.LVL103:
+ 202:track_edit.c  **** 	// not in stepwrite mode, starting stepwrite mode
+ 1320               		.loc 1 202 17 view .LVU386
+ 1321 0646 8823      		tst r24
+ 1322 0648 01F0      		breq .L53
+ 204:track_edit.c  **** 	curr_track_index = 0;
+ 1323               		.loc 1 204 2 is_stmt 1 view .LVU387
+ 1324 064a 0E94 0000 		call start_track_stepwrite_mode
+ 1325               	.LVL104:
+ 1326 064e 00C0      		rjmp .L151
+ 1327               	.L70:
+ 269:track_edit.c  **** 	  uint16_t notekey = get_lowest_notekey_pressed();
+ 1328               		.loc 1 269 28 is_stmt 0 discriminator 1 view .LVU388
+ 1329 0650 8EE0      		ldi r24,lo8(14)
+ 1330 0652 0E94 0000 		call is_pressed
+ 1331               	.LVL105:
+ 269:track_edit.c  **** 	  uint16_t notekey = get_lowest_notekey_pressed();
+ 1332               		.loc 1 269 25 discriminator 1 view .LVU389
+ 1333 0656 8111      		cpse r24,__zero_reg__
+ 1334 0658 00C0      		rjmp .L73
+ 305:track_edit.c  **** 	    // clear up LEDs if not shifting
+ 1335               		.loc 1 305 4 is_stmt 1 view .LVU390
+ 305:track_edit.c  **** 	    // clear up LEDs if not shifting
+ 1336               		.loc 1 305 8 is_stmt 0 view .LVU391
+ 1337 065a 8FE0      		ldi r24,lo8(15)
+ 1338 065c 0E94 0000 		call just_released
+ 1339               	.LVL106:
+ 305:track_edit.c  **** 	    // clear up LEDs if not shifting
+ 1340               		.loc 1 305 7 view .LVU392
+ 1341 0660 8823      		tst r24
+ 1342 0662 01F0      		breq .L80
+ 1343               	.L81:
+ 307:track_edit.c  **** 	    clear_led(LED_DOWN);
+ 1344               		.loc 1 307 6 is_stmt 1 view .LVU393
+ 1345 0664 83E0      		ldi r24,lo8(3)
+ 1346 0666 0E94 0000 		call clear_led
+ 1347               	.LVL107:
+ 308:track_edit.c  **** 	    clear_blinking_leds();
+ 1348               		.loc 1 308 6 view .LVU394
+ 1349 066a 84E0      		ldi r24,lo8(4)
+ 1350 066c 0E94 0000 		call clear_led
+ 1351               	.LVL108:
+ 309:track_edit.c  **** 	  }
+ 1352               		.loc 1 309 6 view .LVU395
+ 1353 0670 0E94 0000 		call clear_blinking_leds
+ 1354               	.LVL109:
+ 1355 0674 00C0      		rjmp .L66
+ 1356               	.LVL110:
+ 1357               	.L76:
+ 1358               	.LBB4:
+ 291:track_edit.c  **** 	    set_led(LED_DOWN);
+ 1359               		.loc 1 291 11 view .LVU396
+ 291:track_edit.c  **** 	    set_led(LED_DOWN);
+ 1360               		.loc 1 291 15 is_stmt 0 view .LVU397
+ 1361 0676 8EE0      		ldi r24,lo8(14)
+ 1362 0678 0E94 0000 		call is_pressed
+ 1363               	.LVL111:
+ 291:track_edit.c  **** 	    set_led(LED_DOWN);
+ 1364               		.loc 1 291 14 view .LVU398
+ 1365 067c 8823      		tst r24
+ 1366 067e 01F4      		brne .+2
+ 1367 0680 00C0      		rjmp .L66
+ 292:track_edit.c  **** 	    
+ 1368               		.loc 1 292 6 is_stmt 1 view .LVU399
+ 1369 0682 84E0      		ldi r24,lo8(4)
+ 1370 0684 0E94 0000 		call set_led
+ 1371               	.LVL112:
+ 294:track_edit.c  **** 	      clear_blinking_leds();
+ 1372               		.loc 1 294 6 view .LVU400
+ 294:track_edit.c  **** 	      clear_blinking_leds();
+ 1373               		.loc 1 294 9 is_stmt 0 view .LVU401
+ 1374 0688 CF3F      		cpi r28,-1
+ 1375 068a DC07      		cpc r29,r28
+ 1376 068c 01F0      		breq .L79
+ 295:track_edit.c  **** 	      // set the new pitchshift
+ 1377               		.loc 1 295 8 is_stmt 1 view .LVU402
+ 1378 068e 0E94 0000 		call clear_blinking_leds
+ 1379               	.LVL113:
+ 297:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 1380               		.loc 1 297 8 view .LVU403
+ 297:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 1381               		.loc 1 297 54 is_stmt 0 view .LVU404
+ 1382 0692 2C97      		sbiw r28,12
+ 1383               	.LVL114:
+ 297:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 1384               		.loc 1 297 72 view .LVU405
+ 1385 0694 DC2F      		mov r29,r28
+ 1386 0696 CC27      		clr r28
+ 1387               	.LVL115:
+ 297:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 1388               		.loc 1 297 72 view .LVU406
+ 1389 0698 CC27      		clr r28
+ 1390 069a DF71      		andi r29,31
+ 297:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 1391               		.loc 1 297 31 view .LVU407
+ 1392 069c 8091 0000 		lds r24,curr_patt
+ 1393 06a0 9091 0000 		lds r25,curr_patt+1
+ 1394 06a4 907E      		andi r25,224
+ 297:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 1395               		.loc 1 297 41 view .LVU408
+ 1396 06a6 C82B      		or r28,r24
+ 1397 06a8 D92B      		or r29,r25
+ 297:track_edit.c  **** 	      track_buff[curr_track_index] = curr_patt; 
+ 1398               		.loc 1 297 18 view .LVU409
+ 1399 06aa D093 0000 		sts curr_patt+1,r29
+ 1400 06ae C093 0000 		sts curr_patt,r28
+ 298:track_edit.c  **** 	    }
+ 1401               		.loc 1 298 8 is_stmt 1 view .LVU410
+ 298:track_edit.c  **** 	    }
+ 1402               		.loc 1 298 18 is_stmt 0 view .LVU411
+ 1403 06b2 E091 0000 		lds r30,curr_track_index
+ 1404 06b6 F0E0      		ldi r31,0
+ 298:track_edit.c  **** 	    }
+ 1405               		.loc 1 298 37 view .LVU412
+ 1406 06b8 EE0F      		lsl r30
+ 1407 06ba FF1F      		rol r31
+ 1408 06bc E050      		subi r30,lo8(-(track_buff))
+ 1409 06be F040      		sbci r31,hi8(-(track_buff))
+ 1410 06c0 D183      		std Z+1,r29
+ 1411 06c2 C083      		st Z,r28
+ 1412               	.L79:
+ 301:track_edit.c  **** 	    set_notekey_led_blink(OCTAVE + curr_pitch_shift);
+ 1413               		.loc 1 301 6 is_stmt 1 view .LVU413
+ 301:track_edit.c  **** 	    set_notekey_led_blink(OCTAVE + curr_pitch_shift);
+ 1414               		.loc 1 301 25 is_stmt 0 view .LVU414
+ 1415 06c4 8091 0000 		lds r24,curr_patt
+ 1416 06c8 9091 0000 		lds r25,curr_patt+1
+ 1417 06cc 0E94 0000 		call get_pitchshift_from_patt
+ 1418               	.LVL116:
+ 301:track_edit.c  **** 	    set_notekey_led_blink(OCTAVE + curr_pitch_shift);
+ 1419               		.loc 1 301 23 view .LVU415
+ 1420 06d0 8093 0000 		sts curr_pitch_shift,r24
+ 302:track_edit.c  **** 	  }
+ 1421               		.loc 1 302 6 is_stmt 1 view .LVU416
+ 1422 06d4 845F      		subi r24,lo8(-(12))
+ 1423 06d6 00C0      		rjmp .L153
+ 1424               	.L80:
+ 302:track_edit.c  **** 	  }
+ 1425               		.loc 1 302 6 is_stmt 0 view .LVU417
+ 1426               	.LBE4:
+ 305:track_edit.c  **** 	    // clear up LEDs if not shifting
+ 1427               		.loc 1 305 33 discriminator 1 view .LVU418
+ 1428 06d8 8EE0      		ldi r24,lo8(14)
+ 1429 06da 0E94 0000 		call just_released
+ 1430               	.LVL117:
+ 305:track_edit.c  **** 	    // clear up LEDs if not shifting
+ 1431               		.loc 1 305 30 discriminator 1 view .LVU419
+ 1432 06de 8111      		cpse r24,__zero_reg__
+ 1433 06e0 00C0      		rjmp .L81
+ 1434 06e2 00C0      		rjmp .L66
+ 1435               	.LVL118:
+ 1436               	.L83:
+ 1437               	.LBB5:
+ 318:track_edit.c  **** 	  clear_numkey_leds();
+ 1438               		.loc 1 318 18 discriminator 1 view .LVU420
+ 1439 06e4 0E94 0000 		call has_bank_knob_changed
+ 1440               	.LVL119:
+ 318:track_edit.c  **** 	  clear_numkey_leds();
+ 1441               		.loc 1 318 15 discriminator 1 view .LVU421
+ 1442 06e8 8111      		cpse r24,__zero_reg__
+ 1443 06ea 00C0      		rjmp .L86
+ 1444               	.L87:
+ 341:track_edit.c  **** 	  
+ 1445               		.loc 1 341 2 is_stmt 1 view .LVU422
+ 1446 06ec 0E94 0000 		call display_curr_pitch_shift_ud
+ 1447               	.LVL120:
+ 344:track_edit.c  ****       }
+ 1448               		.loc 1 344 2 view .LVU423
+ 344:track_edit.c  ****       }
+ 1449               		.loc 1 344 35 is_stmt 0 view .LVU424
+ 1450 06f0 8091 0000 		lds r24,curr_patt
+ 1451 06f4 9091 0000 		lds r25,curr_patt+1
+ 1452 06f8 8770      		andi r24,7
+ 1453 06fa 9927      		clr r25
+ 344:track_edit.c  ****       }
+ 1454               		.loc 1 344 2 view .LVU425
+ 1455 06fc 0196      		adiw r24,1
+ 1456 06fe 0E94 0000 		call set_single_numkey_led
+ 1457               	.LVL121:
+ 1458               	.L64:
+ 344:track_edit.c  ****       }
+ 1459               		.loc 1 344 2 view .LVU426
+ 1460               	.LBE5:
+ 348:track_edit.c  **** 	// while we're at it, show the pitch shift
+ 1461               		.loc 1 348 5 is_stmt 1 view .LVU427
+ 348:track_edit.c  **** 	// while we're at it, show the pitch shift
+ 1462               		.loc 1 348 8 is_stmt 0 view .LVU428
+ 1463 0702 8091 0000 		lds r24,in_run_mode
+ 1464 0706 8823      		tst r24
+ 1465 0708 01F4      		brne .+2
+ 1466 070a 00C0      		rjmp .L89
+ 1467               	.LBB6:
+ 350:track_edit.c  **** 	  
+ 1468               		.loc 1 350 2 is_stmt 1 view .LVU429
+ 1469 070c 0E94 0000 		call display_curr_pitch_shift_ud
+ 1470               	.LVL122:
+ 353:track_edit.c  ****     }
+ 1471               		.loc 1 353 2 view .LVU430
+ 353:track_edit.c  ****     }
+ 1472               		.loc 1 353 35 is_stmt 0 view .LVU431
+ 1473 0710 8091 0000 		lds r24,curr_patt
+ 1474 0714 9091 0000 		lds r25,curr_patt+1
+ 1475 0718 8770      		andi r24,7
+ 1476 071a 9927      		clr r25
+ 353:track_edit.c  ****     }
+ 1477               		.loc 1 353 2 view .LVU432
+ 1478 071c 0196      		adiw r24,1
+ 1479 071e 0E94 0000 		call set_single_numkey_led
+ 1480               	.LVL123:
+ 1481 0722 00C0      		rjmp .L89
+ 1482               	.LVL124:
+ 1483               	.L84:
+ 353:track_edit.c  ****     }
+ 1484               		.loc 1 353 2 view .LVU433
+ 1485               	.LBE6:
+ 1486               	.LBB7:
+ 322:track_edit.c  **** 	      i = 0;
+ 1487               		.loc 1 322 6 is_stmt 1 view .LVU434
+ 322:track_edit.c  **** 	      i = 0;
+ 1488               		.loc 1 322 20 is_stmt 0 view .LVU435
+ 1489 0724 8091 0000 		lds r24,curr_patt
+ 1490 0728 9091 0000 		lds r25,curr_patt+1
+ 322:track_edit.c  **** 	      i = 0;
+ 1491               		.loc 1 322 9 view .LVU436
+ 1492 072c 8F3F      		cpi r24,-1
+ 1493 072e 9807      		cpc r25,r24
+ 1494 0730 01F0      		breq .L88
+ 325:track_edit.c  **** 	  } else {
+ 1495               		.loc 1 325 8 is_stmt 1 view .LVU437
+ 325:track_edit.c  **** 	  } else {
+ 1496               		.loc 1 325 10 is_stmt 0 view .LVU438
+ 1497 0732 C82F      		mov r28,r24
+ 1498               	.LVL125:
+ 325:track_edit.c  **** 	  } else {
+ 1499               		.loc 1 325 10 view .LVU439
+ 1500 0734 C770      		andi r28,lo8(7)
+ 1501               	.LVL126:
+ 1502               	.L88:
+ 329:track_edit.c  **** 	  note_off(0);
+ 1503               		.loc 1 329 4 is_stmt 1 view .LVU440
+ 329:track_edit.c  **** 	  note_off(0);
+ 1504               		.loc 1 329 24 is_stmt 0 view .LVU441
+ 1505 0736 1092 0000 		sts play_loaded_pattern,__zero_reg__
+ 330:track_edit.c  **** 	  curr_patt = (bank << 3) | i;
+ 1506               		.loc 1 330 4 is_stmt 1 view .LVU442
+ 1507 073a 80E0      		ldi r24,0
+ 1508 073c 0E94 0000 		call note_off
+ 1509               	.LVL127:
+ 331:track_edit.c  **** 	  track_buff[curr_track_index] = curr_patt;
+ 1510               		.loc 1 331 4 view .LVU443
+ 331:track_edit.c  **** 	  track_buff[curr_track_index] = curr_patt;
+ 1511               		.loc 1 331 22 is_stmt 0 view .LVU444
+ 1512 0740 8091 0000 		lds r24,bank
+ 1513 0744 98E0      		ldi r25,lo8(8)
+ 1514 0746 899F      		mul r24,r25
+ 1515 0748 9001      		movw r18,r0
+ 1516 074a 1124      		clr __zero_reg__
+ 331:track_edit.c  **** 	  track_buff[curr_track_index] = curr_patt;
+ 1517               		.loc 1 331 28 view .LVU445
+ 1518 074c 2C2B      		or r18,r28
+ 331:track_edit.c  **** 	  track_buff[curr_track_index] = curr_patt;
+ 1519               		.loc 1 331 14 view .LVU446
+ 1520 074e 3093 0000 		sts curr_patt+1,r19
+ 1521 0752 2093 0000 		sts curr_patt,r18
+ 332:track_edit.c  **** 	  load_pattern(bank, i);
+ 1522               		.loc 1 332 4 is_stmt 1 view .LVU447
+ 332:track_edit.c  **** 	  load_pattern(bank, i);
+ 1523               		.loc 1 332 14 is_stmt 0 view .LVU448
+ 1524 0756 E091 0000 		lds r30,curr_track_index
+ 1525 075a F0E0      		ldi r31,0
+ 332:track_edit.c  **** 	  load_pattern(bank, i);
+ 1526               		.loc 1 332 33 view .LVU449
+ 1527 075c EE0F      		lsl r30
+ 1528 075e FF1F      		rol r31
+ 1529 0760 E050      		subi r30,lo8(-(track_buff))
+ 1530 0762 F040      		sbci r31,hi8(-(track_buff))
+ 1531 0764 3183      		std Z+1,r19
+ 1532 0766 2083      		st Z,r18
+ 333:track_edit.c  **** 	  curr_pattern_index = 0;
+ 1533               		.loc 1 333 4 is_stmt 1 view .LVU450
+ 1534 0768 6C2F      		mov r22,r28
+ 1535 076a 0E94 0000 		call load_pattern
+ 1536               	.LVL128:
+ 334:track_edit.c  **** 	  all_rest = all_accent = all_slide = FALSE;
+ 1537               		.loc 1 334 4 view .LVU451
+ 334:track_edit.c  **** 	  all_rest = all_accent = all_slide = FALSE;
+ 1538               		.loc 1 334 23 is_stmt 0 view .LVU452
+ 1539 076e 1092 0000 		sts curr_pattern_index,__zero_reg__
+ 335:track_edit.c  **** 	  curr_pitch_shift = 0;
+ 1540               		.loc 1 335 4 is_stmt 1 view .LVU453
+ 335:track_edit.c  **** 	  curr_pitch_shift = 0;
+ 1541               		.loc 1 335 38 is_stmt 0 view .LVU454
+ 1542 0772 1092 0000 		sts all_slide,__zero_reg__
+ 335:track_edit.c  **** 	  curr_pitch_shift = 0;
+ 1543               		.loc 1 335 26 view .LVU455
+ 1544 0776 1092 0000 		sts all_accent,__zero_reg__
+ 335:track_edit.c  **** 	  curr_pitch_shift = 0;
+ 1545               		.loc 1 335 13 view .LVU456
+ 1546 077a 1092 0000 		sts all_rest,__zero_reg__
+ 336:track_edit.c  **** 	  play_loaded_pattern = TRUE;
+ 1547               		.loc 1 336 4 is_stmt 1 view .LVU457
+ 336:track_edit.c  **** 	  play_loaded_pattern = TRUE;
+ 1548               		.loc 1 336 21 is_stmt 0 view .LVU458
+ 1549 077e 1092 0000 		sts curr_pitch_shift,__zero_reg__
+ 337:track_edit.c  **** 	}
+ 1550               		.loc 1 337 4 is_stmt 1 view .LVU459
+ 337:track_edit.c  **** 	}
+ 1551               		.loc 1 337 24 is_stmt 0 view .LVU460
+ 1552 0782 81E0      		ldi r24,lo8(1)
+ 1553 0784 8093 0000 		sts play_loaded_pattern,r24
+ 1554 0788 00C0      		rjmp .L87
+ 1555               	.LVL129:
+ 1556               	.L149:
+ 337:track_edit.c  **** 	}
+ 1557               		.loc 1 337 24 view .LVU461
+ 1558               	.LBE7:
+  96:track_edit.c  ****       play_loaded_track = play_loaded_pattern = 0;
+ 1559               		.loc 1 96 7 is_stmt 1 view .LVU462
+ 1560 078a 0E94 0000 		call turn_off_tempo
+ 1561               	.LVL130:
+  97:track_edit.c  **** 
+ 1562               		.loc 1 97 7 view .LVU463
+  97:track_edit.c  **** 
+ 1563               		.loc 1 97 47 is_stmt 0 view .LVU464
+ 1564 078e 1092 0000 		sts play_loaded_pattern,__zero_reg__
+  97:track_edit.c  **** 
+ 1565               		.loc 1 97 25 view .LVU465
+ 1566 0792 1092 0000 		sts play_loaded_track,__zero_reg__
+ 100:track_edit.c  **** 
+ 1567               		.loc 1 100 7 is_stmt 1 view .LVU466
+ 1568 0796 80E0      		ldi r24,0
+ 1569 0798 0E94 0000 		call note_off
+ 1570               	.LVL131:
+ 103:track_edit.c  ****       clock_leds();
+ 1571               		.loc 1 103 7 view .LVU467
+ 1572 079c 0E94 0000 		call clear_all_leds
+ 1573               	.LVL132:
+ 104:track_edit.c  **** 
+ 1574               		.loc 1 104 7 view .LVU468
+ 1575 07a0 0E94 0000 		call clock_leds
+ 1576               	.LVL133:
+ 106:track_edit.c  ****     }
+ 1577               		.loc 1 106 7 view .LVU469
+ 1578               	/* epilogue start */
+ 356:track_edit.c  **** 
+ 1579               		.loc 1 356 1 is_stmt 0 view .LVU470
+ 1580 07a4 CDB7      		in r28,__SP_L__
+ 1581 07a6 DEB7      		in r29,__SP_H__
+ 1582 07a8 E6E0      		ldi r30, lo8(6)
+ 1583 07aa 0C94 0000 		jmp __epilogue_restores__ + ((18 - 6) * 2)
+ 1584               		.cfi_endproc
+ 1585               	.LFE1:
+ 1587               		.comm	in_run_mode,1,1
+ 1588               		.comm	in_stepwrite_mode,1,1
+ 1589               		.comm	track_buff,32,1
+ 1590               		.comm	track_bank,1,1
+ 1591               		.comm	track_location,1,1
+ 1592               		.comm	curr_patt,2,1
+ 1593               		.comm	play_loaded_track,1,1
+ 1594               		.comm	curr_track_index,1,1
+ 1595               	.Letext0:
+ 1596               		.file 2 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdint.h"
+ 1597               		.file 3 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdio.h"
+ 1598               		.file 4 "eeprom.h"
+ 1599               		.file 5 "synth.h"
+ 1600               		.file 6 "led.h"
+ 1601               		.file 7 "switch.h"
+ 1602               		.file 8 "pattern.h"
+ 1603               		.file 9 "main.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 track_edit.c
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:12     .text:0000000000000000 get_pitchshift_from_patt
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:47     .text:000000000000000a display_curr_pitch_shift_ud
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:99     .text:000000000000003a start_track_stepwrite_mode
+                            *COM*:0000000000000001 in_stepwrite_mode
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:126    .text:000000000000004c stop_track_stepwrite_mode
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:162    .text:000000000000006a load_curr_patt
+                            *COM*:0000000000000002 curr_patt
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:222    .text:00000000000000b2 start_track_run_mode
+                            *COM*:0000000000000001 in_run_mode
+                            *COM*:0000000000000001 play_loaded_track
+                            *COM*:0000000000000020 track_buff
+                            *COM*:0000000000000001 curr_track_index
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:300    .text:000000000000010e stop_track_run_mode
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:338    .text:000000000000012e load_track
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:447    .text:00000000000001a0 write_track
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cc1KbSVY.s:549    .text:0000000000000208 do_track_edit
+                            *COM*:0000000000000001 track_bank
+                            *COM*:0000000000000001 track_location
+
+UNDEFINED SYMBOLS
+curr_pitch_shift
+clear_led
+set_led
+clear_bank_leds
+clear_all_leds
+clear_blinking_leds
+play_loaded_pattern
+note_off
+load_pattern
+all_rest
+all_accent
+all_slide
+curr_pattern_index
+curr_note
+note_counter
+has_bank_knob_changed
+spieeprom_read
+__epilogue_restores__
+spieeprom_write
+turn_on_tempo
+bank
+sync
+read_switches
+function
+set_bank_led
+get_lowest_numkey_pressed
+clear_notekey_leds
+set_numkey_led
+just_pressed
+is_bank_led_blink
+set_bank_led_blink
+clear_note_leds
+is_pressed
+get_lowest_notekey_pressed
+set_notekey_led_blink
+get_lowest_numkey_just_pressed
+clear_numkey_leds
+just_released
+set_single_numkey_led
+turn_off_tempo
+clock_leds
+__do_clear_bss

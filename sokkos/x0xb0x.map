@@ -1,0 +1,1667 @@
+Archive member included to satisfy reference by file (symbol)
+
+/usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+                              pattern_play.o (__udivmodhi4)
+/usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+                              main.o (__divmodhi4)
+/usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+                              main.o (__udivmodsi4)
+/usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+                              /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o (exit)
+/usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+                              main.o (__tablejump2__)
+/usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+                              midi.o (__do_copy_data)
+/usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+                              main.o (__do_clear_bss)
+/usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+                              keyboard.o (__prologue_saves__)
+/usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+                              led.o (__epilogue_restores__)
+
+Allocating common symbols
+Common symbol       size              file
+
+track_buff          0x20              track_edit.o
+next_chain          0x20              pattern_play.o
+last_func           0x1               switch.o
+runstepwrite_pattidx
+                    0x1               pattern_edit.o
+play_loaded_track   0x1               track_edit.o
+next_random_note    0x1               main.o
+track_bank          0x1               track_edit.o
+curr_chain          0x20              pattern_play.o
+curr_note           0x1               main.o
+midi_out_addr       0x1               midi.o
+curr_chain_index    0x1               pattern_play.o
+curr_pattern_index  0x1               pattern_edit.o
+tempo               0x2               main.o
+curr_patt           0x2               track_edit.o
+in_run_mode         0x1               track_edit.o
+in_stepwrite_mode   0x1               track_edit.o
+last_bank           0x1               switch.o
+pressed_switches    0x3               switch.o
+playing             0x1               pattern_play.o
+newtempo            0x2               main.o
+function            0x1               switch.o
+in_runwrite_mode    0x1               pattern_edit.o
+switches            0x3               switch.o
+patt_location       0x1               pattern_edit.o
+rand                0x1               main.o
+tx_msg_buff         0x40              compcontrol.o
+released_switches   0x3               switch.o
+play_loaded_pattern
+                    0x1               pattern_edit.o
+timer3_init         0x2               main.o
+bank                0x1               switch.o
+recv_msg_buff       0x40              compcontrol.o
+track_location      0x1               track_edit.o
+midi_q              0x20              midi.o
+patt_bank           0x1               pattern_edit.o
+prev_pattern_index  0x1               pattern_play.o
+curr_track_index    0x1               track_edit.o
+pattern_buff        0x10              pattern_edit.o
+buff_chain          0x20              pattern_play.o
+last_switches       0x3               switch.o
+midi_in_addr        0x1               midi.o
+last_tempo          0x1               main.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+text             0x0000000000000000 0x0000000000020000 xr
+data             0x0000000000800060 0x000000000000ffa0 rw !x
+eeprom           0x0000000000810000 0x0000000000010000 rw !x
+fuse             0x0000000000820000 0x0000000000000400 rw !x
+lock             0x0000000000830000 0x0000000000000400 rw !x
+signature        0x0000000000840000 0x0000000000000400 rw !x
+user_signatures  0x0000000000850000 0x0000000000000400 rw !x
+*default*        0x0000000000000000 0xffffffffffffffff
+
+Linker script and memory map
+
+Address of section .data set to 0x800100
+LOAD /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+LOAD main.o
+LOAD delay.o
+LOAD midi.o
+LOAD dinsync.o
+LOAD switch.o
+LOAD led.o
+LOAD compcontrol.o
+LOAD synth.o
+LOAD keyboard.o
+LOAD eeprom.o
+LOAD track_edit.o
+LOAD pattern_edit.o
+LOAD pattern_play.o
+LOAD /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/libm.a
+START GROUP
+LOAD /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a
+LOAD /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/libm.a
+LOAD /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/libc.a
+LOAD /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/libatmega162.a
+END GROUP
+                0x0000000000020000                __TEXT_REGION_LENGTH__ = DEFINED (__TEXT_REGION_LENGTH__)?__TEXT_REGION_LENGTH__:0x20000
+                0x000000000000ffa0                __DATA_REGION_LENGTH__ = DEFINED (__DATA_REGION_LENGTH__)?__DATA_REGION_LENGTH__:0xffa0
+                0x0000000000010000                __EEPROM_REGION_LENGTH__ = DEFINED (__EEPROM_REGION_LENGTH__)?__EEPROM_REGION_LENGTH__:0x10000
+                0x0000000000000400                __FUSE_REGION_LENGTH__ = DEFINED (__FUSE_REGION_LENGTH__)?__FUSE_REGION_LENGTH__:0x400
+                0x0000000000000400                __LOCK_REGION_LENGTH__ = DEFINED (__LOCK_REGION_LENGTH__)?__LOCK_REGION_LENGTH__:0x400
+                0x0000000000000400                __SIGNATURE_REGION_LENGTH__ = DEFINED (__SIGNATURE_REGION_LENGTH__)?__SIGNATURE_REGION_LENGTH__:0x400
+                0x0000000000000400                __USER_SIGNATURE_REGION_LENGTH__ = DEFINED (__USER_SIGNATURE_REGION_LENGTH__)?__USER_SIGNATURE_REGION_LENGTH__:0x400
+
+.hash
+ *(.hash)
+
+.dynsym
+ *(.dynsym)
+
+.dynstr
+ *(.dynstr)
+
+.gnu.version
+ *(.gnu.version)
+
+.gnu.version_d
+ *(.gnu.version_d)
+
+.gnu.version_r
+ *(.gnu.version_r)
+
+.rel.init
+ *(.rel.init)
+
+.rela.init
+ *(.rela.init)
+
+.rel.text
+ *(.rel.text)
+ *(.rel.text.*)
+ *(.rel.gnu.linkonce.t*)
+
+.rela.text
+ *(.rela.text)
+ *(.rela.text.*)
+ *(.rela.gnu.linkonce.t*)
+
+.rel.fini
+ *(.rel.fini)
+
+.rela.fini
+ *(.rela.fini)
+
+.rel.rodata
+ *(.rel.rodata)
+ *(.rel.rodata.*)
+ *(.rel.gnu.linkonce.r*)
+
+.rela.rodata
+ *(.rela.rodata)
+ *(.rela.rodata.*)
+ *(.rela.gnu.linkonce.r*)
+
+.rel.data
+ *(.rel.data)
+ *(.rel.data.*)
+ *(.rel.gnu.linkonce.d*)
+
+.rela.data
+ *(.rela.data)
+ *(.rela.data.*)
+ *(.rela.gnu.linkonce.d*)
+
+.rel.ctors
+ *(.rel.ctors)
+
+.rela.ctors
+ *(.rela.ctors)
+
+.rel.dtors
+ *(.rel.dtors)
+
+.rela.dtors
+ *(.rela.dtors)
+
+.rel.got
+ *(.rel.got)
+
+.rela.got
+ *(.rela.got)
+
+.rel.bss
+ *(.rel.bss)
+
+.rela.bss
+ *(.rela.bss)
+
+.rel.plt
+ *(.rel.plt)
+
+.rela.plt
+ *(.rela.plt)
+
+.text           0x0000000000000000     0x38c8
+ *(.vectors)
+ .vectors       0x0000000000000000       0x70 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+                0x0000000000000000                __vectors
+                0x0000000000000000                __vector_default
+ *(.vectors)
+ *(.progmem.gcc*)
+                0x0000000000000070                . = ALIGN (0x2)
+                0x0000000000000070                __trampolines_start = .
+ *(.trampolines)
+ .trampolines   0x0000000000000070        0x0 linker stubs
+ *(.trampolines*)
+                0x0000000000000070                __trampolines_end = .
+ *libprintf_flt.a:*(.progmem.data)
+ *libc.a:*(.progmem.data)
+ *(.progmem.*)
+                0x0000000000000070                . = ALIGN (0x2)
+ *(.lowtext)
+ *(.lowtext*)
+                0x0000000000000070                __ctors_start = .
+ *(.ctors)
+                0x0000000000000070                __ctors_end = .
+                0x0000000000000070                __dtors_start = .
+ *(.dtors)
+                0x0000000000000070                __dtors_end = .
+ SORT_BY_NAME(*)(.ctors)
+ SORT_BY_NAME(*)(.dtors)
+ *(.init0)
+ .init0         0x0000000000000070        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+                0x0000000000000070                __init
+ *(.init0)
+ *(.init1)
+ *(.init1)
+ *(.init2)
+ .init2         0x0000000000000070        0xc /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+ *(.init2)
+ *(.init3)
+ *(.init3)
+ *(.init4)
+ .init4         0x000000000000007c       0x16 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+                0x000000000000007c                __do_copy_data
+ .init4         0x0000000000000092       0x10 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+                0x0000000000000092                __do_clear_bss
+ *(.init4)
+ *(.init5)
+ *(.init5)
+ *(.init6)
+ *(.init6)
+ *(.init7)
+ *(.init7)
+ *(.init8)
+ *(.init8)
+ *(.init9)
+ .init9         0x00000000000000a2        0x6 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+ *(.init9)
+ *(.text)
+ .text          0x00000000000000a8        0x2 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+                0x00000000000000a8                __vector_18
+                0x00000000000000a8                __vector_1
+                0x00000000000000a8                __vector_24
+                0x00000000000000a8                __vector_12
+                0x00000000000000a8                __bad_interrupt
+                0x00000000000000a8                __vector_6
+                0x00000000000000a8                __vector_3
+                0x00000000000000a8                __vector_23
+                0x00000000000000a8                __vector_25
+                0x00000000000000a8                __vector_11
+                0x00000000000000a8                __vector_13
+                0x00000000000000a8                __vector_17
+                0x00000000000000a8                __vector_7
+                0x00000000000000a8                __vector_27
+                0x00000000000000a8                __vector_5
+                0x00000000000000a8                __vector_2
+                0x00000000000000a8                __vector_21
+                0x00000000000000a8                __vector_15
+                0x00000000000000a8                __vector_8
+                0x00000000000000a8                __vector_26
+                0x00000000000000a8                __vector_14
+                0x00000000000000a8                __vector_10
+                0x00000000000000a8                __vector_22
+ .text          0x00000000000000aa      0xb1e main.o
+                0x00000000000000aa                __vector_4
+                0x000000000000012c                init_timer0
+                0x000000000000013c                init_timer2
+                0x000000000000014c                turn_on_tempo
+                0x0000000000000158                turn_off_tempo
+                0x000000000000016a                is_tempo_running
+                0x0000000000000176                __vector_16
+                0x00000000000002a8                dispatch_note_off
+                0x0000000000000304                dispatch_note_on
+                0x0000000000000354                load_next_chain
+                0x00000000000003bc                random
+                0x00000000000003f0                do_tempo
+                0x0000000000000910                __vector_9
+                0x0000000000000966                uart_putchar
+                0x0000000000000972                printhex
+                0x0000000000000982                putnum_uh
+                0x00000000000009bc                uart_getch
+                0x00000000000009d0                uart_getchar
+                0x00000000000009da                internal_eeprom_read8
+                0x00000000000009ea                internal_eeprom_write8
+                0x0000000000000a00                change_tempo
+                0x0000000000000ac4                init_tempo
+                0x0000000000000b00                ioinit
+                0x0000000000000b44                main
+ .text          0x0000000000000bc8       0x12 delay.o
+                0x0000000000000bc8                delay_ms
+ .text          0x0000000000000bda      0x2a8 midi.o
+                0x0000000000000bda                __vector_19
+                0x0000000000000c6e                get_midi_addr
+                0x0000000000000c7a                init_midi
+                0x0000000000000c8c                midi_note_off
+                0x0000000000000ca0                midi_note_on
+                0x0000000000000cd4                midi_putchar
+                0x0000000000000ce0                midi_send_note_on
+                0x0000000000000d0e                midi_send_note_off
+                0x0000000000000d30                midi_getch
+                0x0000000000000d46                midi_getchar
+                0x0000000000000d78                midi_recv_cmd
+                0x0000000000000da8                midi_notesoff
+                0x0000000000000dba                do_midi_mode
+                0x0000000000000e72                midi_stop
+ .text          0x0000000000000e82       0xac dinsync.o
+                0x0000000000000e82                dinsync_start
+                0x0000000000000ebe                dinsync_stop
+                0x0000000000000eca                dinsync_started
+                0x0000000000000eee                dinsync_stopped
+                0x0000000000000f12                dinsync_set_out
+                0x0000000000000f20                dinsync_set_in
+ .text          0x0000000000000f2e      0x2fa switch.o
+                0x0000000000000f2e                read_keypad
+                0x0000000000000f54                select_bank_read
+                0x0000000000000f58                select_func_read
+                0x0000000000000f5c                read_bank
+                0x0000000000000f94                read_function
+                0x0000000000000f9e                read_switches
+                0x0000000000001130                key_action
+                0x000000000000115e                is_pressed
+                0x0000000000001194                just_pressed
+                0x00000000000011ca                just_released
+                0x00000000000011d2                no_keys_pressed
+                0x00000000000011ea                get_lowest_notekey_pressed
+                0x00000000000011f6                get_lowest_numkey_pressed
+                0x0000000000001200                get_lowest_numkey_just_pressed
+                0x000000000000120a                get_lowest_loopkey_just_pressed
+                0x0000000000001214                get_lowest_notekey_just_pressed
+                0x000000000000121e                has_bank_knob_changed
+ .text          0x0000000000001228      0x45a led.o
+                0x0000000000001250                set_led
+                0x0000000000001258                set_led_blink
+                0x0000000000001260                clear_led_blink
+                0x000000000000128c                is_led_blink
+                0x00000000000012b6                clear_led
+                0x00000000000012e2                is_led_set
+                0x000000000000130a                clear_all_leds
+                0x0000000000001328                clear_bank_leds
+                0x0000000000001342                set_bank_led
+                0x0000000000001354                set_bank_led_blink
+                0x0000000000001366                is_bank_led_set
+                0x000000000000137c                is_bank_led_blink
+                0x0000000000001392                set_key_led
+                0x00000000000013a4                set_key_led_blink
+                0x00000000000013b6                clear_key_led
+                0x00000000000013c8                clear_key_leds
+                0x00000000000013e2                set_numkey_led
+                0x00000000000013f8                set_single_numkey_led
+                0x0000000000001428                clear_numkey_led
+                0x000000000000143e                set_numkey_led_blink
+                0x0000000000001454                is_numkey_led_blink
+                0x000000000000146e                is_numkey_led_set
+                0x0000000000001488                clear_numkey_leds
+                0x00000000000014a2                set_notekey_led
+                0x00000000000014b4                clear_notekey_led
+                0x00000000000014c6                set_notekey_led_blink
+                0x00000000000014d8                is_notekey_led_blink
+                0x00000000000014e6                clear_notekey_leds
+                0x0000000000001500                clear_note_leds
+                0x0000000000001518                clock_leds
+                0x0000000000001536                blink_leds_on
+                0x000000000000155c                blink_leds_off
+                0x0000000000001584                clear_blinking_leds
+                0x00000000000015b8                display_octave_shift
+                0x00000000000015e2                set_note_led
+ .text          0x0000000000001682      0x2e4 compcontrol.o
+                0x0000000000001682                send_msg
+                0x00000000000016a8                do_computer_control
+                0x00000000000016b8                calc_CRC8
+                0x0000000000001706                send_status
+                0x0000000000001732                send_tempo
+                0x0000000000001766                __vector_20
+ .text          0x0000000000001966       0x3a synth.o
+                0x0000000000001966                note_on
+                0x0000000000001992                note_off
+ .text          0x00000000000019a0      0x238 keyboard.o
+                0x00000000000019a0                do_keyboard_mode
+ .text          0x0000000000001bd8       0xa6 eeprom.o
+                0x0000000000001bd8                spieeprom_write
+                0x0000000000001c50                spieeprom_read
+ .text          0x0000000000001c7e      0x6f0 track_edit.o
+                0x0000000000001c7e                get_pitchshift_from_patt
+                0x0000000000001c88                display_curr_pitch_shift_ud
+                0x0000000000001cae                start_track_stepwrite_mode
+                0x0000000000001cbc                stop_track_stepwrite_mode
+                0x0000000000001cd2                load_curr_patt
+                0x0000000000001d16                start_track_run_mode
+                0x0000000000001d6c                stop_track_run_mode
+                0x0000000000001d84                load_track
+                0x0000000000001df2                write_track
+                0x0000000000001e56                do_track_edit
+ .text          0x000000000000236e      0x9e4 pattern_edit.o
+                0x000000000000236e                load_pattern
+                0x00000000000023da                clock_ticks
+                0x000000000000244c                write_pattern
+                0x000000000000249e                start_runwrite_mode
+                0x00000000000024d4                clear_leds_and_note_off
+                0x00000000000024ec                stop_runwrite_mode
+                0x0000000000002508                start_stepwrite_mode
+                0x0000000000002524                stop_stepwrite_mode
+                0x000000000000253c                edit_pattern
+                0x0000000000002c56                edit_live
+                0x0000000000002c60                do_pattern_edit
+ .text          0x0000000000002d52      0xa0a pattern_play.o
+                0x0000000000002d52                chains_equiv
+                0x0000000000002d84                get_next_patt_idx
+                0x0000000000002dfa                do_patterntrack_play
+ .text          0x000000000000375c        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .text          0x000000000000375c        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .text          0x000000000000375c        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .text          0x000000000000375c        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .text          0x000000000000375c        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .text          0x000000000000375c        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .text          0x000000000000375c        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .text          0x000000000000375c        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .text          0x000000000000375c        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+                0x000000000000375c                . = ALIGN (0x2)
+ *(.text.*)
+ .text.libgcc.mul
+                0x000000000000375c        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .text.libgcc.div
+                0x000000000000375c       0x28 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+                0x000000000000375c                __udivmodhi4
+ .text.libgcc   0x0000000000003784        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .text.libgcc.prologue
+                0x0000000000003784        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .text.libgcc.builtins
+                0x0000000000003784        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .text.libgcc.fmul
+                0x0000000000003784        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .text.libgcc.fixed
+                0x0000000000003784        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .text.libgcc.mul
+                0x0000000000003784        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .text.libgcc.div
+                0x0000000000003784       0x26 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+                0x0000000000003784                __divmodhi4
+                0x0000000000003784                _div
+ .text.libgcc   0x00000000000037aa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .text.libgcc.prologue
+                0x00000000000037aa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .text.libgcc.builtins
+                0x00000000000037aa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .text.libgcc.fmul
+                0x00000000000037aa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .text.libgcc.fixed
+                0x00000000000037aa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .text.libgcc.mul
+                0x00000000000037aa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .text.libgcc.div
+                0x00000000000037aa       0x44 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+                0x00000000000037aa                __udivmodsi4
+ .text.libgcc   0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .text.libgcc.prologue
+                0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .text.libgcc.builtins
+                0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .text.libgcc.fmul
+                0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .text.libgcc.fixed
+                0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .text.libgcc.mul
+                0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .text.libgcc.div
+                0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .text.libgcc   0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .text.libgcc.prologue
+                0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .text.libgcc.builtins
+                0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .text.libgcc.fmul
+                0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .text.libgcc.fixed
+                0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .text.libgcc.mul
+                0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .text.libgcc.div
+                0x00000000000037ee        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .text.libgcc   0x00000000000037ee        0xc /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+                0x00000000000037ee                __tablejump2__
+ .text.libgcc.prologue
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .text.libgcc.builtins
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .text.libgcc.fmul
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .text.libgcc.fixed
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .text.libgcc.mul
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .text.libgcc.div
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .text.libgcc   0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .text.libgcc.prologue
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .text.libgcc.builtins
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .text.libgcc.fmul
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .text.libgcc.fixed
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .text.libgcc.mul
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .text.libgcc.div
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .text.libgcc   0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .text.libgcc.prologue
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .text.libgcc.builtins
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .text.libgcc.fmul
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .text.libgcc.fixed
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .text.libgcc.mul
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .text.libgcc.div
+                0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .text.libgcc   0x00000000000037fa        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .text.libgcc.prologue
+                0x00000000000037fa       0x38 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+                0x00000000000037fa                __prologue_saves__
+ .text.libgcc.builtins
+                0x0000000000003832        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .text.libgcc.fmul
+                0x0000000000003832        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .text.libgcc.fixed
+                0x0000000000003832        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .text.libgcc.mul
+                0x0000000000003832        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+ .text.libgcc.div
+                0x0000000000003832        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+ .text.libgcc   0x0000000000003832        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+ .text.libgcc.prologue
+                0x0000000000003832       0x36 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+                0x0000000000003832                __epilogue_restores__
+ .text.libgcc.builtins
+                0x0000000000003868        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+ .text.libgcc.fmul
+                0x0000000000003868        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+ .text.libgcc.fixed
+                0x0000000000003868        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+                0x0000000000003868                . = ALIGN (0x2)
+ *(.fini9)
+ .fini9         0x0000000000003868        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+                0x0000000000003868                exit
+                0x0000000000003868                _exit
+ *(.fini9)
+ *(.fini8)
+ *(.fini8)
+ *(.fini7)
+ *(.fini7)
+ *(.fini6)
+ *(.fini6)
+ *(.fini5)
+ *(.fini5)
+ *(.fini4)
+ *(.fini4)
+ *(.fini3)
+ *(.fini3)
+ *(.fini2)
+ *(.fini2)
+ *(.fini1)
+ *(.fini1)
+ *(.fini0)
+ .fini0         0x0000000000003868        0x4 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ *(.fini0)
+ *(.hightext)
+ *(.hightext*)
+ *(.progmemx.*)
+                0x000000000000386c                . = ALIGN (0x2)
+ *(.jumptables)
+ *(.jumptables*)
+ .jumptables.gcc.do_tempo
+                0x000000000000386c       0x3c main.o
+ .jumptables.gcc.main
+                0x00000000000038a8       0x20 main.o
+                0x00000000000038c8                _etext = .
+
+.data           0x0000000000800100       0x5c load address 0x00000000000038c8
+                0x0000000000800100                PROVIDE (__data_start = .)
+ *(.data)
+ .data          0x0000000000800100        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+ .data          0x0000000000800100        0x0 main.o
+ .data          0x0000000000800100        0x0 delay.o
+ .data          0x0000000000800100        0x3 midi.o
+                0x0000000000800100                midion_noaccent_velocity
+                0x0000000000800101                midioff_velocity
+                0x0000000000800102                midion_accent_velocity
+ .data          0x0000000000800103        0x0 dinsync.o
+ .data          0x0000000000800103        0x0 switch.o
+ .data          0x0000000000800103        0x0 led.o
+ .data          0x0000000000800103        0x1 compcontrol.o
+                0x0000000000800103                CTS
+ .data          0x0000000000800104        0x0 synth.o
+ .data          0x0000000000800104        0x0 keyboard.o
+ .data          0x0000000000800104        0x0 eeprom.o
+ .data          0x0000000000800104        0x0 track_edit.o
+ .data          0x0000000000800104        0x0 pattern_edit.o
+ .data          0x0000000000800104        0x3 pattern_play.o
+                0x0000000000800104                loop_end
+                0x0000000000800105                loop_start
+                0x0000000000800106                PATT_LENGTH
+ .data          0x0000000000800107        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .data          0x0000000000800107        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .data          0x0000000000800107        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .data          0x0000000000800107        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .data          0x0000000000800107        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .data          0x0000000000800107        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .data          0x0000000000800107        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .data          0x0000000000800107        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .data          0x0000000000800107        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+ *(.data*)
+ *(.gnu.linkonce.d*)
+ *(.rodata)
+ .rodata        0x0000000000800107       0x18 switch.o
+                0x0000000000800107                loopkey_tab
+ .rodata        0x000000000080011f       0x3d led.o
+ *(.rodata*)
+ *(.gnu.linkonce.r*)
+                0x000000000080015c                . = ALIGN (0x2)
+                0x000000000080015c                _edata = .
+                0x000000000080015c                PROVIDE (__data_end = .)
+
+.bss            0x000000000080015c      0x196
+                0x000000000080015c                PROVIDE (__bss_start = .)
+ *(.bss)
+ .bss           0x000000000080015c        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+ .bss           0x000000000080015c        0x9 main.o
+                0x000000000080015c                blinktimer
+                0x000000000080015d                onemore
+                0x000000000080015e                runhalf
+                0x000000000080015f                skipit
+                0x0000000000800160                running_stepwrite
+                0x0000000000800161                swing_it
+                0x0000000000800162                prev_note
+                0x0000000000800163                note_counter
+                0x0000000000800164                sync
+ .bss           0x0000000000800165        0x0 delay.o
+ .bss           0x0000000000800165        0x5 midi.o
+                0x0000000000800165                midisync_clocked
+                0x0000000000800167                midi_running_status
+ .bss           0x000000000080016a        0x8 dinsync.o
+                0x000000000080016a                last_dinsync_c
+                0x000000000080016b                last_dinsync_stop
+                0x000000000080016c                last_dinsync_start
+                0x000000000080016d                dinsync_clock_timeout
+                0x000000000080016f                dinsync_clocked
+                0x0000000000800171                dinsync_counter
+ .bss           0x0000000000800172        0x2 switch.o
+                0x0000000000800172                debounce_timer
+                0x0000000000800173                bank_switched
+ .bss           0x0000000000800174        0xa led.o
+                0x0000000000800174                blinkleds
+                0x0000000000800179                leds
+ .bss           0x000000000080017e        0x4 compcontrol.o
+                0x000000000080017e                uart_timeout
+                0x0000000000800180                valid_msg_in_q
+                0x0000000000800181                recv_msg_i
+ .bss           0x0000000000800182        0x2 synth.o
+                0x0000000000800182                next_pitch_shift
+                0x0000000000800183                curr_pitch_shift
+ .bss           0x0000000000800184        0x0 keyboard.o
+ .bss           0x0000000000800184        0x0 eeprom.o
+ .bss           0x0000000000800184        0x0 track_edit.o
+ .bss           0x0000000000800184        0x2 pattern_edit.o
+                0x0000000000800184                midi_cmd
+                0x0000000000800185                dirtyflag
+ .bss           0x0000000000800186        0xf pattern_play.o
+                0x0000000000800186                tap_tempo_timer
+                0x0000000000800188                eighths
+                0x0000000000800189                countdown
+                0x000000000080018a                loop_countdown
+                0x000000000080018b                loop
+                0x000000000080018c                live_edit
+                0x000000000080018d                new_swing_time
+                0x000000000080018e                swing_time
+                0x000000000080018f                next_bank
+                0x0000000000800190                curr_bank
+                0x0000000000800191                all_rest
+                0x0000000000800192                all_slide
+                0x0000000000800193                all_accent
+                0x0000000000800194                buff_chain_len
+ .bss           0x0000000000800195        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .bss           0x0000000000800195        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .bss           0x0000000000800195        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .bss           0x0000000000800195        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .bss           0x0000000000800195        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .bss           0x0000000000800195        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .bss           0x0000000000800195        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .bss           0x0000000000800195        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .bss           0x0000000000800195        0x0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+ *(.bss*)
+ *(COMMON)
+ COMMON         0x0000000000800195        0xa main.o
+                0x0000000000800195                next_random_note
+                0x0000000000800196                curr_note
+                0x0000000000800197                tempo
+                0x0000000000800199                newtempo
+                0x000000000080019b                rand
+                0x000000000080019c                timer3_init
+                0x000000000080019e                last_tempo
+ COMMON         0x000000000080019f       0x22 midi.o
+                0x000000000080019f                midi_out_addr
+                0x00000000008001a0                midi_q
+                0x00000000008001c0                midi_in_addr
+ COMMON         0x00000000008001c1       0x10 switch.o
+                0x00000000008001c1                last_func
+                0x00000000008001c2                last_bank
+                0x00000000008001c3                pressed_switches
+                0x00000000008001c6                function
+                0x00000000008001c7                switches
+                0x00000000008001ca                released_switches
+                0x00000000008001cd                bank
+                0x00000000008001ce                last_switches
+ COMMON         0x00000000008001d1       0x80 compcontrol.o
+                0x00000000008001d1                tx_msg_buff
+                0x0000000000800211                recv_msg_buff
+ COMMON         0x0000000000800251       0x28 track_edit.o
+                0x0000000000800251                track_buff
+                0x0000000000800271                play_loaded_track
+                0x0000000000800272                track_bank
+                0x0000000000800273                curr_patt
+                0x0000000000800275                in_run_mode
+                0x0000000000800276                in_stepwrite_mode
+                0x0000000000800277                track_location
+                0x0000000000800278                curr_track_index
+ COMMON         0x0000000000800279       0x16 pattern_edit.o
+                0x0000000000800279                runstepwrite_pattidx
+                0x000000000080027a                curr_pattern_index
+                0x000000000080027b                in_runwrite_mode
+                0x000000000080027c                patt_location
+                0x000000000080027d                play_loaded_pattern
+                0x000000000080027e                patt_bank
+                0x000000000080027f                pattern_buff
+ COMMON         0x000000000080028f       0x63 pattern_play.o
+                0x000000000080028f                next_chain
+                0x00000000008002af                curr_chain
+                0x00000000008002cf                curr_chain_index
+                0x00000000008002d0                playing
+                0x00000000008002d1                prev_pattern_index
+                0x00000000008002d2                buff_chain
+                0x00000000008002f2                PROVIDE (__bss_end = .)
+                0x00000000000038c8                __data_load_start = LOADADDR (.data)
+                0x0000000000003924                __data_load_end = (__data_load_start + SIZEOF (.data))
+
+.noinit         0x00000000008002f2        0x0
+                [!provide]                        PROVIDE (__noinit_start = .)
+ *(.noinit*)
+                [!provide]                        PROVIDE (__noinit_end = .)
+                0x00000000008002f2                _end = .
+                [!provide]                        PROVIDE (__heap_start = .)
+
+.eeprom         0x0000000000810000        0x0
+ *(.eeprom*)
+                0x0000000000810000                __eeprom_end = .
+
+.fuse
+ *(.fuse)
+ *(.lfuse)
+ *(.hfuse)
+ *(.efuse)
+
+.lock
+ *(.lock*)
+
+.signature
+ *(.signature*)
+
+.stab
+ *(.stab)
+
+.stabstr
+ *(.stabstr)
+
+.stab.excl
+ *(.stab.excl)
+
+.stab.exclstr
+ *(.stab.exclstr)
+
+.stab.index
+ *(.stab.index)
+
+.stab.indexstr
+ *(.stab.indexstr)
+
+.comment        0x0000000000000000       0x11
+ *(.comment)
+ .comment       0x0000000000000000       0x11 main.o
+                                         0x12 (size before relaxing)
+ .comment       0x0000000000000011       0x12 delay.o
+ .comment       0x0000000000000011       0x12 midi.o
+ .comment       0x0000000000000011       0x12 dinsync.o
+ .comment       0x0000000000000011       0x12 switch.o
+ .comment       0x0000000000000011       0x12 led.o
+ .comment       0x0000000000000011       0x12 compcontrol.o
+ .comment       0x0000000000000011       0x12 synth.o
+ .comment       0x0000000000000011       0x12 keyboard.o
+ .comment       0x0000000000000011       0x12 eeprom.o
+ .comment       0x0000000000000011       0x12 track_edit.o
+ .comment       0x0000000000000011       0x12 pattern_edit.o
+ .comment       0x0000000000000011       0x12 pattern_play.o
+
+.note.gnu.avr.deviceinfo
+                0x0000000000000000       0x3c
+ .note.gnu.avr.deviceinfo
+                0x0000000000000000       0x3c /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+
+.note.gnu.build-id
+ *(.note.gnu.build-id)
+
+.debug
+ *(.debug)
+
+.line
+ *(.line)
+
+.debug_srcinfo
+ *(.debug_srcinfo)
+
+.debug_sfnames
+ *(.debug_sfnames)
+
+.debug_aranges  0x0000000000000000      0x2c0
+ *(.debug_aranges)
+ .debug_aranges
+                0x0000000000000000       0x20 main.o
+ .debug_aranges
+                0x0000000000000020       0x20 delay.o
+ .debug_aranges
+                0x0000000000000040       0x20 midi.o
+ .debug_aranges
+                0x0000000000000060       0x20 dinsync.o
+ .debug_aranges
+                0x0000000000000080       0x20 switch.o
+ .debug_aranges
+                0x00000000000000a0       0x20 led.o
+ .debug_aranges
+                0x00000000000000c0       0x20 compcontrol.o
+ .debug_aranges
+                0x00000000000000e0       0x20 synth.o
+ .debug_aranges
+                0x0000000000000100       0x20 keyboard.o
+ .debug_aranges
+                0x0000000000000120       0x20 eeprom.o
+ .debug_aranges
+                0x0000000000000140       0x20 track_edit.o
+ .debug_aranges
+                0x0000000000000160       0x20 pattern_edit.o
+ .debug_aranges
+                0x0000000000000180       0x20 pattern_play.o
+ .debug_aranges
+                0x00000000000001a0       0x20 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .debug_aranges
+                0x00000000000001c0       0x20 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .debug_aranges
+                0x00000000000001e0       0x20 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .debug_aranges
+                0x0000000000000200       0x20 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .debug_aranges
+                0x0000000000000220       0x20 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .debug_aranges
+                0x0000000000000240       0x20 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .debug_aranges
+                0x0000000000000260       0x20 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .debug_aranges
+                0x0000000000000280       0x20 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .debug_aranges
+                0x00000000000002a0       0x20 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+
+.debug_pubnames
+ *(.debug_pubnames)
+
+.debug_info     0x0000000000000000     0x6bf5
+ *(.debug_info .gnu.linkonce.wi.*)
+ .debug_info    0x0000000000000000      0x5d0 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+ .debug_info    0x00000000000005d0      0xd99 main.o
+ .debug_info    0x0000000000001369       0x72 delay.o
+ .debug_info    0x00000000000013db      0x78a midi.o
+ .debug_info    0x0000000000001b65      0x239 dinsync.o
+ .debug_info    0x0000000000001d9e      0x79d switch.o
+ .debug_info    0x000000000000253b      0xaa6 led.o
+ .debug_info    0x0000000000002fe1      0x6b3 compcontrol.o
+ .debug_info    0x0000000000003694      0x1f7 synth.o
+ .debug_info    0x000000000000388b      0x697 keyboard.o
+ .debug_info    0x0000000000003f22      0x1d8 eeprom.o
+ .debug_info    0x00000000000040fa      0xbe1 track_edit.o
+ .debug_info    0x0000000000004cdb      0xfab pattern_edit.o
+ .debug_info    0x0000000000005c86      0xe19 pattern_play.o
+ .debug_info    0x0000000000006a9f       0x26 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .debug_info    0x0000000000006ac5       0x26 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .debug_info    0x0000000000006aeb       0x26 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .debug_info    0x0000000000006b11       0x26 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .debug_info    0x0000000000006b37       0x26 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .debug_info    0x0000000000006b5d       0x26 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .debug_info    0x0000000000006b83       0x26 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .debug_info    0x0000000000006ba9       0x26 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .debug_info    0x0000000000006bcf       0x26 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+
+.debug_abbrev   0x0000000000000000     0x1dca
+ *(.debug_abbrev)
+ .debug_abbrev  0x0000000000000000      0x580 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+ .debug_abbrev  0x0000000000000580      0x25d main.o
+ .debug_abbrev  0x00000000000007dd       0x6c delay.o
+ .debug_abbrev  0x0000000000000849      0x285 midi.o
+ .debug_abbrev  0x0000000000000ace      0x105 dinsync.o
+ .debug_abbrev  0x0000000000000bd3      0x26c switch.o
+ .debug_abbrev  0x0000000000000e3f      0x279 led.o
+ .debug_abbrev  0x00000000000010b8      0x221 compcontrol.o
+ .debug_abbrev  0x00000000000012d9      0x153 synth.o
+ .debug_abbrev  0x000000000000142c      0x11f keyboard.o
+ .debug_abbrev  0x000000000000154b      0x142 eeprom.o
+ .debug_abbrev  0x000000000000168d      0x230 track_edit.o
+ .debug_abbrev  0x00000000000018bd      0x24d pattern_edit.o
+ .debug_abbrev  0x0000000000001b0a      0x20c pattern_play.o
+ .debug_abbrev  0x0000000000001d16       0x14 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .debug_abbrev  0x0000000000001d2a       0x14 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .debug_abbrev  0x0000000000001d3e       0x14 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .debug_abbrev  0x0000000000001d52       0x14 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .debug_abbrev  0x0000000000001d66       0x14 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .debug_abbrev  0x0000000000001d7a       0x14 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .debug_abbrev  0x0000000000001d8e       0x14 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .debug_abbrev  0x0000000000001da2       0x14 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .debug_abbrev  0x0000000000001db6       0x14 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+
+.debug_line     0x0000000000000000     0x9a36
+ *(.debug_line .debug_line.* .debug_line_end)
+ .debug_line    0x0000000000000000       0x1d /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+ .debug_line    0x000000000000001d     0x1a02 main.o
+ .debug_line    0x0000000000001a1f       0x55 delay.o
+ .debug_line    0x0000000000001a74      0x880 midi.o
+ .debug_line    0x00000000000022f4      0x324 dinsync.o
+ .debug_line    0x0000000000002618      0x8e5 switch.o
+ .debug_line    0x0000000000002efd      0xd0e led.o
+ .debug_line    0x0000000000003c0b      0x837 compcontrol.o
+ .debug_line    0x0000000000004442      0x165 synth.o
+ .debug_line    0x00000000000045a7      0x671 keyboard.o
+ .debug_line    0x0000000000004c18      0x453 eeprom.o
+ .debug_line    0x000000000000506b     0x10c6 track_edit.o
+ .debug_line    0x0000000000006131     0x191a pattern_edit.o
+ .debug_line    0x0000000000007a4b     0x194c pattern_play.o
+ .debug_line    0x0000000000009397       0xcd /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .debug_line    0x0000000000009464       0xc7 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .debug_line    0x000000000000952b      0x121 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .debug_line    0x000000000000964c       0x61 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .debug_line    0x00000000000096ad       0x79 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .debug_line    0x0000000000009726       0x97 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .debug_line    0x00000000000097bd       0x85 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .debug_line    0x0000000000009842       0xfd /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .debug_line    0x000000000000993f       0xf7 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+
+.debug_frame    0x0000000000000000      0xd84
+ *(.debug_frame)
+ .debug_frame   0x0000000000000000      0x290 main.o
+ .debug_frame   0x0000000000000290       0x24 delay.o
+ .debug_frame   0x00000000000002b4      0x124 midi.o
+ .debug_frame   0x00000000000003d8       0x7c dinsync.o
+ .debug_frame   0x0000000000000454      0x1b0 switch.o
+ .debug_frame   0x0000000000000604      0x2ec led.o
+ .debug_frame   0x00000000000008f0      0x124 compcontrol.o
+ .debug_frame   0x0000000000000a14       0x34 synth.o
+ .debug_frame   0x0000000000000a48       0x58 keyboard.o
+ .debug_frame   0x0000000000000aa0       0x34 eeprom.o
+ .debug_frame   0x0000000000000ad4      0x120 track_edit.o
+ .debug_frame   0x0000000000000bf4      0x11c pattern_edit.o
+ .debug_frame   0x0000000000000d10       0x74 pattern_play.o
+
+.debug_str      0x0000000000000000     0x126a
+ *(.debug_str)
+ .debug_str     0x0000000000000000      0x1f6 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+ .debug_str     0x00000000000001f6      0x6ed main.o
+                                        0x7a9 (size before relaxing)
+ .debug_str     0x00000000000008e3       0x27 delay.o
+                                        0x11c (size before relaxing)
+ .debug_str     0x000000000000090a      0x125 midi.o
+                                        0x3cf (size before relaxing)
+ .debug_str     0x0000000000000a2f       0x6d dinsync.o
+                                        0x295 (size before relaxing)
+ .debug_str     0x0000000000000a9c      0x1f8 switch.o
+                                        0x403 (size before relaxing)
+ .debug_str     0x0000000000000c94      0x1f5 led.o
+                                        0x428 (size before relaxing)
+ .debug_str     0x0000000000000e89       0x91 compcontrol.o
+                                        0x2d1 (size before relaxing)
+ .debug_str     0x0000000000000f1a        0x8 synth.o
+                                        0x1ca (size before relaxing)
+ .debug_str     0x0000000000000f22       0x1a keyboard.o
+                                        0x35f (size before relaxing)
+ .debug_str     0x0000000000000f3c        0x9 eeprom.o
+                                        0x1b8 (size before relaxing)
+ .debug_str     0x0000000000000f45       0xe8 track_edit.o
+                                        0x560 (size before relaxing)
+ .debug_str     0x000000000000102d      0x12c pattern_edit.o
+                                        0x5b9 (size before relaxing)
+ .debug_str     0x0000000000001159       0x90 pattern_play.o
+                                        0x734 (size before relaxing)
+ .debug_str     0x00000000000011e9       0x81 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+ .debug_str     0x000000000000126a       0x81 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+ .debug_str     0x000000000000126a       0x81 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+ .debug_str     0x000000000000126a       0x81 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+ .debug_str     0x000000000000126a       0x81 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+ .debug_str     0x000000000000126a       0x81 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+ .debug_str     0x000000000000126a       0x81 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+ .debug_str     0x000000000000126a       0x81 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+ .debug_str     0x000000000000126a       0x81 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+
+.debug_loc      0x0000000000000000     0x260d
+ *(.debug_loc)
+ .debug_loc     0x0000000000000000      0x399 main.o
+ .debug_loc     0x0000000000000399      0x2e1 midi.o
+ .debug_loc     0x000000000000067a       0x7b dinsync.o
+ .debug_loc     0x00000000000006f5      0x3fb switch.o
+ .debug_loc     0x0000000000000af0      0x7ee led.o
+ .debug_loc     0x00000000000012de      0x450 compcontrol.o
+ .debug_loc     0x000000000000172e       0xff synth.o
+ .debug_loc     0x000000000000182d      0x223 keyboard.o
+ .debug_loc     0x0000000000001a50       0x54 eeprom.o
+ .debug_loc     0x0000000000001aa4      0x28b track_edit.o
+ .debug_loc     0x0000000000001d2f      0x450 pattern_edit.o
+ .debug_loc     0x000000000000217f      0x48e pattern_play.o
+
+.debug_macinfo
+ *(.debug_macinfo)
+
+.debug_weaknames
+ *(.debug_weaknames)
+
+.debug_funcnames
+ *(.debug_funcnames)
+
+.debug_typenames
+ *(.debug_typenames)
+
+.debug_varnames
+ *(.debug_varnames)
+
+.debug_pubtypes
+ *(.debug_pubtypes)
+
+.debug_ranges   0x0000000000000000       0xc8
+ *(.debug_ranges)
+ .debug_ranges  0x0000000000000000       0x18 keyboard.o
+ .debug_ranges  0x0000000000000018       0x38 track_edit.o
+ .debug_ranges  0x0000000000000050       0x60 pattern_edit.o
+ .debug_ranges  0x00000000000000b0       0x18 pattern_play.o
+
+.debug_macro
+ *(.debug_macro)
+
+.debug_addr
+ *(.debug_addr)
+OUTPUT(x0xb0x.elf elf32-avr)
+LOAD linker stubs
+
+Cross Reference Table
+
+Symbol                                            File
+CTS                                               compcontrol.o
+PATT_LENGTH                                       pattern_play.o
+                                                  pattern_edit.o
+                                                  main.o
+__bad_interrupt                                   /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__bss_end                                         /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+__bss_start                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+__data_end                                        /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+__data_load_start                                 /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+__data_start                                      /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+__divmodhi4                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+                                                  main.o
+__do_clear_bss                                    /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_clear_bss.o)
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  synth.o
+                                                  compcontrol.o
+                                                  led.o
+                                                  switch.o
+                                                  dinsync.o
+                                                  midi.o
+                                                  main.o
+__do_copy_data                                    /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_copy_data.o)
+                                                  pattern_play.o
+                                                  compcontrol.o
+                                                  led.o
+                                                  switch.o
+                                                  midi.o
+__epilogue_restores__                             /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_epilogue.o)
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  led.o
+__heap_end                                        /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__init                                            /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__prologue_saves__                                /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_prologue.o)
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  keyboard.o
+__stack                                           /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__tablejump2__                                    /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_tablejump2.o)
+                                                  main.o
+__udivmodhi4                                      /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodhi4.o)
+                                                  /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+                                                  pattern_play.o
+__udivmodsi4                                      /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_udivmodsi4.o)
+                                                  main.o
+__vector_1                                        /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_10                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_11                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_12                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_13                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_14                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_15                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_16                                       main.o
+                                                  /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_17                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_18                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_19                                       midi.o
+                                                  /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_2                                        /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_20                                       compcontrol.o
+                                                  /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_21                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_22                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_23                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_24                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_25                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_26                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_27                                       /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_3                                        /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_4                                        main.o
+                                                  /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_5                                        /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_6                                        /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_7                                        /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_8                                        /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_9                                        main.o
+                                                  /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vector_default                                  /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+__vectors                                         /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+_div                                              /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_divmodhi4.o)
+_exit                                             /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+all_accent                                        pattern_play.o
+                                                  track_edit.o
+                                                  main.o
+all_rest                                          pattern_play.o
+                                                  track_edit.o
+                                                  main.o
+all_slide                                         pattern_play.o
+                                                  track_edit.o
+                                                  main.o
+bank                                              switch.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  midi.o
+bank_switched                                     switch.o
+blink_leds_off                                    led.o
+                                                  main.o
+blink_leds_on                                     led.o
+                                                  main.o
+blinkleds                                         led.o
+blinktimer                                        main.o
+buff_chain                                        pattern_play.o
+buff_chain_len                                    pattern_play.o
+calc_CRC8                                         compcontrol.o
+chains_equiv                                      pattern_play.o
+                                                  main.o
+change_tempo                                      main.o
+                                                  pattern_play.o
+                                                  compcontrol.o
+                                                  switch.o
+clear_all_leds                                    led.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  compcontrol.o
+                                                  main.o
+clear_bank_leds                                   led.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  compcontrol.o
+                                                  midi.o
+                                                  main.o
+clear_blinking_leds                               led.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  main.o
+clear_key_led                                     led.o
+clear_key_leds                                    led.o
+                                                  pattern_edit.o
+clear_led                                         led.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  main.o
+clear_led_blink                                   led.o
+                                                  pattern_edit.o
+clear_leds_and_note_off                           pattern_edit.o
+clear_note_leds                                   led.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+clear_notekey_led                                 led.o
+                                                  keyboard.o
+clear_notekey_leds                                led.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  main.o
+clear_numkey_led                                  led.o
+                                                  pattern_play.o
+clear_numkey_leds                                 led.o
+                                                  pattern_play.o
+                                                  track_edit.o
+clock_leds                                        led.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  compcontrol.o
+                                                  switch.o
+                                                  main.o
+clock_ticks                                       pattern_edit.o
+                                                  pattern_play.o
+countdown                                         pattern_play.o
+curr_bank                                         pattern_play.o
+                                                  main.o
+curr_chain                                        pattern_play.o
+                                                  main.o
+curr_chain_index                                  pattern_play.o
+                                                  main.o
+curr_note                                         main.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+curr_patt                                         track_edit.o
+                                                  pattern_play.o
+                                                  main.o
+curr_pattern_index                                pattern_edit.o
+                                                  pattern_play.o
+                                                  track_edit.o
+                                                  main.o
+curr_pitch_shift                                  synth.o
+                                                  pattern_play.o
+                                                  track_edit.o
+                                                  main.o
+curr_track_index                                  track_edit.o
+                                                  pattern_play.o
+                                                  main.o
+debounce_timer                                    switch.o
+                                                  main.o
+delay_ms                                          delay.o
+                                                  pattern_edit.o
+                                                  dinsync.o
+                                                  midi.o
+                                                  main.o
+dinsync_clock_timeout                             dinsync.o
+                                                  midi.o
+                                                  main.o
+dinsync_clocked                                   dinsync.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  main.o
+dinsync_counter                                   dinsync.o
+                                                  pattern_play.o
+                                                  main.o
+dinsync_set_in                                    dinsync.o
+                                                  pattern_play.o
+dinsync_set_out                                   dinsync.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  main.o
+dinsync_start                                     dinsync.o
+                                                  pattern_play.o
+dinsync_started                                   dinsync.o
+                                                  pattern_play.o
+dinsync_stop                                      dinsync.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+dinsync_stopped                                   dinsync.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+dirtyflag                                         pattern_edit.o
+dispatch_note_off                                 main.o
+dispatch_note_on                                  main.o
+display_curr_pitch_shift_ud                       track_edit.o
+                                                  pattern_play.o
+display_octave_shift                              led.o
+                                                  keyboard.o
+do_computer_control                               compcontrol.o
+                                                  main.o
+do_keyboard_mode                                  keyboard.o
+                                                  main.o
+do_midi_mode                                      midi.o
+                                                  main.o
+do_pattern_edit                                   pattern_edit.o
+                                                  main.o
+do_patterntrack_play                              pattern_play.o
+                                                  main.o
+do_tempo                                          main.o
+                                                  pattern_edit.o
+do_track_edit                                     track_edit.o
+                                                  main.o
+edit_live                                         pattern_edit.o
+                                                  pattern_play.o
+edit_pattern                                      pattern_edit.o
+eighths                                           pattern_play.o
+                                                  main.o
+exit                                              /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/avr5/libgcc.a(_exit.o)
+                                                  /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+function                                          switch.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  compcontrol.o
+                                                  midi.o
+                                                  main.o
+get_lowest_loopkey_just_pressed                   switch.o
+                                                  pattern_play.o
+get_lowest_notekey_just_pressed                   switch.o
+                                                  pattern_edit.o
+get_lowest_notekey_pressed                        switch.o
+                                                  pattern_play.o
+                                                  track_edit.o
+get_lowest_numkey_just_pressed                    switch.o
+                                                  pattern_play.o
+                                                  track_edit.o
+get_lowest_numkey_pressed                         switch.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+get_midi_addr                                     midi.o
+get_next_patt_idx                                 pattern_play.o
+                                                  main.o
+get_pitchshift_from_patt                          track_edit.o
+                                                  main.o
+has_bank_knob_changed                             switch.o
+                                                  pattern_play.o
+                                                  track_edit.o
+                                                  keyboard.o
+in_run_mode                                       track_edit.o
+in_runwrite_mode                                  pattern_edit.o
+in_stepwrite_mode                                 pattern_edit.o
+                                                  track_edit.o
+init_midi                                         midi.o
+                                                  main.o
+init_tempo                                        main.o
+init_timer0                                       main.o
+init_timer2                                       main.o
+internal_eeprom_read8                             main.o
+                                                  midi.o
+internal_eeprom_write8                            main.o
+                                                  keyboard.o
+                                                  midi.o
+ioinit                                            main.o
+is_bank_led_blink                                 led.o
+                                                  track_edit.o
+is_bank_led_set                                   led.o
+                                                  keyboard.o
+is_led_blink                                      led.o
+is_led_set                                        led.o
+is_notekey_led_blink                              led.o
+                                                  pattern_play.o
+is_numkey_led_blink                               led.o
+                                                  pattern_play.o
+is_numkey_led_set                                 led.o
+is_pressed                                        switch.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+is_tempo_running                                  main.o
+                                                  dinsync.o
+just_pressed                                      switch.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+just_released                                     switch.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+key_action                                        switch.o
+last_bank                                         switch.o
+last_dinsync_c                                    dinsync.o
+                                                  main.o
+last_dinsync_start                                dinsync.o
+last_dinsync_stop                                 dinsync.o
+last_func                                         switch.o
+last_switches                                     switch.o
+last_tempo                                        switch.o
+                                                  main.o
+leds                                              led.o
+live_edit                                         pattern_play.o
+load_curr_patt                                    track_edit.o
+                                                  pattern_play.o
+                                                  main.o
+load_next_chain                                   main.o
+load_pattern                                      pattern_edit.o
+                                                  pattern_play.o
+                                                  track_edit.o
+                                                  main.o
+load_track                                        track_edit.o
+                                                  pattern_play.o
+                                                  main.o
+loop                                              pattern_play.o
+                                                  main.o
+loop_countdown                                    pattern_play.o
+loop_end                                          pattern_play.o
+                                                  main.o
+loop_start                                        pattern_play.o
+                                                  main.o
+loopkey_tab                                       switch.o
+                                                  keyboard.o
+main                                              main.o
+                                                  /usr/local/Cellar/avr-gcc/9.1.0/lib/avr-gcc/9/gcc/avr/9.1.0/../../../../../../avr/lib/avr5/crtatmega162.o
+midi_cmd                                          pattern_edit.o
+                                                  pattern_play.o
+midi_getch                                        midi.o
+midi_getchar                                      midi.o
+                                                  pattern_play.o
+                                                  keyboard.o
+midi_in_addr                                      midi.o
+                                                  pattern_play.o
+midi_note_off                                     midi.o
+midi_note_on                                      midi.o
+midi_notesoff                                     midi.o
+                                                  keyboard.o
+midi_out_addr                                     midi.o
+                                                  keyboard.o
+midi_putchar                                      midi.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  keyboard.o
+                                                  main.o
+midi_q                                            midi.o
+midi_recv_cmd                                     midi.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  keyboard.o
+midi_running_status                               midi.o
+midi_send_note_off                                midi.o
+                                                  keyboard.o
+                                                  main.o
+midi_send_note_on                                 midi.o
+                                                  keyboard.o
+                                                  main.o
+midi_stop                                         midi.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+midioff_velocity                                  midi.o
+midion_accent_velocity                            midi.o
+midion_noaccent_velocity                          midi.o
+midisync_clocked                                  midi.o
+                                                  pattern_edit.o
+new_swing_time                                    pattern_play.o
+                                                  main.o
+newtempo                                          main.o
+                                                  switch.o
+next_bank                                         pattern_play.o
+                                                  main.o
+next_chain                                        pattern_play.o
+                                                  main.o
+next_pitch_shift                                  synth.o
+                                                  pattern_play.o
+                                                  main.o
+next_random_note                                  main.o
+no_keys_pressed                                   switch.o
+                                                  keyboard.o
+note_counter                                      main.o
+                                                  pattern_edit.o
+                                                  pattern_play.o
+                                                  track_edit.o
+                                                  dinsync.o
+note_off                                          synth.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  midi.o
+                                                  main.o
+note_on                                           synth.o
+                                                  pattern_edit.o
+                                                  keyboard.o
+                                                  midi.o
+                                                  main.o
+onemore                                           main.o
+patt_bank                                         pattern_edit.o
+patt_location                                     pattern_edit.o
+                                                  pattern_play.o
+pattern_buff                                      pattern_edit.o
+                                                  pattern_play.o
+                                                  main.o
+play_loaded_pattern                               pattern_edit.o
+                                                  pattern_play.o
+                                                  track_edit.o
+                                                  main.o
+play_loaded_track                                 track_edit.o
+                                                  main.o
+playing                                           pattern_play.o
+                                                  pattern_edit.o
+                                                  main.o
+pressed_switches                                  switch.o
+prev_note                                         main.o
+                                                  midi.o
+prev_pattern_index                                pattern_play.o
+printhex                                          main.o
+putnum_uh                                         main.o
+                                                  pattern_edit.o
+                                                  compcontrol.o
+rand                                              main.o
+random                                            main.o
+read_bank                                         switch.o
+read_function                                     switch.o
+read_keypad                                       switch.o
+read_switches                                     switch.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  compcontrol.o
+                                                  midi.o
+                                                  main.o
+recv_msg_buff                                     compcontrol.o
+recv_msg_i                                        compcontrol.o
+released_switches                                 switch.o
+runhalf                                           main.o
+running_stepwrite                                 main.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+runstepwrite_pattidx                              pattern_edit.o
+                                                  main.o
+select_bank_read                                  switch.o
+select_func_read                                  switch.o
+send_msg                                          compcontrol.o
+send_status                                       compcontrol.o
+send_tempo                                        compcontrol.o
+                                                  main.o
+set_bank_led                                      led.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  midi.o
+                                                  main.o
+set_bank_led_blink                                led.o
+                                                  track_edit.o
+set_key_led                                       led.o
+set_key_led_blink                                 led.o
+set_led                                           led.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  main.o
+set_led_blink                                     led.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+set_note_led                                      led.o
+                                                  pattern_edit.o
+                                                  main.o
+set_notekey_led                                   led.o
+                                                  pattern_play.o
+                                                  keyboard.o
+set_notekey_led_blink                             led.o
+                                                  pattern_play.o
+                                                  track_edit.o
+set_numkey_led                                    led.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+set_numkey_led_blink                              led.o
+                                                  pattern_play.o
+set_single_numkey_led                             led.o
+                                                  track_edit.o
+skipit                                            main.o
+spieeprom_read                                    eeprom.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  compcontrol.o
+spieeprom_write                                   eeprom.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  compcontrol.o
+start_runwrite_mode                               pattern_edit.o
+start_stepwrite_mode                              pattern_edit.o
+start_track_run_mode                              track_edit.o
+start_track_stepwrite_mode                        track_edit.o
+stop_runwrite_mode                                pattern_edit.o
+stop_stepwrite_mode                               pattern_edit.o
+stop_track_run_mode                               track_edit.o
+stop_track_stepwrite_mode                         track_edit.o
+swing_it                                          main.o
+                                                  pattern_play.o
+swing_time                                        pattern_play.o
+                                                  main.o
+switches                                          switch.o
+sync                                              main.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  dinsync.o
+                                                  midi.o
+tap_tempo_timer                                   pattern_play.o
+                                                  main.o
+tempo                                             main.o
+                                                  compcontrol.o
+                                                  switch.o
+timer3_init                                       main.o
+                                                  dinsync.o
+track_bank                                        track_edit.o
+track_buff                                        track_edit.o
+                                                  pattern_play.o
+                                                  main.o
+track_location                                    track_edit.o
+turn_off_tempo                                    main.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  keyboard.o
+                                                  dinsync.o
+                                                  midi.o
+turn_on_tempo                                     main.o
+                                                  pattern_play.o
+                                                  pattern_edit.o
+                                                  track_edit.o
+                                                  dinsync.o
+tx_msg_buff                                       compcontrol.o
+uart_getch                                        main.o
+uart_getchar                                      main.o
+uart_putchar                                      main.o
+                                                  compcontrol.o
+uart_timeout                                      compcontrol.o
+                                                  main.o
+valid_msg_in_q                                    compcontrol.o
+write_pattern                                     pattern_edit.o
+write_track                                       track_edit.o

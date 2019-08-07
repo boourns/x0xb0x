@@ -1,0 +1,3598 @@
+   1               		.file	"pattern_edit.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	load_pattern
+  12               	load_pattern:
+  13               	.LVL0:
+  14               	.LFB2:
+  15               		.file 1 "pattern_edit.c"
+   1:pattern_edit.c **** /* 
+   2:pattern_edit.c ****  * The software for the x0xb0x is available for use in accordance with the 
+   3:pattern_edit.c ****  * following open source license (MIT License). For more information about
+   4:pattern_edit.c ****  * OS licensing, please visit -> http://www.opensource.org/
+   5:pattern_edit.c ****  *
+   6:pattern_edit.c ****  * For more information about the x0xb0x project, please visit
+   7:pattern_edit.c ****  * -> http://www.ladyada.net/make/x0xb0x
+   8:pattern_edit.c ****  *
+   9:pattern_edit.c ****  *                                     *****
+  10:pattern_edit.c ****  * Copyright (c) 2005 Limor Fried
+  11:pattern_edit.c ****  *
+  12:pattern_edit.c ****  * Permission is hereby granted, free of charge, to any person obtaining a 
+  13:pattern_edit.c ****  * copy of this software and associated documentation files (the "Software"), 
+  14:pattern_edit.c ****  * to deal in the Software without restriction, including without limitation 
+  15:pattern_edit.c ****  * the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+  16:pattern_edit.c ****  * and/or sell copies of the Software, and to permit persons to whom the 
+  17:pattern_edit.c ****  * Software is furnished to do so, subject to the following conditions:
+  18:pattern_edit.c ****  *
+  19:pattern_edit.c ****  * The above copyright notice and this permission notice shall be included in 
+  20:pattern_edit.c ****  * all copies or substantial portions of the Software.
+  21:pattern_edit.c ****  *
+  22:pattern_edit.c ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+  23:pattern_edit.c ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+  24:pattern_edit.c ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+  25:pattern_edit.c ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+  26:pattern_edit.c ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+  27:pattern_edit.c ****  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+  28:pattern_edit.c ****  * IN THE SOFTWARE.
+  29:pattern_edit.c ****  *                                     *****
+  30:pattern_edit.c ****  *
+  31:pattern_edit.c ****  */
+  32:pattern_edit.c **** 
+  33:pattern_edit.c **** #include <inttypes.h>
+  34:pattern_edit.c **** #include <stdio.h>
+  35:pattern_edit.c **** #include <avr/interrupt.h>
+  36:pattern_edit.c **** #include "pattern.h"
+  37:pattern_edit.c **** #include "switch.h"
+  38:pattern_edit.c **** #include "led.h"
+  39:pattern_edit.c **** #include "main.h"
+  40:pattern_edit.c **** #include "eeprom.h"
+  41:pattern_edit.c **** #include "synth.h"
+  42:pattern_edit.c **** #include "delay.h"
+  43:pattern_edit.c **** #include "dinsync.h"
+  44:pattern_edit.c **** #include "midi.h"
+  45:pattern_edit.c **** 
+  46:pattern_edit.c **** // these are set by read_switches()
+  47:pattern_edit.c **** extern uint8_t function, bank;
+  48:pattern_edit.c **** 
+  49:pattern_edit.c **** // the midi clock counter
+  50:pattern_edit.c **** extern volatile int16_t midisync_clocked, dinsync_clocked;
+  51:pattern_edit.c **** extern volatile uint8_t playing;
+  52:pattern_edit.c **** 
+  53:pattern_edit.c **** // The tempo note counter. used to start runwrite on a note-on interrupt call
+  54:pattern_edit.c **** volatile uint8_t note_counter;
+  55:pattern_edit.c **** 
+  56:pattern_edit.c **** volatile uint8_t curr_pattern_index;
+  57:pattern_edit.c **** extern uint8_t running_stepwrite;
+  58:pattern_edit.c **** uint8_t play_loaded_pattern;                 // are we playing?
+  59:pattern_edit.c **** uint8_t patt_location;
+  60:pattern_edit.c **** uint8_t patt_bank;
+  61:pattern_edit.c **** volatile uint8_t pattern_buff[PATT_SIZE];    // the 'loaded' pattern buffer
+  62:pattern_edit.c **** 
+  63:pattern_edit.c **** uint8_t in_runwrite_mode, in_stepwrite_mode;
+  64:pattern_edit.c **** uint8_t runstepwrite_pattidx;
+  65:pattern_edit.c **** uint8_t dirtyflag = 0; // you filthy pattern, have you been modified?
+  66:pattern_edit.c **** //080602
+  67:pattern_edit.c **** uint8_t midi_cmd = 0;
+  68:pattern_edit.c **** 
+  69:pattern_edit.c **** extern uint8_t PATT_LENGTH;
+  70:pattern_edit.c **** 
+  71:pattern_edit.c **** extern uint8_t curr_note, sync, live_edit;
+  72:pattern_edit.c **** 
+  73:pattern_edit.c **** /***********************/
+  74:pattern_edit.c **** void do_pattern_edit(void) {
+  75:pattern_edit.c ****   uint8_t i, curr_function;
+  76:pattern_edit.c **** 
+  77:pattern_edit.c ****   curr_function = function;
+  78:pattern_edit.c **** 
+  79:pattern_edit.c ****   // initialize
+  80:pattern_edit.c ****   patt_location = 0;
+  81:pattern_edit.c ****   in_stepwrite_mode = 0;
+  82:pattern_edit.c ****   in_runwrite_mode = 0;
+  83:pattern_edit.c ****   running_stepwrite = FALSE;
+  84:pattern_edit.c ****   play_loaded_pattern = 0;
+  85:pattern_edit.c ****   curr_pattern_index = 0;
+  86:pattern_edit.c ****   curr_note = 0;
+  87:pattern_edit.c ****   
+  88:pattern_edit.c ****   if (sync == INTERNAL_SYNC)
+  89:pattern_edit.c ****     turn_on_tempo();
+  90:pattern_edit.c ****   else {
+  91:pattern_edit.c ****     turn_off_tempo();
+  92:pattern_edit.c ****     dinsync_set_out();
+  93:pattern_edit.c ****   }
+  94:pattern_edit.c **** 
+  95:pattern_edit.c ****   read_switches();
+  96:pattern_edit.c ****   patt_bank = bank;
+  97:pattern_edit.c **** 
+  98:pattern_edit.c ****   load_pattern(patt_bank, patt_location);
+  99:pattern_edit.c ****   clear_all_leds();
+ 100:pattern_edit.c **** 
+ 101:pattern_edit.c ****   set_bank_led(bank);
+ 102:pattern_edit.c ****       
+ 103:pattern_edit.c ****   while (1) {
+ 104:pattern_edit.c ****     read_switches();
+ 105:pattern_edit.c **** 
+ 106:pattern_edit.c ****     if (function != curr_function) {
+ 107:pattern_edit.c ****       // oops i guess they want something else, return!
+ 108:pattern_edit.c ****       turn_off_tempo();
+ 109:pattern_edit.c ****       play_loaded_pattern = FALSE;
+ 110:pattern_edit.c ****       
+ 111:pattern_edit.c ****       // turn off all sound & output signals
+ 112:pattern_edit.c ****       note_off(0);
+ 113:pattern_edit.c ****       dinsync_stop();
+ 114:pattern_edit.c ****       midi_stop();
+ 115:pattern_edit.c **** 
+ 116:pattern_edit.c ****       // clear the LEDs
+ 117:pattern_edit.c ****       clear_all_leds();
+ 118:pattern_edit.c ****       clock_leds();
+ 119:pattern_edit.c ****       return;
+ 120:pattern_edit.c ****     }
+ 121:pattern_edit.c **** 
+ 122:pattern_edit.c ****     if (patt_bank != bank) {
+ 123:pattern_edit.c ****       //putstring("changed bank!");
+ 124:pattern_edit.c **** //      if (in_runwrite_mode)
+ 125:pattern_edit.c **** //	stop_runwrite_mode();
+ 126:pattern_edit.c ****       if (in_stepwrite_mode)
+ 127:pattern_edit.c **** 	stop_stepwrite_mode();
+ 128:pattern_edit.c ****       patt_bank = bank;
+ 129:pattern_edit.c ****       load_pattern(patt_bank, patt_location);
+ 130:pattern_edit.c ****       clear_bank_leds();
+ 131:pattern_edit.c ****       set_bank_led(bank);
+ 132:pattern_edit.c ****     }
+ 133:pattern_edit.c **** 
+ 134:pattern_edit.c ****     // if they pressed one of the 8 bottom buttons (location select)
+ 135:pattern_edit.c ****     if (! (in_runwrite_mode || in_stepwrite_mode)) {
+ 136:pattern_edit.c ****       // display whatever location is selected on number keys
+ 137:pattern_edit.c ****       set_numkey_led(patt_location+1);
+ 138:pattern_edit.c **** 
+ 139:pattern_edit.c ****       i = get_lowest_numkey_pressed();
+ 140:pattern_edit.c ****       if (i != 0) {
+ 141:pattern_edit.c **** 	clear_notekey_leds();
+ 142:pattern_edit.c **** 	set_numkey_led(i);
+ 143:pattern_edit.c **** 	patt_location = i - 1;
+ 144:pattern_edit.c **** 	load_pattern(patt_bank, patt_location);
+ 145:pattern_edit.c **** 	//printf("location #%d\n\r", patt_location);
+ 146:pattern_edit.c ****       }
+ 147:pattern_edit.c ****     }
+ 148:pattern_edit.c **** 
+ 149:pattern_edit.c ****     edit_pattern();
+ 150:pattern_edit.c **** 
+ 151:pattern_edit.c **** 
+ 152:pattern_edit.c ****   } // while loop
+ 153:pattern_edit.c **** }
+ 154:pattern_edit.c **** 
+ 155:pattern_edit.c **** void load_pattern(uint8_t bank, uint8_t patt_location) {
+  16               		.loc 1 155 56 view -0
+  17               		.cfi_startproc
+  18               		.loc 1 155 56 is_stmt 0 view .LVU1
+  19 0000 0F93      		push r16
+  20               		.cfi_def_cfa_offset 3
+  21               		.cfi_offset 16, -2
+  22 0002 1F93      		push r17
+  23               		.cfi_def_cfa_offset 4
+  24               		.cfi_offset 17, -3
+  25 0004 CF93      		push r28
+  26               		.cfi_def_cfa_offset 5
+  27               		.cfi_offset 28, -4
+  28 0006 DF93      		push r29
+  29               		.cfi_def_cfa_offset 6
+  30               		.cfi_offset 29, -5
+  31               	/* prologue: function */
+  32               	/* frame size = 0 */
+  33               	/* stack size = 4 */
+  34               	.L__stack_usage = 4
+  35 0008 D82F      		mov r29,r24
+  36 000a C62F      		mov r28,r22
+ 156:pattern_edit.c ****   uint16_t pattern_addr;
+  37               		.loc 1 156 3 is_stmt 1 view .LVU2
+ 157:pattern_edit.c ****   uint8_t i;
+  38               		.loc 1 157 3 view .LVU3
+ 158:pattern_edit.c **** 
+ 159:pattern_edit.c ****   clock_leds();
+  39               		.loc 1 159 3 view .LVU4
+  40 000c 0E94 0000 		call clock_leds
+  41               	.LVL1:
+ 160:pattern_edit.c **** 
+ 161:pattern_edit.c ****   pattern_addr = PATTERN_MEM + bank*BANK_SIZE + patt_location*PATT_SIZE;
+  42               		.loc 1 161 3 view .LVU5
+  43               		.loc 1 161 47 is_stmt 0 view .LVU6
+  44 0010 28E0      		ldi r18,lo8(8)
+  45 0012 D29F      		mul r29,r18
+  46 0014 C001      		movw r24,r0
+  47 0016 1124      		clr __zero_reg__
+  48 0018 C80F      		add r28,r24
+  49 001a D92F      		mov r29,r25
+  50 001c D11D      		adc r29,__zero_reg__
+  51               	.LVL2:
+  52               		.loc 1 161 47 view .LVU7
+  53 001e 84E0      		ldi r24,4
+  54               		1:
+  55 0020 CC0F      		lsl r28
+  56 0022 DD1F      		rol r29
+  57 0024 8A95      		dec r24
+  58 0026 01F4      		brne 1b
+  59               	.LVL3:
+ 162:pattern_edit.c **** 
+ 163:pattern_edit.c ****   /*
+ 164:pattern_edit.c ****   putstring("load patt ["); 
+ 165:pattern_edit.c ****   putnum_ud(bank); putstring(", "); putnum_ud(patt_location);
+ 166:pattern_edit.c ****   putstring(" @ 0x");
+ 167:pattern_edit.c ****   putnum_uh(pattern_addr);
+ 168:pattern_edit.c ****   putstring("\n\r");
+ 169:pattern_edit.c ****   */
+ 170:pattern_edit.c **** 
+ 171:pattern_edit.c ****   for(i=0; i<PATT_SIZE; i++) {
+  60               		.loc 1 171 3 is_stmt 1 view .LVU8
+ 161:pattern_edit.c **** 
+  61               		.loc 1 161 16 is_stmt 0 view .LVU9
+  62 0028 10E0      		ldi r17,0
+  63 002a 00E0      		ldi r16,0
+  64               	.LVL4:
+  65               	.L2:
+ 172:pattern_edit.c ****     pattern_buff[i] = spieeprom_read(pattern_addr + i);
+  66               		.loc 1 172 5 is_stmt 1 discriminator 3 view .LVU10
+  67               		.loc 1 172 23 is_stmt 0 discriminator 3 view .LVU11
+  68 002c CE01      		movw r24,r28
+  69 002e 800F      		add r24,r16
+  70 0030 911F      		adc r25,r17
+  71 0032 0E94 0000 		call spieeprom_read
+  72               	.LVL5:
+  73               		.loc 1 172 21 discriminator 3 view .LVU12
+  74 0036 F801      		movw r30,r16
+  75 0038 E050      		subi r30,lo8(-(pattern_buff))
+  76 003a F040      		sbci r31,hi8(-(pattern_buff))
+  77 003c 8083      		st Z,r24
+  78               	.LVL6:
+  79               		.loc 1 172 21 discriminator 3 view .LVU13
+  80 003e 0F5F      		subi r16,-1
+  81 0040 1F4F      		sbci r17,-1
+  82               	.LVL7:
+ 171:pattern_edit.c ****     pattern_buff[i] = spieeprom_read(pattern_addr + i);
+  83               		.loc 1 171 3 discriminator 3 view .LVU14
+  84 0042 0031      		cpi r16,16
+  85 0044 1105      		cpc r17,__zero_reg__
+  86 0046 01F4      		brne .L2
+ 173:pattern_edit.c ****     //putstring(" 0x"); putnum_uh(pattern_buff[i]);
+ 174:pattern_edit.c ****   }
+ 175:pattern_edit.c ****   //putstring("\n\r");
+ 176:pattern_edit.c **** 
+ 177:pattern_edit.c ****     if (pattern_buff[PATT_SIZE-1] == 0x01) {
+  87               		.loc 1 177 5 is_stmt 1 view .LVU15
+  88               		.loc 1 177 21 is_stmt 0 view .LVU16
+  89 0048 8091 0000 		lds r24,pattern_buff+15
+  90               		.loc 1 177 8 view .LVU17
+  91 004c 8130      		cpi r24,lo8(1)
+  92 004e 01F4      		brne .L3
+ 178:pattern_edit.c ****         PATT_LENGTH = 15;
+  93               		.loc 1 178 9 is_stmt 1 view .LVU18
+  94               		.loc 1 178 21 is_stmt 0 view .LVU19
+  95 0050 8FE0      		ldi r24,lo8(15)
+  96               	.L6:
+ 179:pattern_edit.c ****     } else {
+ 180:pattern_edit.c ****         PATT_LENGTH = 16;
+  97               		.loc 1 180 21 view .LVU20
+  98 0052 8093 0000 		sts PATT_LENGTH,r24
+ 181:pattern_edit.c ****     }
+ 182:pattern_edit.c **** 
+ 183:pattern_edit.c ****     
+ 184:pattern_edit.c ****   dirtyflag = 0;
+  99               		.loc 1 184 3 is_stmt 1 view .LVU21
+ 100               		.loc 1 184 13 is_stmt 0 view .LVU22
+ 101 0056 1092 0000 		sts dirtyflag,__zero_reg__
+ 185:pattern_edit.c ****   clear_led_blink(LED_DONE);
+ 102               		.loc 1 185 3 is_stmt 1 view .LVU23
+ 103 005a 80E0      		ldi r24,0
+ 104 005c 0E94 0000 		call clear_led_blink
+ 105               	.LVL8:
+ 186:pattern_edit.c ****   clock_leds();
+ 106               		.loc 1 186 3 view .LVU24
+ 107 0060 0E94 0000 		call clock_leds
+ 108               	.LVL9:
+ 109               	/* epilogue start */
+ 187:pattern_edit.c **** 
+ 188:pattern_edit.c **** }
+ 110               		.loc 1 188 1 is_stmt 0 view .LVU25
+ 111 0064 DF91      		pop r29
+ 112               	.LVL10:
+ 113               		.loc 1 188 1 view .LVU26
+ 114 0066 CF91      		pop r28
+ 115               	.LVL11:
+ 116               		.loc 1 188 1 view .LVU27
+ 117 0068 1F91      		pop r17
+ 118 006a 0F91      		pop r16
+ 119               	.LVL12:
+ 120               		.loc 1 188 1 view .LVU28
+ 121 006c 0895      		ret
+ 122               	.LVL13:
+ 123               	.L3:
+ 180:pattern_edit.c ****     }
+ 124               		.loc 1 180 9 is_stmt 1 view .LVU29
+ 180:pattern_edit.c ****     }
+ 125               		.loc 1 180 21 is_stmt 0 view .LVU30
+ 126 006e 80E1      		ldi r24,lo8(16)
+ 127 0070 00C0      		rjmp .L6
+ 128               		.cfi_endproc
+ 129               	.LFE2:
+ 131               	.global	clock_ticks
+ 133               	clock_ticks:
+ 134               	.LFB4:
+ 189:pattern_edit.c **** 
+ 190:pattern_edit.c **** void write_pattern(uint8_t bank, uint8_t patt_location) {
+ 191:pattern_edit.c ****   uint16_t pattern_addr;
+ 192:pattern_edit.c ****   uint8_t i;
+ 193:pattern_edit.c **** 
+ 194:pattern_edit.c ****   clock_leds();
+ 195:pattern_edit.c **** 
+ 196:pattern_edit.c ****   pattern_addr = PATTERN_MEM + bank*BANK_SIZE + patt_location*PATT_SIZE;
+ 197:pattern_edit.c **** 
+ 198:pattern_edit.c ****   /*
+ 199:pattern_edit.c ****   putstring("writing pattern. bank ");
+ 200:pattern_edit.c ****   putnum_ud(bank);
+ 201:pattern_edit.c ****   putstring(", loc ");
+ 202:pattern_edit.c ****   putnum_ud(patt_location);
+ 203:pattern_edit.c ****   putstring(" from 0x");
+ 204:pattern_edit.c ****   putnum_uh(pattern_addr);
+ 205:pattern_edit.c ****   putstring("\n\rold memory: \n\r");
+ 206:pattern_edit.c ****   for (i=0; i<PATT_SIZE; i++) {
+ 207:pattern_edit.c ****     putstring(" 0x"); putnum_uh(spieeprom_read(pattern_addr+i));
+ 208:pattern_edit.c ****   }
+ 209:pattern_edit.c ****   putstring("\n\r");
+ 210:pattern_edit.c ****   */
+ 211:pattern_edit.c **** 
+ 212:pattern_edit.c ****   // modify the buffer with new data
+ 213:pattern_edit.c ****   for (i = 0; i<PATT_SIZE; i++) {
+ 214:pattern_edit.c ****    spieeprom_write(pattern_buff[i], pattern_addr+i);
+ 215:pattern_edit.c ****    clock_ticks();
+ 216:pattern_edit.c ****   }
+ 217:pattern_edit.c ****   /*
+ 218:pattern_edit.c ****   putstring("\n\rnew memory: \n\r");
+ 219:pattern_edit.c ****   for (i=0; i<PATT_SIZE; i++) {
+ 220:pattern_edit.c ****     putstring(" 0x"); putnum_uh(spieeprom_read(pattern_addr+i));
+ 221:pattern_edit.c ****   }
+ 222:pattern_edit.c ****   putstring("\n\r");
+ 223:pattern_edit.c ****   */
+ 224:pattern_edit.c **** 
+ 225:pattern_edit.c ****   clock_leds();
+ 226:pattern_edit.c **** 
+ 227:pattern_edit.c **** }
+ 228:pattern_edit.c **** 
+ 229:pattern_edit.c **** void clock_ticks()
+ 230:pattern_edit.c **** {
+ 135               		.loc 1 230 1 is_stmt 1 view -0
+ 136               		.cfi_startproc
+ 137               	/* prologue: function */
+ 138               	/* frame size = 0 */
+ 139               	/* stack size = 0 */
+ 140               	.L__stack_usage = 0
+ 231:pattern_edit.c **** 	if (playing) {
+ 141               		.loc 1 231 2 view .LVU32
+ 142               		.loc 1 231 6 is_stmt 0 view .LVU33
+ 143 0072 8091 0000 		lds r24,playing
+ 144               		.loc 1 231 5 view .LVU34
+ 145 0076 8823      		tst r24
+ 146 0078 01F0      		breq .L8
+ 147 007a 8091 0000 		lds r24,sync
+ 232:pattern_edit.c **** 		if ((sync == MIDI_SYNC) && (midisync_clocked > 0)) {
+ 148               		.loc 1 232 3 is_stmt 1 view .LVU35
+ 149               		.loc 1 232 6 is_stmt 0 view .LVU36
+ 150 007e 8230      		cpi r24,lo8(2)
+ 151 0080 01F4      		brne .L9
+ 152               		.loc 1 232 48 discriminator 1 view .LVU37
+ 153 0082 8091 0000 		lds r24,midisync_clocked
+ 154 0086 9091 0000 		lds r25,midisync_clocked+1
+ 155               		.loc 1 232 27 discriminator 1 view .LVU38
+ 156 008a 1816      		cp __zero_reg__,r24
+ 157 008c 1906      		cpc __zero_reg__,r25
+ 158 008e 04F0      		brlt .L10
+ 159               	.L15:
+ 233:pattern_edit.c **** 		    midisync_clocked = 0;
+ 234:pattern_edit.c **** 			do_tempo();
+ 235:pattern_edit.c **** 			do_tempo();
+ 236:pattern_edit.c **** 		}
+ 237:pattern_edit.c **** 		else if ((sync == DIN_SYNC) && (dinsync_clocked > 0)) {
+ 238:pattern_edit.c **** 		    dinsync_clocked = 0;
+ 239:pattern_edit.c **** 		    do_tempo();
+ 240:pattern_edit.c **** 			do_tempo();
+ 241:pattern_edit.c **** 		}
+ 242:pattern_edit.c **** 	}
+ 243:pattern_edit.c **** 	//080602
+ 244:pattern_edit.c **** 	if (sync == MIDI_SYNC) {
+ 245:pattern_edit.c ****       midi_cmd = midi_recv_cmd(); // returns 0 if no midi commands waiting
+ 160               		.loc 1 245 7 is_stmt 1 view .LVU39
+ 161               		.loc 1 245 18 is_stmt 0 view .LVU40
+ 162 0090 0E94 0000 		call midi_recv_cmd
+ 163               	.LVL14:
+ 164               		.loc 1 245 16 view .LVU41
+ 165 0094 8093 0000 		sts midi_cmd,r24
+ 246:pattern_edit.c ****       if (midi_cmd != 0 && function == EDIT_PATTERN_FUNC)
+ 166               		.loc 1 246 7 is_stmt 1 view .LVU42
+ 167               		.loc 1 246 10 is_stmt 0 view .LVU43
+ 168 0098 8111      		cpse r24,__zero_reg__
+ 169 009a 00C0      		rjmp .L11
+ 170 009c 0895      		ret
+ 171               	.L10:
+ 233:pattern_edit.c **** 		    midisync_clocked = 0;
+ 172               		.loc 1 233 7 is_stmt 1 view .LVU44
+ 233:pattern_edit.c **** 		    midisync_clocked = 0;
+ 173               		.loc 1 233 24 is_stmt 0 view .LVU45
+ 174 009e 1092 0000 		sts midisync_clocked+1,__zero_reg__
+ 175 00a2 1092 0000 		sts midisync_clocked,__zero_reg__
+ 234:pattern_edit.c **** 			do_tempo();
+ 176               		.loc 1 234 4 is_stmt 1 view .LVU46
+ 177               	.L22:
+ 239:pattern_edit.c **** 			do_tempo();
+ 178               		.loc 1 239 7 view .LVU47
+ 179 00a6 0E94 0000 		call do_tempo
+ 180               	.LVL15:
+ 240:pattern_edit.c **** 		}
+ 181               		.loc 1 240 4 view .LVU48
+ 182 00aa 0E94 0000 		call do_tempo
+ 183               	.LVL16:
+ 184               	.L8:
+ 244:pattern_edit.c ****       midi_cmd = midi_recv_cmd(); // returns 0 if no midi commands waiting
+ 185               		.loc 1 244 2 view .LVU49
+ 244:pattern_edit.c ****       midi_cmd = midi_recv_cmd(); // returns 0 if no midi commands waiting
+ 186               		.loc 1 244 5 is_stmt 0 view .LVU50
+ 187 00ae 8091 0000 		lds r24,sync
+ 188 00b2 8230      		cpi r24,lo8(2)
+ 189 00b4 01F0      		breq .L15
+ 190 00b6 0895      		ret
+ 191               	.L9:
+ 237:pattern_edit.c **** 		    dinsync_clocked = 0;
+ 192               		.loc 1 237 8 is_stmt 1 view .LVU51
+ 237:pattern_edit.c **** 		    dinsync_clocked = 0;
+ 193               		.loc 1 237 11 is_stmt 0 view .LVU52
+ 194 00b8 8130      		cpi r24,lo8(1)
+ 195 00ba 01F4      		brne .L7
+ 237:pattern_edit.c **** 		    dinsync_clocked = 0;
+ 196               		.loc 1 237 51 discriminator 1 view .LVU53
+ 197 00bc 8091 0000 		lds r24,dinsync_clocked
+ 198 00c0 9091 0000 		lds r25,dinsync_clocked+1
+ 237:pattern_edit.c **** 		    dinsync_clocked = 0;
+ 199               		.loc 1 237 31 discriminator 1 view .LVU54
+ 200 00c4 1816      		cp __zero_reg__,r24
+ 201 00c6 1906      		cpc __zero_reg__,r25
+ 202 00c8 04F4      		brge .L7
+ 238:pattern_edit.c **** 		    do_tempo();
+ 203               		.loc 1 238 7 is_stmt 1 view .LVU55
+ 238:pattern_edit.c **** 		    do_tempo();
+ 204               		.loc 1 238 23 is_stmt 0 view .LVU56
+ 205 00ca 1092 0000 		sts dinsync_clocked+1,__zero_reg__
+ 206 00ce 1092 0000 		sts dinsync_clocked,__zero_reg__
+ 207 00d2 00C0      		rjmp .L22
+ 208               	.L11:
+ 209               		.loc 1 246 25 discriminator 1 view .LVU57
+ 210 00d4 9091 0000 		lds r25,function
+ 211 00d8 9330      		cpi r25,lo8(3)
+ 212 00da 01F4      		brne .L7
+ 247:pattern_edit.c **** 	    putnum_uh(midi_cmd);
+ 213               		.loc 1 247 6 is_stmt 1 view .LVU58
+ 214 00dc 90E0      		ldi r25,0
+ 215 00de 0E94 0000 		call putnum_uh
+ 216               	.LVL17:
+ 217               	.L7:
+ 218               	/* epilogue start */
+ 248:pattern_edit.c ****     }
+ 249:pattern_edit.c **** }
+ 219               		.loc 1 249 1 is_stmt 0 view .LVU59
+ 220 00e2 0895      		ret
+ 221               		.cfi_endproc
+ 222               	.LFE4:
+ 224               	.global	write_pattern
+ 226               	write_pattern:
+ 227               	.LVL18:
+ 228               	.LFB3:
+ 190:pattern_edit.c ****   uint16_t pattern_addr;
+ 229               		.loc 1 190 57 is_stmt 1 view -0
+ 230               		.cfi_startproc
+ 190:pattern_edit.c ****   uint16_t pattern_addr;
+ 231               		.loc 1 190 57 is_stmt 0 view .LVU61
+ 232 00e4 0F93      		push r16
+ 233               		.cfi_def_cfa_offset 3
+ 234               		.cfi_offset 16, -2
+ 235 00e6 1F93      		push r17
+ 236               		.cfi_def_cfa_offset 4
+ 237               		.cfi_offset 17, -3
+ 238 00e8 CF93      		push r28
+ 239               		.cfi_def_cfa_offset 5
+ 240               		.cfi_offset 28, -4
+ 241 00ea DF93      		push r29
+ 242               		.cfi_def_cfa_offset 6
+ 243               		.cfi_offset 29, -5
+ 244               	/* prologue: function */
+ 245               	/* frame size = 0 */
+ 246               	/* stack size = 4 */
+ 247               	.L__stack_usage = 4
+ 248 00ec D82F      		mov r29,r24
+ 249 00ee C62F      		mov r28,r22
+ 191:pattern_edit.c ****   uint8_t i;
+ 250               		.loc 1 191 3 is_stmt 1 view .LVU62
+ 192:pattern_edit.c **** 
+ 251               		.loc 1 192 3 view .LVU63
+ 194:pattern_edit.c **** 
+ 252               		.loc 1 194 3 view .LVU64
+ 253 00f0 0E94 0000 		call clock_leds
+ 254               	.LVL19:
+ 196:pattern_edit.c **** 
+ 255               		.loc 1 196 3 view .LVU65
+ 196:pattern_edit.c **** 
+ 256               		.loc 1 196 47 is_stmt 0 view .LVU66
+ 257 00f4 28E0      		ldi r18,lo8(8)
+ 258 00f6 D29F      		mul r29,r18
+ 259 00f8 C001      		movw r24,r0
+ 260 00fa 1124      		clr __zero_reg__
+ 261 00fc C80F      		add r28,r24
+ 262 00fe D92F      		mov r29,r25
+ 263 0100 D11D      		adc r29,__zero_reg__
+ 264               	.LVL20:
+ 196:pattern_edit.c **** 
+ 265               		.loc 1 196 47 view .LVU67
+ 266 0102 84E0      		ldi r24,4
+ 267               		1:
+ 268 0104 CC0F      		lsl r28
+ 269 0106 DD1F      		rol r29
+ 270 0108 8A95      		dec r24
+ 271 010a 01F4      		brne 1b
+ 272               	.LVL21:
+ 213:pattern_edit.c ****    spieeprom_write(pattern_buff[i], pattern_addr+i);
+ 273               		.loc 1 213 3 is_stmt 1 view .LVU68
+ 196:pattern_edit.c **** 
+ 274               		.loc 1 196 16 is_stmt 0 view .LVU69
+ 275 010c 10E0      		ldi r17,0
+ 276 010e 00E0      		ldi r16,0
+ 277               	.LVL22:
+ 278               	.L24:
+ 214:pattern_edit.c ****    clock_ticks();
+ 279               		.loc 1 214 4 is_stmt 1 discriminator 3 view .LVU70
+ 280 0110 F801      		movw r30,r16
+ 281 0112 E050      		subi r30,lo8(-(pattern_buff))
+ 282 0114 F040      		sbci r31,hi8(-(pattern_buff))
+ 283 0116 8081      		ld r24,Z
+ 284 0118 BE01      		movw r22,r28
+ 285 011a 600F      		add r22,r16
+ 286 011c 711F      		adc r23,r17
+ 287 011e 0E94 0000 		call spieeprom_write
+ 288               	.LVL23:
+ 215:pattern_edit.c ****   }
+ 289               		.loc 1 215 4 discriminator 3 view .LVU71
+ 290 0122 0E94 0000 		call clock_ticks
+ 291               	.LVL24:
+ 215:pattern_edit.c ****   }
+ 292               		.loc 1 215 4 is_stmt 0 discriminator 3 view .LVU72
+ 293 0126 0F5F      		subi r16,-1
+ 294 0128 1F4F      		sbci r17,-1
+ 295               	.LVL25:
+ 213:pattern_edit.c ****    spieeprom_write(pattern_buff[i], pattern_addr+i);
+ 296               		.loc 1 213 3 discriminator 3 view .LVU73
+ 297 012a 0031      		cpi r16,16
+ 298 012c 1105      		cpc r17,__zero_reg__
+ 299 012e 01F4      		brne .L24
+ 225:pattern_edit.c **** 
+ 300               		.loc 1 225 3 is_stmt 1 view .LVU74
+ 301 0130 0E94 0000 		call clock_leds
+ 302               	.LVL26:
+ 303               	/* epilogue start */
+ 227:pattern_edit.c **** 
+ 304               		.loc 1 227 1 is_stmt 0 view .LVU75
+ 305 0134 DF91      		pop r29
+ 306               	.LVL27:
+ 227:pattern_edit.c **** 
+ 307               		.loc 1 227 1 view .LVU76
+ 308 0136 CF91      		pop r28
+ 309               	.LVL28:
+ 227:pattern_edit.c **** 
+ 310               		.loc 1 227 1 view .LVU77
+ 311 0138 1F91      		pop r17
+ 312 013a 0F91      		pop r16
+ 313               	.LVL29:
+ 227:pattern_edit.c **** 
+ 314               		.loc 1 227 1 view .LVU78
+ 315 013c 0895      		ret
+ 316               		.cfi_endproc
+ 317               	.LFE3:
+ 319               	.global	start_runwrite_mode
+ 321               	start_runwrite_mode:
+ 322               	.LFB7:
+ 250:pattern_edit.c **** 
+ 251:pattern_edit.c **** void edit_pattern() {
+ 252:pattern_edit.c ****     uint8_t i;//, midi_cmd;080602
+ 253:pattern_edit.c **** 	
+ 254:pattern_edit.c **** 	  /* 080603*/
+ 255:pattern_edit.c **** 	uint8_t note_entered = FALSE;
+ 256:pattern_edit.c **** 
+ 257:pattern_edit.c **** 	if (just_pressed(KEY_TEMPO) && !is_pressed(KEY_CHAIN)) {
+ 258:pattern_edit.c ****         if (PATT_LENGTH == 15) {
+ 259:pattern_edit.c ****             PATT_LENGTH = 16;
+ 260:pattern_edit.c ****             pattern_buff[PATT_LENGTH-1] = 0xFF;
+ 261:pattern_edit.c ****         } else {
+ 262:pattern_edit.c ****             PATT_LENGTH = 15;
+ 263:pattern_edit.c ****             pattern_buff[PATT_LENGTH] = 0x01;            
+ 264:pattern_edit.c ****         }
+ 265:pattern_edit.c ****         dirtyflag = 1;
+ 266:pattern_edit.c ****     }
+ 267:pattern_edit.c **** 
+ 268:pattern_edit.c ****     // if they hit random, fill pattern buffer with random data
+ 269:pattern_edit.c ****     if (is_pressed(KEY_CHAIN) && in_runwrite_mode) {
+ 270:pattern_edit.c ****       set_led(LED_CHAIN);
+ 271:pattern_edit.c **** 	  
+ 272:pattern_edit.c **** 	  if (just_pressed(KEY_TEMPO)) {
+ 273:pattern_edit.c ****       for (i=0; i< PATT_SIZE; i++) {
+ 274:pattern_edit.c **** //	pattern_buff[i] = random();
+ 275:pattern_edit.c **** 	
+ 276:pattern_edit.c **** 	    pattern_buff[i] = 0xFF;
+ 277:pattern_edit.c ****       }
+ 278:pattern_edit.c **** 	    dirtyflag = 1; // clearly, changed	  
+ 279:pattern_edit.c **** 	  }
+ 280:pattern_edit.c **** 	  
+ 281:pattern_edit.c ****     } else if (just_released(KEY_CHAIN) && in_runwrite_mode && PATT_LENGTH==16) {
+ 282:pattern_edit.c **** 	  /* Re-shuffle it! */
+ 283:pattern_edit.c ****       uint8_t pattern_copy[5];
+ 284:pattern_edit.c **** 	  
+ 285:pattern_edit.c **** 	  memcpy(pattern_copy, pattern_buff+11, 5);
+ 286:pattern_edit.c **** 	  memcpy(pattern_buff+11, pattern_buff+4, 2);
+ 287:pattern_edit.c **** 	  pattern_buff[13] = pattern_buff[0];
+ 288:pattern_edit.c **** 	  memcpy(pattern_buff+14, pattern_buff+9, 2);
+ 289:pattern_edit.c **** 	  pattern_buff[0] = pattern_buff[6];
+ 290:pattern_edit.c **** 	  memcpy(pattern_buff+9, pattern_buff+2, 2);
+ 291:pattern_edit.c **** 	  pattern_buff[2] = pattern_buff[8];
+ 292:pattern_edit.c **** 	  pattern_buff[8] = pattern_buff[1];
+ 293:pattern_edit.c **** 	  pattern_buff[1] = pattern_buff[7];
+ 294:pattern_edit.c **** 	  memcpy(pattern_buff+3, pattern_copy, 5);
+ 295:pattern_edit.c **** 
+ 296:pattern_edit.c ****       dirtyflag = 1; // clearly, changed
+ 297:pattern_edit.c **** 	
+ 298:pattern_edit.c ****       clear_led(LED_CHAIN);
+ 299:pattern_edit.c ****     }
+ 300:pattern_edit.c **** 
+ 301:pattern_edit.c ****     // midi sync clock ticks	
+ 302:pattern_edit.c ****     clock_ticks();
+ 303:pattern_edit.c **** 
+ 304:pattern_edit.c ****     // if they hit run/stop, or on midi stop/start,
+ 305:pattern_edit.c ****     // play the pattern in scratch! (until they hit rs again)
+ 306:pattern_edit.c **** //    if (!live_edit && in_runwrite_mode && 
+ 307:pattern_edit.c ****     if (in_runwrite_mode && 
+ 308:pattern_edit.c **** 	(((sync == INTERNAL_SYNC) && just_pressed(KEY_RS)) ||
+ 309:pattern_edit.c **** 	 ((sync == MIDI_SYNC) && (midi_cmd == MIDI_STOP)) ||
+ 310:pattern_edit.c **** 	 ((sync == DIN_SYNC) && dinsync_stopped()))) {
+ 311:pattern_edit.c ****       stop_runwrite_mode();
+ 312:pattern_edit.c **** 	  running_stepwrite = FALSE;
+ 313:pattern_edit.c **** //    } else if (!live_edit && ((sync == INTERNAL_SYNC) && just_pressed(KEY_RS)) ||
+ 314:pattern_edit.c ****     } else if (((sync == INTERNAL_SYNC) && just_pressed(KEY_RS)) ||
+ 315:pattern_edit.c **** 	       ((sync == MIDI_SYNC) && 
+ 316:pattern_edit.c **** 		((midi_cmd == MIDI_START) || (midi_cmd == MIDI_CONTINUE)) ) ) {
+ 317:pattern_edit.c ****       if (in_stepwrite_mode)
+ 318:pattern_edit.c **** 	stop_stepwrite_mode();
+ 319:pattern_edit.c ****       start_runwrite_mode();
+ 320:pattern_edit.c ****     }
+ 321:pattern_edit.c **** 
+ 322:pattern_edit.c ****     if (in_runwrite_mode || in_stepwrite_mode) {
+ 323:pattern_edit.c ****       uint8_t curr_note, index;
+ 324:pattern_edit.c ****       int8_t shift;
+ 325:pattern_edit.c **** 
+ 326:pattern_edit.c **** 	  if (running_stepwrite) index = runstepwrite_pattidx;
+ 327:pattern_edit.c ****       else index = curr_pattern_index;
+ 328:pattern_edit.c ****       curr_note = pattern_buff[index] & 0x3F;
+ 329:pattern_edit.c **** 
+ 330:pattern_edit.c **** 	  if ((curr_note != 0x3F)) {
+ 331:pattern_edit.c ****       // dont accent or slide 'done' notes, duh!
+ 332:pattern_edit.c ****       if (just_pressed(KEY_ACCENT)) {
+ 333:pattern_edit.c **** 	//putstring("accent ");
+ 334:pattern_edit.c **** 	pattern_buff[index] ^= 1 << 6;
+ 335:pattern_edit.c **** 	dirtyflag = 1; // clearly, changed
+ 336:pattern_edit.c ****       }
+ 337:pattern_edit.c ****       if (just_pressed(KEY_SLIDE)) {
+ 338:pattern_edit.c **** 	//putstring("slide ");
+ 339:pattern_edit.c ****       	pattern_buff[index] ^= 1 << 7;
+ 340:pattern_edit.c **** 	dirtyflag = 1; // clearly, changed
+ 341:pattern_edit.c ****       }
+ 342:pattern_edit.c **** 	  }
+ 343:pattern_edit.c **** 
+ 344:pattern_edit.c ****       // rests/dones are middle octave (if you hit a note key next)
+ 345:pattern_edit.c ****       if ((curr_note == 0x3F) || (curr_note == 0)) 
+ 346:pattern_edit.c **** 	shift = 0;
+ 347:pattern_edit.c ****       else if (curr_note < C2)
+ 348:pattern_edit.c **** 	shift = -1;
+ 349:pattern_edit.c ****       else if (curr_note <= C3)
+ 350:pattern_edit.c **** 	shift = 0;
+ 351:pattern_edit.c ****       else if (curr_note <= C4)
+ 352:pattern_edit.c **** 	shift = 1;
+ 353:pattern_edit.c ****       else if (curr_note <= C5)
+ 354:pattern_edit.c **** 	shift = 2;
+ 355:pattern_edit.c ****       else 
+ 356:pattern_edit.c **** 	shift = 3;
+ 357:pattern_edit.c **** 
+ 358:pattern_edit.c ****       if (just_pressed(KEY_REST)) {
+ 359:pattern_edit.c **** 	curr_note = 0;
+ 360:pattern_edit.c ****       }
+ 361:pattern_edit.c **** 
+ 362:pattern_edit.c **** 	  if ((curr_note != 0x3F) && (curr_note != 0)) {
+ 363:pattern_edit.c **** 	    if (!is_pressed(KEY_PREV) && just_pressed(KEY_UP) && shift < 2) curr_note += OCTAVE;
+ 364:pattern_edit.c **** 		if (!is_pressed(KEY_PREV) && just_pressed(KEY_DOWN) && shift > -1) curr_note -= OCTAVE;
+ 365:pattern_edit.c **** 	  }
+ 366:pattern_edit.c **** 
+ 367:pattern_edit.c **** 
+ 368:pattern_edit.c ****     if (get_lowest_notekey_just_pressed() != 0) curr_note = shift*OCTAVE;
+ 369:pattern_edit.c **** 	
+ 370:pattern_edit.c ****       if (just_pressed(KEY_C))
+ 371:pattern_edit.c **** 	curr_note += C2;
+ 372:pattern_edit.c ****       if (just_pressed(KEY_CS))
+ 373:pattern_edit.c **** 	curr_note += C2_SHARP; 
+ 374:pattern_edit.c ****       if (just_pressed(KEY_D))
+ 375:pattern_edit.c **** 	curr_note += D2;
+ 376:pattern_edit.c ****       if (just_pressed(KEY_DS))
+ 377:pattern_edit.c **** 	curr_note += D2_SHARP;
+ 378:pattern_edit.c **** 
+ 379:pattern_edit.c ****       // note shouldnt go 'above' 0x3E
+ 380:pattern_edit.c ****       if (shift < 3) {
+ 381:pattern_edit.c **** 	if (just_pressed(KEY_E))
+ 382:pattern_edit.c **** 	  curr_note += E2;
+ 383:pattern_edit.c **** 	if (just_pressed(KEY_F))
+ 384:pattern_edit.c **** 	  curr_note += F2;
+ 385:pattern_edit.c **** 	if (just_pressed(KEY_FS))
+ 386:pattern_edit.c **** 	  curr_note += F2_SHARP;
+ 387:pattern_edit.c **** 	if (just_pressed(KEY_G))
+ 388:pattern_edit.c **** 	  curr_note += G2;
+ 389:pattern_edit.c **** 	if (just_pressed(KEY_GS))
+ 390:pattern_edit.c **** 	  curr_note += G2_SHARP;
+ 391:pattern_edit.c **** 	if (just_pressed(KEY_A))
+ 392:pattern_edit.c **** 	  curr_note += A3;
+ 393:pattern_edit.c **** 	if (just_pressed(KEY_AS))
+ 394:pattern_edit.c **** 	  curr_note += A3_SHARP;
+ 395:pattern_edit.c **** 	if (just_pressed(KEY_B))
+ 396:pattern_edit.c **** 	  curr_note += B3;
+ 397:pattern_edit.c **** 	if (just_pressed(KEY_C2)) {
+ 398:pattern_edit.c **** 	  curr_note += C3;
+ 399:pattern_edit.c **** 	}
+ 400:pattern_edit.c ****       }
+ 401:pattern_edit.c **** 	
+ 402:pattern_edit.c ****       // when changing to a note from end of pattern (0xff), toss top 2 bits
+ 403:pattern_edit.c ****       if ((pattern_buff[index] != 0xFF) || (curr_note == 0x3F))
+ 404:pattern_edit.c **** 	curr_note |= (pattern_buff[index] & 0xC0);   
+ 405:pattern_edit.c **** 
+ 406:pattern_edit.c ****       if (curr_note != pattern_buff[index]) {
+ 407:pattern_edit.c **** 	    	   
+ 408:pattern_edit.c **** 	if (in_stepwrite_mode) {
+ 409:pattern_edit.c **** 	  note_off(0);
+ 410:pattern_edit.c **** 	  delay_ms(1);
+ 411:pattern_edit.c **** 	}
+ 412:pattern_edit.c **** 	// if the note changed!
+ 413:pattern_edit.c **** 	pattern_buff[index] = curr_note;
+ 414:pattern_edit.c **** 	dirtyflag = 1; // clearly, changed
+ 415:pattern_edit.c **** 
+ 416:pattern_edit.c **** 	if (in_stepwrite_mode) 	 // restrike note
+ 417:pattern_edit.c **** 	  note_on(curr_note & 0x3F,
+ 418:pattern_edit.c **** 		  0,              // no slide
+ 419:pattern_edit.c **** 		  (curr_note>>6) & 0x1);       // accent
+ 420:pattern_edit.c ****       }
+ 421:pattern_edit.c **** 
+ 422:pattern_edit.c ****       if (curr_note != 0xFF) {
+ 423:pattern_edit.c **** 	set_note_led(curr_note);
+ 424:pattern_edit.c **** 	if (dirtyflag)
+ 425:pattern_edit.c **** 	  set_led_blink(LED_DONE);
+ 426:pattern_edit.c **** 	else
+ 427:pattern_edit.c **** 	  clear_led(LED_DONE);
+ 428:pattern_edit.c ****       } else {
+ 429:pattern_edit.c **** 	clear_note_leds();
+ 430:pattern_edit.c **** 	clear_led_blink(LED_DONE);
+ 431:pattern_edit.c **** 	clear_led_blink(LED_UP);
+ 432:pattern_edit.c **** 	set_led(LED_DONE);
+ 433:pattern_edit.c ****       }
+ 434:pattern_edit.c ****     }
+ 435:pattern_edit.c **** 
+ 436:pattern_edit.c **** /* Backwards rotating... */
+ 437:pattern_edit.c **** 	if (just_pressed(KEY_PREV) && is_pressed(KEY_NEXT)) {
+ 438:pattern_edit.c **** 	  uint8_t i = 0;
+ 439:pattern_edit.c **** 	  uint8_t first = pattern_buff[0];
+ 440:pattern_edit.c **** 	  while (i < PATT_LENGTH-1 && pattern_buff[i+1] != 0xFF) {
+ 441:pattern_edit.c **** 	    pattern_buff[i] = pattern_buff[i+1];
+ 442:pattern_edit.c **** 	    i++;
+ 443:pattern_edit.c **** 	  }
+ 444:pattern_edit.c **** 	  pattern_buff[i] = first;
+ 445:pattern_edit.c **** 	  dirtyflag = 1;
+ 446:pattern_edit.c **** 	}
+ 447:pattern_edit.c **** 	else 
+ 448:pattern_edit.c **** 	
+ 449:pattern_edit.c **** 	if (just_pressed(KEY_NEXT) && is_pressed(KEY_PREV)) {
+ 450:pattern_edit.c **** 	  uint8_t i  = 0;
+ 451:pattern_edit.c **** 	  uint8_t next;
+ 452:pattern_edit.c **** 	  uint8_t prev = pattern_buff[0];
+ 453:pattern_edit.c **** 	  while (i < PATT_LENGTH-1 && pattern_buff[i+1] != 0xFF) {
+ 454:pattern_edit.c **** 		next = pattern_buff[i+1];
+ 455:pattern_edit.c **** 	    pattern_buff[++i] = prev;
+ 456:pattern_edit.c **** 		prev=next;
+ 457:pattern_edit.c **** 	  }
+ 458:pattern_edit.c **** 	  pattern_buff[0] = next;
+ 459:pattern_edit.c **** 	  dirtyflag = 1;
+ 460:pattern_edit.c **** 	}
+ 461:pattern_edit.c ****     
+ 462:pattern_edit.c **** 	// transpose whole pattern by semitones up/down 110109
+ 463:pattern_edit.c ****     else 
+ 464:pattern_edit.c ****     if (just_pressed(KEY_UP) && is_pressed(KEY_PREV)) {
+ 465:pattern_edit.c ****         uint8_t tu = 0;
+ 466:pattern_edit.c ****         while(tu < PATT_LENGTH && pattern_buff[tu] != 0xFF) {
+ 467:pattern_edit.c ****             if (pattern_buff[tu] != 0x3E) pattern_buff[tu]++;
+ 468:pattern_edit.c ****             tu++;
+ 469:pattern_edit.c ****         }
+ 470:pattern_edit.c ****         dirtyflag = 1;
+ 471:pattern_edit.c ****     }
+ 472:pattern_edit.c ****     else 
+ 473:pattern_edit.c ****     if (just_pressed(KEY_DOWN) && is_pressed(KEY_PREV)) {
+ 474:pattern_edit.c ****         uint8_t td = 0;
+ 475:pattern_edit.c ****         while(td < PATT_LENGTH && pattern_buff[td] != 0xFF) {
+ 476:pattern_edit.c ****             if (pattern_buff[td] != 0x0B) pattern_buff[td]--;
+ 477:pattern_edit.c ****             td++;
+ 478:pattern_edit.c ****         }
+ 479:pattern_edit.c ****         dirtyflag = 1;
+ 480:pattern_edit.c ****     }    
+ 481:pattern_edit.c ****     
+ 482:pattern_edit.c ****     
+ 483:pattern_edit.c ****     // if in step mode & they press 'next' or 'prev, then step fwd/back, otherwise start stepmode
+ 484:pattern_edit.c ****     else 
+ 485:pattern_edit.c **** 	if (just_pressed(KEY_NEXT) || just_pressed(KEY_PREV) || note_entered) {
+ 486:pattern_edit.c ****       uint8_t prev_note = curr_note;
+ 487:pattern_edit.c **** 
+ 488:pattern_edit.c ****       if (in_stepwrite_mode) {
+ 489:pattern_edit.c **** 	// turn off the last note
+ 490:pattern_edit.c **** 	note_off((curr_note >> 7) & 0x1);
+ 491:pattern_edit.c **** 	delay_ms(1);
+ 492:pattern_edit.c **** 	//putstring("step");
+ 493:pattern_edit.c **** 
+ 494:pattern_edit.c **** 
+ 495:pattern_edit.c **** 	if (just_pressed(KEY_PREV)) { 
+ 496:pattern_edit.c **** 	  // get previous note from pattern
+ 497:pattern_edit.c **** 	  if (curr_pattern_index == 0) {
+ 498:pattern_edit.c **** 	    // search thru the buffer -forward- to find the EOP byte
+ 499:pattern_edit.c **** 	    while ((curr_pattern_index < PATT_LENGTH-1) && 
+ 500:pattern_edit.c **** 		   (pattern_buff[curr_pattern_index] != END_OF_PATTERN))
+ 501:pattern_edit.c **** 	      curr_pattern_index++;
+ 502:pattern_edit.c **** 	  } else {
+ 503:pattern_edit.c **** 	    curr_pattern_index--;
+ 504:pattern_edit.c **** 	  }
+ 505:pattern_edit.c **** 	} else {
+ 506:pattern_edit.c **** 	  // get next note from pattern
+ 507:pattern_edit.c **** 	  if (((curr_pattern_index+1) >= PATT_LENGTH) ||
+ 508:pattern_edit.c **** 	      (pattern_buff[curr_pattern_index] == END_OF_PATTERN))
+ 509:pattern_edit.c **** 	    curr_pattern_index = 0;
+ 510:pattern_edit.c **** 	  else
+ 511:pattern_edit.c **** 	    curr_pattern_index++;
+ 512:pattern_edit.c **** 	}
+ 513:pattern_edit.c **** 
+ 514:pattern_edit.c **** 
+ 515:pattern_edit.c **** 	clear_bank_leds();
+ 516:pattern_edit.c **** 	set_bank_led(curr_pattern_index);
+ 517:pattern_edit.c **** 
+ 518:pattern_edit.c **** 
+ 519:pattern_edit.c **** 	//putstring("i = "); putnum_ud(curr_pattern_index); putstring("\n\r");
+ 520:pattern_edit.c **** 	curr_note = pattern_buff[curr_pattern_index];
+ 521:pattern_edit.c **** 
+ 522:pattern_edit.c **** 	if (curr_note == 0xFF) {
+ 523:pattern_edit.c **** 	  clear_led(LED_ACCENT);
+ 524:pattern_edit.c **** 	  clear_led(LED_SLIDE);
+ 525:pattern_edit.c **** 	  set_led(LED_DONE);
+ 526:pattern_edit.c **** 	  clear_led_blink(LED_DONE);
+ 527:pattern_edit.c **** 	} else {
+ 528:pattern_edit.c **** 	  clear_led(LED_DONE);
+ 529:pattern_edit.c **** 	  if (dirtyflag)
+ 530:pattern_edit.c **** 	    set_led_blink(LED_DONE);
+ 531:pattern_edit.c **** 
+ 532:pattern_edit.c **** 	  note_on(curr_note & 0x3F,
+ 533:pattern_edit.c **** 		  prev_note >> 7,              // slide
+ 534:pattern_edit.c **** 		  (curr_note>>6) & 0x1);       // accent
+ 535:pattern_edit.c **** 	  
+ 536:pattern_edit.c **** 	  set_note_led(curr_note);
+ 537:pattern_edit.c **** 	}
+ 538:pattern_edit.c ****       } else {
+ 539:pattern_edit.c **** 	    if (just_pressed(KEY_NEXT) || note_entered) {
+ 540:pattern_edit.c **** 	      if (!in_runwrite_mode) {
+ 541:pattern_edit.c **** 		    start_stepwrite_mode();
+ 542:pattern_edit.c **** 
+ 543:pattern_edit.c **** 		    curr_pattern_index = 0;
+ 544:pattern_edit.c **** 
+ 545:pattern_edit.c **** 		    curr_note = pattern_buff[curr_pattern_index];
+ 546:pattern_edit.c **** 		    if (curr_note != 0xFF) {
+ 547:pattern_edit.c **** 			  note_on(curr_note & 0x3F,
+ 548:pattern_edit.c **** 					  0,              // no slide on first note
+ 549:pattern_edit.c **** 					  (curr_note>>6) & 0x1);       // accent
+ 550:pattern_edit.c **** 	  
+ 551:pattern_edit.c **** 			  set_note_led(curr_note);
+ 552:pattern_edit.c **** 		    }
+ 553:pattern_edit.c **** 		  }
+ 554:pattern_edit.c **** 		  else { 
+ 555:pattern_edit.c **** 		    if (!running_stepwrite) {
+ 556:pattern_edit.c **** 		      running_stepwrite = TRUE;
+ 557:pattern_edit.c **** 			  runstepwrite_pattidx = 0;
+ 558:pattern_edit.c **** 			}
+ 559:pattern_edit.c **** 			else {
+ 560:pattern_edit.c **** 	  if (((runstepwrite_pattidx+1) >= PATT_LENGTH) ||
+ 561:pattern_edit.c **** 	      (pattern_buff[runstepwrite_pattidx] == END_OF_PATTERN)) {
+ 562:pattern_edit.c **** 		running_stepwrite = FALSE;
+ 563:pattern_edit.c **** 	    runstepwrite_pattidx = 0;
+ 564:pattern_edit.c **** 		}
+ 565:pattern_edit.c **** 	  else
+ 566:pattern_edit.c **** 	    runstepwrite_pattidx++;
+ 567:pattern_edit.c **** 			}
+ 568:pattern_edit.c **** 		  }
+ 569:pattern_edit.c ****         }
+ 570:pattern_edit.c **** 		else if (running_stepwrite) {
+ 571:pattern_edit.c **** 	  // get previous note from pattern
+ 572:pattern_edit.c **** 	  if (runstepwrite_pattidx == 0) {
+ 573:pattern_edit.c **** 	    // search thru the buffer -forward- to find the EOP byte
+ 574:pattern_edit.c **** 	    while ((runstepwrite_pattidx < PATT_LENGTH-1) && 
+ 575:pattern_edit.c **** 		   (pattern_buff[runstepwrite_pattidx] != END_OF_PATTERN))
+ 576:pattern_edit.c **** 	      runstepwrite_pattidx++;
+ 577:pattern_edit.c **** 	  } else {
+ 578:pattern_edit.c **** 	    runstepwrite_pattidx--;
+ 579:pattern_edit.c **** 	  }
+ 580:pattern_edit.c **** 		
+ 581:pattern_edit.c **** 		}
+ 582:pattern_edit.c **** 	  }
+ 583:pattern_edit.c **** 	  note_entered = FALSE;
+ 584:pattern_edit.c ****     }
+ 585:pattern_edit.c ****       	
+ 586:pattern_edit.c ****     // if they hit done, save buffer to memory
+ 587:pattern_edit.c ****     if (just_pressed(KEY_DONE)) {
+ 588:pattern_edit.c ****       if (in_stepwrite_mode) {
+ 589:pattern_edit.c **** 	
+ 590:pattern_edit.c **** 	if (curr_pattern_index+1 < PATT_LENGTH)
+ 591:pattern_edit.c **** 	  pattern_buff[curr_pattern_index+1] = 0xff;
+ 592:pattern_edit.c **** 
+ 593:pattern_edit.c **** 	stop_stepwrite_mode();
+ 594:pattern_edit.c ****       }
+ 595:pattern_edit.c **** 	  running_stepwrite = FALSE;
+ 596:pattern_edit.c **** 	  set_led_blink(LED_DONE);
+ 597:pattern_edit.c **** 	  while (1) {
+ 598:pattern_edit.c **** 	    clock_ticks();
+ 599:pattern_edit.c **** 	    read_switches();
+ 600:pattern_edit.c **** 		patt_bank = bank;
+ 601:pattern_edit.c **** 		i = get_lowest_numkey_pressed();
+ 602:pattern_edit.c **** 		if (i != 0) patt_location = i - 1;
+ 603:pattern_edit.c **** 		if (just_pressed(KEY_DONE)) break;
+ 604:pattern_edit.c **** 	  }
+ 605:pattern_edit.c ****       write_pattern(patt_bank, patt_location);
+ 606:pattern_edit.c ****       dirtyflag = 0; // not dirty anymore, saved!
+ 607:pattern_edit.c ****       clear_led_blink(LED_DONE);
+ 608:pattern_edit.c ****     }
+ 609:pattern_edit.c **** 
+ 610:pattern_edit.c **** 
+ 611:pattern_edit.c **** }
+ 612:pattern_edit.c **** 
+ 613:pattern_edit.c **** void edit_live() {
+ 614:pattern_edit.c ****   in_runwrite_mode = 1;
+ 615:pattern_edit.c ****   edit_pattern();
+ 616:pattern_edit.c **** }
+ 617:pattern_edit.c **** 
+ 618:pattern_edit.c **** void start_runwrite_mode() {
+ 323               		.loc 1 618 28 is_stmt 1 view -0
+ 324               		.cfi_startproc
+ 325               	/* prologue: function */
+ 326               	/* frame size = 0 */
+ 327               	/* stack size = 0 */
+ 328               	.L__stack_usage = 0
+ 619:pattern_edit.c ****   //putstring("start runwrite\n\r");
+ 620:pattern_edit.c ****   curr_pattern_index = 0;
+ 329               		.loc 1 620 3 view .LVU80
+ 330               		.loc 1 620 22 is_stmt 0 view .LVU81
+ 331 013e 1092 0000 		sts curr_pattern_index,__zero_reg__
+ 621:pattern_edit.c ****   in_runwrite_mode = 1;
+ 332               		.loc 1 621 3 is_stmt 1 view .LVU82
+ 333               		.loc 1 621 20 is_stmt 0 view .LVU83
+ 334 0142 81E0      		ldi r24,lo8(1)
+ 335 0144 8093 0000 		sts in_runwrite_mode,r24
+ 622:pattern_edit.c ****   set_led(LED_RS); 
+ 336               		.loc 1 622 3 is_stmt 1 view .LVU84
+ 337 0148 81E2      		ldi r24,lo8(33)
+ 338 014a 0E94 0000 		call set_led
+ 339               	.LVL30:
+ 623:pattern_edit.c ****   note_off(0);
+ 340               		.loc 1 623 3 view .LVU85
+ 341 014e 80E0      		ldi r24,0
+ 342 0150 0E94 0000 		call note_off
+ 343               	.LVL31:
+ 624:pattern_edit.c ****   if (sync == INTERNAL_SYNC)
+ 344               		.loc 1 624 3 view .LVU86
+ 345               		.loc 1 624 6 is_stmt 0 view .LVU87
+ 346 0154 8091 0000 		lds r24,sync
+ 347 0158 8111      		cpse r24,__zero_reg__
+ 348 015a 00C0      		rjmp .L27
+ 349               	.L28:
+ 625:pattern_edit.c ****     while (note_counter & 0x1);  // wait for the tempo interrupt to be ready for a note-on
+ 350               		.loc 1 625 31 is_stmt 1 discriminator 1 view .LVU88
+ 351               		.loc 1 625 25 is_stmt 0 discriminator 1 view .LVU89
+ 352 015c 8091 0000 		lds r24,note_counter
+ 353               		.loc 1 625 11 discriminator 1 view .LVU90
+ 354 0160 80FD      		sbrc r24,0
+ 355 0162 00C0      		rjmp .L28
+ 356               	.L27:
+ 626:pattern_edit.c ****   play_loaded_pattern = 1;
+ 357               		.loc 1 626 3 is_stmt 1 view .LVU91
+ 358               		.loc 1 626 23 is_stmt 0 view .LVU92
+ 359 0164 81E0      		ldi r24,lo8(1)
+ 360 0166 8093 0000 		sts play_loaded_pattern,r24
+ 627:pattern_edit.c ****   playing = TRUE;
+ 361               		.loc 1 627 3 is_stmt 1 view .LVU93
+ 362               		.loc 1 627 11 is_stmt 0 view .LVU94
+ 363 016a 8093 0000 		sts playing,r24
+ 628:pattern_edit.c ****   midi_putchar(MIDI_START);
+ 364               		.loc 1 628 3 is_stmt 1 view .LVU95
+ 365 016e 8AEF      		ldi r24,lo8(-6)
+ 366 0170 0E94 0000 		call midi_putchar
+ 367               	.LVL32:
+ 368               	/* epilogue start */
+ 629:pattern_edit.c **** }
+ 369               		.loc 1 629 1 is_stmt 0 view .LVU96
+ 370 0174 0895      		ret
+ 371               		.cfi_endproc
+ 372               	.LFE7:
+ 374               	.global	clear_leds_and_note_off
+ 376               	clear_leds_and_note_off:
+ 377               	.LFB8:
+ 630:pattern_edit.c **** 
+ 631:pattern_edit.c **** void clear_leds_and_note_off()
+ 632:pattern_edit.c **** {
+ 378               		.loc 1 632 1 is_stmt 1 view -0
+ 379               		.cfi_startproc
+ 380               	/* prologue: function */
+ 381               	/* frame size = 0 */
+ 382               	/* stack size = 0 */
+ 383               	.L__stack_usage = 0
+ 633:pattern_edit.c ****   clear_blinking_leds();
+ 384               		.loc 1 633 3 view .LVU98
+ 385 0176 0E94 0000 		call clear_blinking_leds
+ 386               	.LVL33:
+ 634:pattern_edit.c ****   clear_key_leds();
+ 387               		.loc 1 634 3 view .LVU99
+ 388 017a 0E94 0000 		call clear_key_leds
+ 389               	.LVL34:
+ 635:pattern_edit.c ****   clear_bank_leds();
+ 390               		.loc 1 635 3 view .LVU100
+ 391 017e 0E94 0000 		call clear_bank_leds
+ 392               	.LVL35:
+ 636:pattern_edit.c ****   set_bank_led(bank);
+ 393               		.loc 1 636 3 view .LVU101
+ 394 0182 8091 0000 		lds r24,bank
+ 395 0186 0E94 0000 		call set_bank_led
+ 396               	.LVL36:
+ 637:pattern_edit.c ****   note_off(0);
+ 397               		.loc 1 637 3 view .LVU102
+ 398 018a 80E0      		ldi r24,0
+ 399 018c 0E94 0000 		call note_off
+ 400               	.LVL37:
+ 401               	/* epilogue start */
+ 638:pattern_edit.c **** }
+ 402               		.loc 1 638 1 is_stmt 0 view .LVU103
+ 403 0190 0895      		ret
+ 404               		.cfi_endproc
+ 405               	.LFE8:
+ 407               	.global	stop_runwrite_mode
+ 409               	stop_runwrite_mode:
+ 410               	.LFB9:
+ 639:pattern_edit.c **** 
+ 640:pattern_edit.c **** void stop_runwrite_mode() {
+ 411               		.loc 1 640 27 is_stmt 1 view -0
+ 412               		.cfi_startproc
+ 413               	/* prologue: function */
+ 414               	/* frame size = 0 */
+ 415               	/* stack size = 0 */
+ 416               	.L__stack_usage = 0
+ 641:pattern_edit.c ****   //putstring("stop runwrite\n\r");
+ 642:pattern_edit.c ****   play_loaded_pattern = 0;
+ 417               		.loc 1 642 3 view .LVU105
+ 418               		.loc 1 642 23 is_stmt 0 view .LVU106
+ 419 0192 1092 0000 		sts play_loaded_pattern,__zero_reg__
+ 643:pattern_edit.c ****   clear_leds_and_note_off();
+ 420               		.loc 1 643 3 is_stmt 1 view .LVU107
+ 421 0196 0E94 0000 		call clear_leds_and_note_off
+ 422               	.LVL38:
+ 644:pattern_edit.c ****   in_runwrite_mode = 0;
+ 423               		.loc 1 644 3 view .LVU108
+ 424               		.loc 1 644 20 is_stmt 0 view .LVU109
+ 425 019a 1092 0000 		sts in_runwrite_mode,__zero_reg__
+ 645:pattern_edit.c ****   clear_led(LED_RS);
+ 426               		.loc 1 645 3 is_stmt 1 view .LVU110
+ 427 019e 81E2      		ldi r24,lo8(33)
+ 428 01a0 0E94 0000 		call clear_led
+ 429               	.LVL39:
+ 646:pattern_edit.c ****   playing = FALSE;
+ 430               		.loc 1 646 3 view .LVU111
+ 431               		.loc 1 646 11 is_stmt 0 view .LVU112
+ 432 01a4 1092 0000 		sts playing,__zero_reg__
+ 647:pattern_edit.c ****   midi_putchar(MIDI_STOP);
+ 433               		.loc 1 647 3 is_stmt 1 view .LVU113
+ 434 01a8 8CEF      		ldi r24,lo8(-4)
+ 435 01aa 0E94 0000 		call midi_putchar
+ 436               	.LVL40:
+ 437               	/* epilogue start */
+ 648:pattern_edit.c **** }
+ 438               		.loc 1 648 1 is_stmt 0 view .LVU114
+ 439 01ae 0895      		ret
+ 440               		.cfi_endproc
+ 441               	.LFE9:
+ 443               	.global	start_stepwrite_mode
+ 445               	start_stepwrite_mode:
+ 446               	.LFB10:
+ 649:pattern_edit.c **** 
+ 650:pattern_edit.c **** void start_stepwrite_mode() {
+ 447               		.loc 1 650 29 is_stmt 1 view -0
+ 448               		.cfi_startproc
+ 449               	/* prologue: function */
+ 450               	/* frame size = 0 */
+ 451               	/* stack size = 0 */
+ 452               	.L__stack_usage = 0
+ 651:pattern_edit.c ****   //putstring("start stepwrite\n\r");
+ 652:pattern_edit.c ****   in_stepwrite_mode = 1;
+ 453               		.loc 1 652 3 view .LVU116
+ 454               		.loc 1 652 21 is_stmt 0 view .LVU117
+ 455 01b0 81E0      		ldi r24,lo8(1)
+ 456 01b2 8093 0000 		sts in_stepwrite_mode,r24
+ 653:pattern_edit.c ****   set_led(LED_NEXT); 
+ 457               		.loc 1 653 3 is_stmt 1 view .LVU118
+ 458 01b6 84E2      		ldi r24,lo8(36)
+ 459 01b8 0E94 0000 		call set_led
+ 460               	.LVL41:
+ 654:pattern_edit.c ****   clear_bank_leds();
+ 461               		.loc 1 654 3 view .LVU119
+ 462 01bc 0E94 0000 		call clear_bank_leds
+ 463               	.LVL42:
+ 655:pattern_edit.c ****   set_bank_led(0);
+ 464               		.loc 1 655 3 view .LVU120
+ 465 01c0 80E0      		ldi r24,0
+ 466 01c2 0E94 0000 		call set_bank_led
+ 467               	.LVL43:
+ 656:pattern_edit.c ****   note_off(0);
+ 468               		.loc 1 656 3 view .LVU121
+ 469 01c6 80E0      		ldi r24,0
+ 470 01c8 0E94 0000 		call note_off
+ 471               	.LVL44:
+ 472               	/* epilogue start */
+ 657:pattern_edit.c **** }
+ 473               		.loc 1 657 1 is_stmt 0 view .LVU122
+ 474 01cc 0895      		ret
+ 475               		.cfi_endproc
+ 476               	.LFE10:
+ 478               	.global	stop_stepwrite_mode
+ 480               	stop_stepwrite_mode:
+ 481               	.LFB11:
+ 658:pattern_edit.c **** 
+ 659:pattern_edit.c **** void stop_stepwrite_mode() {
+ 482               		.loc 1 659 28 is_stmt 1 view -0
+ 483               		.cfi_startproc
+ 484               	/* prologue: function */
+ 485               	/* frame size = 0 */
+ 486               	/* stack size = 0 */
+ 487               	.L__stack_usage = 0
+ 660:pattern_edit.c ****   //putstring("stop stepwrite\n\r");
+ 661:pattern_edit.c ****   in_stepwrite_mode = 0;
+ 488               		.loc 1 661 3 view .LVU124
+ 489               		.loc 1 661 21 is_stmt 0 view .LVU125
+ 490 01ce 1092 0000 		sts in_stepwrite_mode,__zero_reg__
+ 662:pattern_edit.c ****   clear_led(LED_NEXT); 
+ 491               		.loc 1 662 3 is_stmt 1 view .LVU126
+ 492 01d2 84E2      		ldi r24,lo8(36)
+ 493 01d4 0E94 0000 		call clear_led
+ 494               	.LVL45:
+ 663:pattern_edit.c ****   dirtyflag = 0;
+ 495               		.loc 1 663 3 view .LVU127
+ 496               		.loc 1 663 13 is_stmt 0 view .LVU128
+ 497 01d8 1092 0000 		sts dirtyflag,__zero_reg__
+ 664:pattern_edit.c ****   clear_led(LED_DONE);
+ 498               		.loc 1 664 3 is_stmt 1 view .LVU129
+ 499 01dc 80E0      		ldi r24,0
+ 500 01de 0E94 0000 		call clear_led
+ 501               	.LVL46:
+ 665:pattern_edit.c ****   clear_leds_and_note_off();
+ 502               		.loc 1 665 3 view .LVU130
+ 503 01e2 0E94 0000 		call clear_leds_and_note_off
+ 504               	.LVL47:
+ 505               	/* epilogue start */
+ 666:pattern_edit.c **** }
+ 506               		.loc 1 666 1 is_stmt 0 view .LVU131
+ 507 01e6 0895      		ret
+ 508               		.cfi_endproc
+ 509               	.LFE11:
+ 511               	.global	edit_pattern
+ 513               	edit_pattern:
+ 514               	.LFB5:
+ 251:pattern_edit.c ****     uint8_t i;//, midi_cmd;080602
+ 515               		.loc 1 251 21 is_stmt 1 view -0
+ 516               		.cfi_startproc
+ 517 01e8 A5E0      		ldi r26,lo8(5)
+ 518 01ea B0E0      		ldi r27,0
+ 519 01ec E0E0      		ldi r30,lo8(gs(1f))
+ 520 01ee F0E0      		ldi r31,hi8(gs(1f))
+ 521 01f0 0C94 0000 		jmp __prologue_saves__+((18 - 7) * 2)
+ 522               	1:
+ 523               		.cfi_offset 13, -2
+ 524               		.cfi_offset 14, -3
+ 525               		.cfi_offset 15, -4
+ 526               		.cfi_offset 16, -5
+ 527               		.cfi_offset 17, -6
+ 528               		.cfi_offset 28, -7
+ 529               		.cfi_offset 29, -8
+ 530               		.cfi_def_cfa 28, 14
+ 531               	/* prologue: function */
+ 532               	/* frame size = 5 */
+ 533               	/* stack size = 12 */
+ 534               	.L__stack_usage = 12
+ 252:pattern_edit.c **** 	
+ 535               		.loc 1 252 5 view .LVU133
+ 255:pattern_edit.c **** 
+ 536               		.loc 1 255 2 view .LVU134
+ 537               	.LVL48:
+ 257:pattern_edit.c ****         if (PATT_LENGTH == 15) {
+ 538               		.loc 1 257 2 view .LVU135
+ 257:pattern_edit.c ****         if (PATT_LENGTH == 15) {
+ 539               		.loc 1 257 6 is_stmt 0 view .LVU136
+ 540 01f4 82E0      		ldi r24,lo8(2)
+ 541 01f6 0E94 0000 		call just_pressed
+ 542               	.LVL49:
+ 257:pattern_edit.c ****         if (PATT_LENGTH == 15) {
+ 543               		.loc 1 257 5 view .LVU137
+ 544 01fa 8823      		tst r24
+ 545 01fc 01F0      		breq .L36
+ 257:pattern_edit.c ****         if (PATT_LENGTH == 15) {
+ 546               		.loc 1 257 34 discriminator 1 view .LVU138
+ 547 01fe 80E0      		ldi r24,0
+ 548 0200 0E94 0000 		call is_pressed
+ 549               	.LVL50:
+ 257:pattern_edit.c ****         if (PATT_LENGTH == 15) {
+ 550               		.loc 1 257 30 discriminator 1 view .LVU139
+ 551 0204 8111      		cpse r24,__zero_reg__
+ 552 0206 00C0      		rjmp .L36
+ 258:pattern_edit.c ****             PATT_LENGTH = 16;
+ 553               		.loc 1 258 9 is_stmt 1 view .LVU140
+ 258:pattern_edit.c ****             PATT_LENGTH = 16;
+ 554               		.loc 1 258 12 is_stmt 0 view .LVU141
+ 555 0208 8091 0000 		lds r24,PATT_LENGTH
+ 556 020c 8F30      		cpi r24,lo8(15)
+ 557 020e 01F0      		breq .+2
+ 558 0210 00C0      		rjmp .L38
+ 259:pattern_edit.c ****             pattern_buff[PATT_LENGTH-1] = 0xFF;
+ 559               		.loc 1 259 13 is_stmt 1 view .LVU142
+ 259:pattern_edit.c ****             pattern_buff[PATT_LENGTH-1] = 0xFF;
+ 560               		.loc 1 259 25 is_stmt 0 view .LVU143
+ 561 0212 80E1      		ldi r24,lo8(16)
+ 562 0214 8093 0000 		sts PATT_LENGTH,r24
+ 260:pattern_edit.c ****         } else {
+ 563               		.loc 1 260 13 is_stmt 1 view .LVU144
+ 260:pattern_edit.c ****         } else {
+ 564               		.loc 1 260 41 is_stmt 0 view .LVU145
+ 565 0218 8FEF      		ldi r24,lo8(-1)
+ 566               	.L300:
+ 263:pattern_edit.c ****         }
+ 567               		.loc 1 263 39 view .LVU146
+ 568 021a 8093 0000 		sts pattern_buff+15,r24
+ 265:pattern_edit.c ****     }
+ 569               		.loc 1 265 9 is_stmt 1 view .LVU147
+ 265:pattern_edit.c ****     }
+ 570               		.loc 1 265 19 is_stmt 0 view .LVU148
+ 571 021e 81E0      		ldi r24,lo8(1)
+ 572 0220 8093 0000 		sts dirtyflag,r24
+ 573               	.L36:
+ 269:pattern_edit.c ****       set_led(LED_CHAIN);
+ 574               		.loc 1 269 5 is_stmt 1 view .LVU149
+ 269:pattern_edit.c ****       set_led(LED_CHAIN);
+ 575               		.loc 1 269 9 is_stmt 0 view .LVU150
+ 576 0224 80E0      		ldi r24,0
+ 577 0226 0E94 0000 		call is_pressed
+ 578               	.LVL51:
+ 269:pattern_edit.c ****       set_led(LED_CHAIN);
+ 579               		.loc 1 269 8 view .LVU151
+ 580 022a 8823      		tst r24
+ 581 022c 01F4      		brne .+2
+ 582 022e 00C0      		rjmp .L40
+ 269:pattern_edit.c ****       set_led(LED_CHAIN);
+ 583               		.loc 1 269 31 discriminator 1 view .LVU152
+ 584 0230 8091 0000 		lds r24,in_runwrite_mode
+ 585 0234 8823      		tst r24
+ 586 0236 01F4      		brne .+2
+ 587 0238 00C0      		rjmp .L40
+ 270:pattern_edit.c **** 	  
+ 588               		.loc 1 270 7 is_stmt 1 view .LVU153
+ 589 023a 82E2      		ldi r24,lo8(34)
+ 590 023c 0E94 0000 		call set_led
+ 591               	.LVL52:
+ 272:pattern_edit.c ****       for (i=0; i< PATT_SIZE; i++) {
+ 592               		.loc 1 272 4 view .LVU154
+ 272:pattern_edit.c ****       for (i=0; i< PATT_SIZE; i++) {
+ 593               		.loc 1 272 8 is_stmt 0 view .LVU155
+ 594 0240 82E0      		ldi r24,lo8(2)
+ 595 0242 0E94 0000 		call just_pressed
+ 596               	.LVL53:
+ 272:pattern_edit.c ****       for (i=0; i< PATT_SIZE; i++) {
+ 597               		.loc 1 272 7 view .LVU156
+ 598 0246 8823      		tst r24
+ 599 0248 01F0      		breq .L42
+ 600 024a 90E0      		ldi r25,0
+ 601 024c 80E0      		ldi r24,0
+ 276:pattern_edit.c ****       }
+ 602               		.loc 1 276 22 view .LVU157
+ 603 024e 2FEF      		ldi r18,lo8(-1)
+ 604               	.L41:
+ 605               	.LVL54:
+ 276:pattern_edit.c ****       }
+ 606               		.loc 1 276 6 is_stmt 1 discriminator 3 view .LVU158
+ 276:pattern_edit.c ****       }
+ 607               		.loc 1 276 22 is_stmt 0 discriminator 3 view .LVU159
+ 608 0250 FC01      		movw r30,r24
+ 609 0252 E050      		subi r30,lo8(-(pattern_buff))
+ 610 0254 F040      		sbci r31,hi8(-(pattern_buff))
+ 611 0256 2083      		st Z,r18
+ 612               	.LVL55:
+ 276:pattern_edit.c ****       }
+ 613               		.loc 1 276 22 discriminator 3 view .LVU160
+ 614 0258 0196      		adiw r24,1
+ 615               	.LVL56:
+ 273:pattern_edit.c **** //	pattern_buff[i] = random();
+ 616               		.loc 1 273 7 discriminator 3 view .LVU161
+ 617 025a 8031      		cpi r24,16
+ 618 025c 9105      		cpc r25,__zero_reg__
+ 619 025e 01F4      		brne .L41
+ 278:pattern_edit.c **** 	  }
+ 620               		.loc 1 278 6 is_stmt 1 view .LVU162
+ 278:pattern_edit.c **** 	  }
+ 621               		.loc 1 278 16 is_stmt 0 view .LVU163
+ 622 0260 81E0      		ldi r24,lo8(1)
+ 623               	.LVL57:
+ 278:pattern_edit.c **** 	  }
+ 624               		.loc 1 278 16 view .LVU164
+ 625 0262 8093 0000 		sts dirtyflag,r24
+ 626               	.LVL58:
+ 627               	.L42:
+ 302:pattern_edit.c **** 
+ 628               		.loc 1 302 5 is_stmt 1 view .LVU165
+ 629 0266 0E94 0000 		call clock_ticks
+ 630               	.LVL59:
+ 307:pattern_edit.c **** 	(((sync == INTERNAL_SYNC) && just_pressed(KEY_RS)) ||
+ 631               		.loc 1 307 5 view .LVU166
+ 307:pattern_edit.c **** 	(((sync == INTERNAL_SYNC) && just_pressed(KEY_RS)) ||
+ 632               		.loc 1 307 8 is_stmt 0 view .LVU167
+ 633 026a 8091 0000 		lds r24,in_runwrite_mode
+ 634 026e 8823      		tst r24
+ 635 0270 01F0      		breq .L44
+ 307:pattern_edit.c **** 	(((sync == INTERNAL_SYNC) && just_pressed(KEY_RS)) ||
+ 636               		.loc 1 307 26 discriminator 1 view .LVU168
+ 637 0272 8091 0000 		lds r24,sync
+ 638 0276 8823      		tst r24
+ 639 0278 01F4      		brne .+2
+ 640 027a 00C0      		rjmp .L45
+ 641               	.L48:
+ 309:pattern_edit.c **** 	 ((sync == DIN_SYNC) && dinsync_stopped()))) {
+ 642               		.loc 1 309 10 view .LVU169
+ 643 027c 8091 0000 		lds r24,sync
+ 308:pattern_edit.c **** 	 ((sync == MIDI_SYNC) && (midi_cmd == MIDI_STOP)) ||
+ 644               		.loc 1 308 53 view .LVU170
+ 645 0280 8230      		cpi r24,lo8(2)
+ 646 0282 01F4      		brne .+2
+ 647 0284 00C0      		rjmp .L46
+ 309:pattern_edit.c **** 	 ((sync == DIN_SYNC) && dinsync_stopped()))) {
+ 648               		.loc 1 309 52 discriminator 1 view .LVU171
+ 649 0286 8130      		cpi r24,lo8(1)
+ 650 0288 01F4      		brne .L44
+ 310:pattern_edit.c ****       stop_runwrite_mode();
+ 651               		.loc 1 310 26 view .LVU172
+ 652 028a 0E94 0000 		call dinsync_stopped
+ 653               	.LVL60:
+ 310:pattern_edit.c ****       stop_runwrite_mode();
+ 654               		.loc 1 310 23 view .LVU173
+ 655 028e 8111      		cpse r24,__zero_reg__
+ 656 0290 00C0      		rjmp .L50
+ 657               	.L44:
+ 314:pattern_edit.c **** 	       ((sync == MIDI_SYNC) && 
+ 658               		.loc 1 314 12 is_stmt 1 view .LVU174
+ 314:pattern_edit.c **** 	       ((sync == MIDI_SYNC) && 
+ 659               		.loc 1 314 15 is_stmt 0 view .LVU175
+ 660 0292 8091 0000 		lds r24,sync
+ 661 0296 8111      		cpse r24,__zero_reg__
+ 662 0298 00C0      		rjmp .L52
+ 314:pattern_edit.c **** 	       ((sync == MIDI_SYNC) && 
+ 663               		.loc 1 314 44 discriminator 1 view .LVU176
+ 664 029a 81E0      		ldi r24,lo8(1)
+ 665 029c 0E94 0000 		call just_pressed
+ 666               	.LVL61:
+ 314:pattern_edit.c **** 	       ((sync == MIDI_SYNC) && 
+ 667               		.loc 1 314 41 discriminator 1 view .LVU177
+ 668 02a0 8823      		tst r24
+ 669 02a2 01F4      		brne .+2
+ 670 02a4 00C0      		rjmp .L52
+ 671               	.L55:
+ 317:pattern_edit.c **** 	stop_stepwrite_mode();
+ 672               		.loc 1 317 7 is_stmt 1 view .LVU178
+ 317:pattern_edit.c **** 	stop_stepwrite_mode();
+ 673               		.loc 1 317 10 is_stmt 0 view .LVU179
+ 674 02a6 8091 0000 		lds r24,in_stepwrite_mode
+ 675 02aa 8111      		cpse r24,__zero_reg__
+ 676 02ac 00C0      		rjmp .L53
+ 677               	.L54:
+ 319:pattern_edit.c ****     }
+ 678               		.loc 1 319 7 is_stmt 1 view .LVU180
+ 679 02ae 0E94 0000 		call start_runwrite_mode
+ 680               	.LVL62:
+ 681 02b2 00C0      		rjmp .L49
+ 682               	.L38:
+ 262:pattern_edit.c ****             pattern_buff[PATT_LENGTH] = 0x01;            
+ 683               		.loc 1 262 13 view .LVU181
+ 262:pattern_edit.c ****             pattern_buff[PATT_LENGTH] = 0x01;            
+ 684               		.loc 1 262 25 is_stmt 0 view .LVU182
+ 685 02b4 8FE0      		ldi r24,lo8(15)
+ 686 02b6 8093 0000 		sts PATT_LENGTH,r24
+ 263:pattern_edit.c ****         }
+ 687               		.loc 1 263 13 is_stmt 1 view .LVU183
+ 263:pattern_edit.c ****         }
+ 688               		.loc 1 263 39 is_stmt 0 view .LVU184
+ 689 02ba 81E0      		ldi r24,lo8(1)
+ 690 02bc 00C0      		rjmp .L300
+ 691               	.L40:
+ 281:pattern_edit.c **** 	  /* Re-shuffle it! */
+ 692               		.loc 1 281 12 is_stmt 1 view .LVU185
+ 281:pattern_edit.c **** 	  /* Re-shuffle it! */
+ 693               		.loc 1 281 16 is_stmt 0 view .LVU186
+ 694 02be 80E0      		ldi r24,0
+ 695 02c0 0E94 0000 		call just_released
+ 696               	.LVL63:
+ 281:pattern_edit.c **** 	  /* Re-shuffle it! */
+ 697               		.loc 1 281 15 view .LVU187
+ 698 02c4 8823      		tst r24
+ 699 02c6 01F0      		breq .L42
+ 281:pattern_edit.c **** 	  /* Re-shuffle it! */
+ 700               		.loc 1 281 41 discriminator 1 view .LVU188
+ 701 02c8 8091 0000 		lds r24,in_runwrite_mode
+ 702 02cc 8823      		tst r24
+ 703 02ce 01F0      		breq .L42
+ 281:pattern_edit.c **** 	  /* Re-shuffle it! */
+ 704               		.loc 1 281 61 discriminator 2 view .LVU189
+ 705 02d0 8091 0000 		lds r24,PATT_LENGTH
+ 706 02d4 8031      		cpi r24,lo8(16)
+ 707 02d6 01F4      		brne .L42
+ 708               	.LBB2:
+ 283:pattern_edit.c **** 	  
+ 709               		.loc 1 283 7 is_stmt 1 view .LVU190
+ 285:pattern_edit.c **** 	  memcpy(pattern_buff+11, pattern_buff+4, 2);
+ 710               		.loc 1 285 4 view .LVU191
+ 711 02d8 85E0      		ldi r24,lo8(5)
+ 712 02da E0E0      		ldi r30,lo8(pattern_buff+11)
+ 713 02dc F0E0      		ldi r31,hi8(pattern_buff+11)
+ 714 02de DE01      		movw r26,r28
+ 715 02e0 1196      		adiw r26,1
+ 716               		0:
+ 717 02e2 0190      		ld r0,Z+
+ 718 02e4 0D92      		st X+,r0
+ 719 02e6 8A95      		dec r24
+ 720 02e8 01F4      		brne 0b
+ 286:pattern_edit.c **** 	  pattern_buff[13] = pattern_buff[0];
+ 721               		.loc 1 286 4 view .LVU192
+ 722 02ea 8091 0000 		lds r24,pattern_buff+4
+ 723 02ee 9091 0000 		lds r25,pattern_buff+4+1
+ 724 02f2 9093 0000 		sts pattern_buff+11+1,r25
+ 725 02f6 8093 0000 		sts pattern_buff+11,r24
+ 287:pattern_edit.c **** 	  memcpy(pattern_buff+14, pattern_buff+9, 2);
+ 726               		.loc 1 287 4 view .LVU193
+ 287:pattern_edit.c **** 	  memcpy(pattern_buff+14, pattern_buff+9, 2);
+ 727               		.loc 1 287 35 is_stmt 0 view .LVU194
+ 728 02fa 8091 0000 		lds r24,pattern_buff
+ 287:pattern_edit.c **** 	  memcpy(pattern_buff+14, pattern_buff+9, 2);
+ 729               		.loc 1 287 21 view .LVU195
+ 730 02fe 8093 0000 		sts pattern_buff+13,r24
+ 288:pattern_edit.c **** 	  pattern_buff[0] = pattern_buff[6];
+ 731               		.loc 1 288 4 is_stmt 1 view .LVU196
+ 732 0302 8091 0000 		lds r24,pattern_buff+9
+ 733 0306 9091 0000 		lds r25,pattern_buff+9+1
+ 734 030a 9093 0000 		sts pattern_buff+14+1,r25
+ 735 030e 8093 0000 		sts pattern_buff+14,r24
+ 289:pattern_edit.c **** 	  memcpy(pattern_buff+9, pattern_buff+2, 2);
+ 736               		.loc 1 289 4 view .LVU197
+ 289:pattern_edit.c **** 	  memcpy(pattern_buff+9, pattern_buff+2, 2);
+ 737               		.loc 1 289 34 is_stmt 0 view .LVU198
+ 738 0312 8091 0000 		lds r24,pattern_buff+6
+ 289:pattern_edit.c **** 	  memcpy(pattern_buff+9, pattern_buff+2, 2);
+ 739               		.loc 1 289 20 view .LVU199
+ 740 0316 8093 0000 		sts pattern_buff,r24
+ 290:pattern_edit.c **** 	  pattern_buff[2] = pattern_buff[8];
+ 741               		.loc 1 290 4 is_stmt 1 view .LVU200
+ 742 031a 8091 0000 		lds r24,pattern_buff+2
+ 743 031e 9091 0000 		lds r25,pattern_buff+2+1
+ 744 0322 9093 0000 		sts pattern_buff+9+1,r25
+ 745 0326 8093 0000 		sts pattern_buff+9,r24
+ 291:pattern_edit.c **** 	  pattern_buff[8] = pattern_buff[1];
+ 746               		.loc 1 291 4 view .LVU201
+ 291:pattern_edit.c **** 	  pattern_buff[8] = pattern_buff[1];
+ 747               		.loc 1 291 34 is_stmt 0 view .LVU202
+ 748 032a 8091 0000 		lds r24,pattern_buff+8
+ 291:pattern_edit.c **** 	  pattern_buff[8] = pattern_buff[1];
+ 749               		.loc 1 291 20 view .LVU203
+ 750 032e 8093 0000 		sts pattern_buff+2,r24
+ 292:pattern_edit.c **** 	  pattern_buff[1] = pattern_buff[7];
+ 751               		.loc 1 292 4 is_stmt 1 view .LVU204
+ 292:pattern_edit.c **** 	  pattern_buff[1] = pattern_buff[7];
+ 752               		.loc 1 292 34 is_stmt 0 view .LVU205
+ 753 0332 8091 0000 		lds r24,pattern_buff+1
+ 292:pattern_edit.c **** 	  pattern_buff[1] = pattern_buff[7];
+ 754               		.loc 1 292 20 view .LVU206
+ 755 0336 8093 0000 		sts pattern_buff+8,r24
+ 293:pattern_edit.c **** 	  memcpy(pattern_buff+3, pattern_copy, 5);
+ 756               		.loc 1 293 4 is_stmt 1 view .LVU207
+ 293:pattern_edit.c **** 	  memcpy(pattern_buff+3, pattern_copy, 5);
+ 757               		.loc 1 293 34 is_stmt 0 view .LVU208
+ 758 033a 8091 0000 		lds r24,pattern_buff+7
+ 293:pattern_edit.c **** 	  memcpy(pattern_buff+3, pattern_copy, 5);
+ 759               		.loc 1 293 20 view .LVU209
+ 760 033e 8093 0000 		sts pattern_buff+1,r24
+ 294:pattern_edit.c **** 
+ 761               		.loc 1 294 4 is_stmt 1 view .LVU210
+ 762 0342 85E0      		ldi r24,lo8(5)
+ 763 0344 FE01      		movw r30,r28
+ 764 0346 3196      		adiw r30,1
+ 765 0348 A0E0      		ldi r26,lo8(pattern_buff+3)
+ 766 034a B0E0      		ldi r27,hi8(pattern_buff+3)
+ 767               		0:
+ 768 034c 0190      		ld r0,Z+
+ 769 034e 0D92      		st X+,r0
+ 770 0350 8A95      		dec r24
+ 771 0352 01F4      		brne 0b
+ 296:pattern_edit.c **** 	
+ 772               		.loc 1 296 7 view .LVU211
+ 296:pattern_edit.c **** 	
+ 773               		.loc 1 296 17 is_stmt 0 view .LVU212
+ 774 0354 81E0      		ldi r24,lo8(1)
+ 775 0356 8093 0000 		sts dirtyflag,r24
+ 298:pattern_edit.c ****     }
+ 776               		.loc 1 298 7 is_stmt 1 view .LVU213
+ 777 035a 82E2      		ldi r24,lo8(34)
+ 778 035c 0E94 0000 		call clear_led
+ 779               	.LVL64:
+ 780 0360 00C0      		rjmp .L42
+ 781               	.L45:
+ 782               	.LBE2:
+ 308:pattern_edit.c **** 	 ((sync == MIDI_SYNC) && (midi_cmd == MIDI_STOP)) ||
+ 783               		.loc 1 308 31 is_stmt 0 view .LVU214
+ 784 0362 81E0      		ldi r24,lo8(1)
+ 785 0364 0E94 0000 		call just_pressed
+ 786               	.LVL65:
+ 308:pattern_edit.c **** 	 ((sync == MIDI_SYNC) && (midi_cmd == MIDI_STOP)) ||
+ 787               		.loc 1 308 28 view .LVU215
+ 788 0368 8823      		tst r24
+ 789 036a 01F4      		brne .+2
+ 790 036c 00C0      		rjmp .L48
+ 791               	.L50:
+ 311:pattern_edit.c **** 	  running_stepwrite = FALSE;
+ 792               		.loc 1 311 7 is_stmt 1 view .LVU216
+ 793 036e 0E94 0000 		call stop_runwrite_mode
+ 794               	.LVL66:
+ 312:pattern_edit.c **** //    } else if (!live_edit && ((sync == INTERNAL_SYNC) && just_pressed(KEY_RS)) ||
+ 795               		.loc 1 312 4 view .LVU217
+ 312:pattern_edit.c **** //    } else if (!live_edit && ((sync == INTERNAL_SYNC) && just_pressed(KEY_RS)) ||
+ 796               		.loc 1 312 22 is_stmt 0 view .LVU218
+ 797 0372 1092 0000 		sts running_stepwrite,__zero_reg__
+ 798               	.L49:
+ 322:pattern_edit.c ****       uint8_t curr_note, index;
+ 799               		.loc 1 322 5 is_stmt 1 view .LVU219
+ 322:pattern_edit.c ****       uint8_t curr_note, index;
+ 800               		.loc 1 322 26 is_stmt 0 view .LVU220
+ 801 0376 8091 0000 		lds r24,in_runwrite_mode
+ 802 037a 9091 0000 		lds r25,in_stepwrite_mode
+ 803 037e 892B      		or r24,r25
+ 804 0380 01F4      		brne .+2
+ 805 0382 00C0      		rjmp .L56
+ 806               	.LBB3:
+ 323:pattern_edit.c ****       int8_t shift;
+ 807               		.loc 1 323 7 is_stmt 1 view .LVU221
+ 324:pattern_edit.c **** 
+ 808               		.loc 1 324 7 view .LVU222
+ 326:pattern_edit.c ****       else index = curr_pattern_index;
+ 809               		.loc 1 326 4 view .LVU223
+ 326:pattern_edit.c ****       else index = curr_pattern_index;
+ 810               		.loc 1 326 7 is_stmt 0 view .LVU224
+ 811 0384 8091 0000 		lds r24,running_stepwrite
+ 326:pattern_edit.c ****       else index = curr_pattern_index;
+ 812               		.loc 1 326 33 view .LVU225
+ 813 0388 E090 0000 		lds r14,runstepwrite_pattidx
+ 326:pattern_edit.c ****       else index = curr_pattern_index;
+ 814               		.loc 1 326 7 view .LVU226
+ 815 038c 8111      		cpse r24,__zero_reg__
+ 816 038e 00C0      		rjmp .L58
+ 327:pattern_edit.c ****       curr_note = pattern_buff[index] & 0x3F;
+ 817               		.loc 1 327 12 is_stmt 1 view .LVU227
+ 327:pattern_edit.c ****       curr_note = pattern_buff[index] & 0x3F;
+ 818               		.loc 1 327 18 is_stmt 0 view .LVU228
+ 819 0390 E090 0000 		lds r14,curr_pattern_index
+ 820               	.LVL67:
+ 821               	.L58:
+ 328:pattern_edit.c **** 
+ 822               		.loc 1 328 7 is_stmt 1 view .LVU229
+ 328:pattern_edit.c **** 
+ 823               		.loc 1 328 39 is_stmt 0 view .LVU230
+ 824 0394 F12C      		mov r15,__zero_reg__
+ 328:pattern_edit.c **** 
+ 825               		.loc 1 328 31 view .LVU231
+ 826 0396 C701      		movw r24,r14
+ 827 0398 8050      		subi r24,lo8(-(pattern_buff))
+ 828 039a 9040      		sbci r25,hi8(-(pattern_buff))
+ 829 039c 7C01      		movw r14,r24
+ 830               	.LVL68:
+ 328:pattern_edit.c **** 
+ 831               		.loc 1 328 31 view .LVU232
+ 832 039e FC01      		movw r30,r24
+ 833 03a0 1081      		ld r17,Z
+ 328:pattern_edit.c **** 
+ 834               		.loc 1 328 17 view .LVU233
+ 835 03a2 1F73      		andi r17,lo8(63)
+ 836               	.LVL69:
+ 330:pattern_edit.c ****       // dont accent or slide 'done' notes, duh!
+ 837               		.loc 1 330 4 is_stmt 1 view .LVU234
+ 330:pattern_edit.c ****       // dont accent or slide 'done' notes, duh!
+ 838               		.loc 1 330 7 is_stmt 0 view .LVU235
+ 839 03a4 1F33      		cpi r17,lo8(63)
+ 840 03a6 01F0      		breq .+2
+ 841 03a8 00C0      		rjmp .L59
+ 842               	.L63:
+ 346:pattern_edit.c ****       else if (curr_note < C2)
+ 843               		.loc 1 346 8 view .LVU236
+ 844 03aa 00E0      		ldi r16,0
+ 845               	.L60:
+ 846               	.LVL70:
+ 358:pattern_edit.c **** 	curr_note = 0;
+ 847               		.loc 1 358 7 is_stmt 1 view .LVU237
+ 358:pattern_edit.c **** 	curr_note = 0;
+ 848               		.loc 1 358 11 is_stmt 0 view .LVU238
+ 849 03ac 84E1      		ldi r24,lo8(20)
+ 850 03ae 0E94 0000 		call just_pressed
+ 851               	.LVL71:
+ 358:pattern_edit.c **** 	curr_note = 0;
+ 852               		.loc 1 358 10 view .LVU239
+ 853 03b2 8111      		cpse r24,__zero_reg__
+ 854 03b4 00C0      		rjmp .L139
+ 362:pattern_edit.c **** 	    if (!is_pressed(KEY_PREV) && just_pressed(KEY_UP) && shift < 2) curr_note += OCTAVE;
+ 855               		.loc 1 362 4 is_stmt 1 view .LVU240
+ 362:pattern_edit.c **** 	    if (!is_pressed(KEY_PREV) && just_pressed(KEY_UP) && shift < 2) curr_note += OCTAVE;
+ 856               		.loc 1 362 7 is_stmt 0 view .LVU241
+ 857 03b6 1F33      		cpi r17,lo8(63)
+ 858 03b8 01F0      		breq .L64
+ 859               	.LVL72:
+ 362:pattern_edit.c **** 	    if (!is_pressed(KEY_PREV) && just_pressed(KEY_UP) && shift < 2) curr_note += OCTAVE;
+ 860               		.loc 1 362 28 discriminator 1 view .LVU242
+ 861 03ba 1123      		tst r17
+ 862 03bc 01F0      		breq .L64
+ 363:pattern_edit.c **** 		if (!is_pressed(KEY_PREV) && just_pressed(KEY_DOWN) && shift > -1) curr_note -= OCTAVE;
+ 863               		.loc 1 363 6 is_stmt 1 view .LVU243
+ 363:pattern_edit.c **** 		if (!is_pressed(KEY_PREV) && just_pressed(KEY_DOWN) && shift > -1) curr_note -= OCTAVE;
+ 864               		.loc 1 363 11 is_stmt 0 view .LVU244
+ 865 03be 83E0      		ldi r24,lo8(3)
+ 866 03c0 0E94 0000 		call is_pressed
+ 867               	.LVL73:
+ 363:pattern_edit.c **** 		if (!is_pressed(KEY_PREV) && just_pressed(KEY_DOWN) && shift > -1) curr_note -= OCTAVE;
+ 868               		.loc 1 363 9 view .LVU245
+ 869 03c4 8111      		cpse r24,__zero_reg__
+ 870 03c6 00C0      		rjmp .L65
+ 363:pattern_edit.c **** 		if (!is_pressed(KEY_PREV) && just_pressed(KEY_DOWN) && shift > -1) curr_note -= OCTAVE;
+ 871               		.loc 1 363 35 discriminator 1 view .LVU246
+ 872 03c8 8FE0      		ldi r24,lo8(15)
+ 873 03ca 0E94 0000 		call just_pressed
+ 874               	.LVL74:
+ 363:pattern_edit.c **** 		if (!is_pressed(KEY_PREV) && just_pressed(KEY_DOWN) && shift > -1) curr_note -= OCTAVE;
+ 875               		.loc 1 363 32 discriminator 1 view .LVU247
+ 876 03ce 8823      		tst r24
+ 877 03d0 01F0      		breq .L65
+ 363:pattern_edit.c **** 		if (!is_pressed(KEY_PREV) && just_pressed(KEY_DOWN) && shift > -1) curr_note -= OCTAVE;
+ 878               		.loc 1 363 56 discriminator 2 view .LVU248
+ 879 03d2 0230      		cpi r16,lo8(2)
+ 880 03d4 04F4      		brge .L65
+ 363:pattern_edit.c **** 		if (!is_pressed(KEY_PREV) && just_pressed(KEY_DOWN) && shift > -1) curr_note -= OCTAVE;
+ 881               		.loc 1 363 70 is_stmt 1 discriminator 3 view .LVU249
+ 363:pattern_edit.c **** 		if (!is_pressed(KEY_PREV) && just_pressed(KEY_DOWN) && shift > -1) curr_note -= OCTAVE;
+ 882               		.loc 1 363 80 is_stmt 0 discriminator 3 view .LVU250
+ 883 03d6 145F      		subi r17,lo8(-(12))
+ 884               	.LVL75:
+ 885               	.L65:
+ 364:pattern_edit.c **** 	  }
+ 886               		.loc 1 364 3 is_stmt 1 view .LVU251
+ 364:pattern_edit.c **** 	  }
+ 887               		.loc 1 364 8 is_stmt 0 view .LVU252
+ 888 03d8 83E0      		ldi r24,lo8(3)
+ 889 03da 0E94 0000 		call is_pressed
+ 890               	.LVL76:
+ 364:pattern_edit.c **** 	  }
+ 891               		.loc 1 364 6 view .LVU253
+ 892 03de 8111      		cpse r24,__zero_reg__
+ 893 03e0 00C0      		rjmp .L64
+ 364:pattern_edit.c **** 	  }
+ 894               		.loc 1 364 32 discriminator 1 view .LVU254
+ 895 03e2 8EE0      		ldi r24,lo8(14)
+ 896 03e4 0E94 0000 		call just_pressed
+ 897               	.LVL77:
+ 364:pattern_edit.c **** 	  }
+ 898               		.loc 1 364 29 discriminator 1 view .LVU255
+ 899 03e8 8823      		tst r24
+ 900 03ea 01F0      		breq .L64
+ 364:pattern_edit.c **** 	  }
+ 901               		.loc 1 364 55 discriminator 2 view .LVU256
+ 902 03ec 0F3F      		cpi r16,lo8(-1)
+ 903 03ee 01F0      		breq .L64
+ 364:pattern_edit.c **** 	  }
+ 904               		.loc 1 364 70 is_stmt 1 discriminator 3 view .LVU257
+ 364:pattern_edit.c **** 	  }
+ 905               		.loc 1 364 80 is_stmt 0 discriminator 3 view .LVU258
+ 906 03f0 1C50      		subi r17,lo8(-(-12))
+ 907               	.LVL78:
+ 908               	.L64:
+ 368:pattern_edit.c **** 	
+ 909               		.loc 1 368 5 is_stmt 1 view .LVU259
+ 368:pattern_edit.c **** 	
+ 910               		.loc 1 368 9 is_stmt 0 view .LVU260
+ 911 03f2 0E94 0000 		call get_lowest_notekey_just_pressed
+ 912               	.LVL79:
+ 368:pattern_edit.c **** 	
+ 913               		.loc 1 368 8 view .LVU261
+ 914 03f6 8823      		tst r24
+ 915 03f8 01F0      		breq .L66
+ 368:pattern_edit.c **** 	
+ 916               		.loc 1 368 49 is_stmt 1 discriminator 1 view .LVU262
+ 368:pattern_edit.c **** 	
+ 917               		.loc 1 368 59 is_stmt 0 discriminator 1 view .LVU263
+ 918 03fa 1CE0      		ldi r17,lo8(12)
+ 919               	.LVL80:
+ 368:pattern_edit.c **** 	
+ 920               		.loc 1 368 59 discriminator 1 view .LVU264
+ 921 03fc 019F      		mul r16,r17
+ 922 03fe 102D      		mov r17,r0
+ 923 0400 1124      		clr r1
+ 924               	.LVL81:
+ 925               	.L66:
+ 370:pattern_edit.c **** 	curr_note += C2;
+ 926               		.loc 1 370 7 is_stmt 1 view .LVU265
+ 370:pattern_edit.c **** 	curr_note += C2;
+ 927               		.loc 1 370 11 is_stmt 0 view .LVU266
+ 928 0402 84E0      		ldi r24,lo8(4)
+ 929 0404 0E94 0000 		call just_pressed
+ 930               	.LVL82:
+ 370:pattern_edit.c **** 	curr_note += C2;
+ 931               		.loc 1 370 10 view .LVU267
+ 932 0408 8111      		cpse r24,__zero_reg__
+ 371:pattern_edit.c ****       if (just_pressed(KEY_CS))
+ 933               		.loc 1 371 2 is_stmt 1 view .LVU268
+ 371:pattern_edit.c ****       if (just_pressed(KEY_CS))
+ 934               		.loc 1 371 12 is_stmt 0 view .LVU269
+ 935 040a 195E      		subi r17,lo8(-(23))
+ 936               	.LVL83:
+ 937               	.L67:
+ 372:pattern_edit.c **** 	curr_note += C2_SHARP; 
+ 938               		.loc 1 372 7 is_stmt 1 view .LVU270
+ 372:pattern_edit.c **** 	curr_note += C2_SHARP; 
+ 939               		.loc 1 372 11 is_stmt 0 view .LVU271
+ 940 040c 89E0      		ldi r24,lo8(9)
+ 941 040e 0E94 0000 		call just_pressed
+ 942               	.LVL84:
+ 372:pattern_edit.c **** 	curr_note += C2_SHARP; 
+ 943               		.loc 1 372 10 view .LVU272
+ 944 0412 8111      		cpse r24,__zero_reg__
+ 373:pattern_edit.c ****       if (just_pressed(KEY_D))
+ 945               		.loc 1 373 2 is_stmt 1 view .LVU273
+ 373:pattern_edit.c ****       if (just_pressed(KEY_D))
+ 946               		.loc 1 373 12 is_stmt 0 view .LVU274
+ 947 0414 185E      		subi r17,lo8(-(24))
+ 948               	.LVL85:
+ 949               	.L68:
+ 374:pattern_edit.c **** 	curr_note += D2;
+ 950               		.loc 1 374 7 is_stmt 1 view .LVU275
+ 374:pattern_edit.c **** 	curr_note += D2;
+ 951               		.loc 1 374 11 is_stmt 0 view .LVU276
+ 952 0416 85E0      		ldi r24,lo8(5)
+ 953 0418 0E94 0000 		call just_pressed
+ 954               	.LVL86:
+ 374:pattern_edit.c **** 	curr_note += D2;
+ 955               		.loc 1 374 10 view .LVU277
+ 956 041c 8111      		cpse r24,__zero_reg__
+ 375:pattern_edit.c ****       if (just_pressed(KEY_DS))
+ 957               		.loc 1 375 2 is_stmt 1 view .LVU278
+ 375:pattern_edit.c ****       if (just_pressed(KEY_DS))
+ 958               		.loc 1 375 12 is_stmt 0 view .LVU279
+ 959 041e 175E      		subi r17,lo8(-(25))
+ 960               	.LVL87:
+ 961               	.L69:
+ 376:pattern_edit.c **** 	curr_note += D2_SHARP;
+ 962               		.loc 1 376 7 is_stmt 1 view .LVU280
+ 376:pattern_edit.c **** 	curr_note += D2_SHARP;
+ 963               		.loc 1 376 11 is_stmt 0 view .LVU281
+ 964 0420 8AE0      		ldi r24,lo8(10)
+ 965 0422 0E94 0000 		call just_pressed
+ 966               	.LVL88:
+ 376:pattern_edit.c **** 	curr_note += D2_SHARP;
+ 967               		.loc 1 376 10 view .LVU282
+ 968 0426 8111      		cpse r24,__zero_reg__
+ 377:pattern_edit.c **** 
+ 969               		.loc 1 377 2 is_stmt 1 view .LVU283
+ 377:pattern_edit.c **** 
+ 970               		.loc 1 377 12 is_stmt 0 view .LVU284
+ 971 0428 165E      		subi r17,lo8(-(26))
+ 972               	.LVL89:
+ 973               	.L70:
+ 380:pattern_edit.c **** 	if (just_pressed(KEY_E))
+ 974               		.loc 1 380 7 is_stmt 1 view .LVU285
+ 380:pattern_edit.c **** 	if (just_pressed(KEY_E))
+ 975               		.loc 1 380 10 is_stmt 0 view .LVU286
+ 976 042a 0330      		cpi r16,lo8(3)
+ 977 042c 01F0      		breq .L71
+ 381:pattern_edit.c **** 	  curr_note += E2;
+ 978               		.loc 1 381 2 is_stmt 1 view .LVU287
+ 381:pattern_edit.c **** 	  curr_note += E2;
+ 979               		.loc 1 381 6 is_stmt 0 view .LVU288
+ 980 042e 86E0      		ldi r24,lo8(6)
+ 981 0430 0E94 0000 		call just_pressed
+ 982               	.LVL90:
+ 381:pattern_edit.c **** 	  curr_note += E2;
+ 983               		.loc 1 381 5 view .LVU289
+ 984 0434 8111      		cpse r24,__zero_reg__
+ 382:pattern_edit.c **** 	if (just_pressed(KEY_F))
+ 985               		.loc 1 382 4 is_stmt 1 view .LVU290
+ 382:pattern_edit.c **** 	if (just_pressed(KEY_F))
+ 986               		.loc 1 382 14 is_stmt 0 view .LVU291
+ 987 0436 155E      		subi r17,lo8(-(27))
+ 988               	.LVL91:
+ 989               	.L72:
+ 383:pattern_edit.c **** 	  curr_note += F2;
+ 990               		.loc 1 383 2 is_stmt 1 view .LVU292
+ 383:pattern_edit.c **** 	  curr_note += F2;
+ 991               		.loc 1 383 6 is_stmt 0 view .LVU293
+ 992 0438 87E0      		ldi r24,lo8(7)
+ 993 043a 0E94 0000 		call just_pressed
+ 994               	.LVL92:
+ 383:pattern_edit.c **** 	  curr_note += F2;
+ 995               		.loc 1 383 5 view .LVU294
+ 996 043e 8111      		cpse r24,__zero_reg__
+ 384:pattern_edit.c **** 	if (just_pressed(KEY_FS))
+ 997               		.loc 1 384 4 is_stmt 1 view .LVU295
+ 384:pattern_edit.c **** 	if (just_pressed(KEY_FS))
+ 998               		.loc 1 384 14 is_stmt 0 view .LVU296
+ 999 0440 145E      		subi r17,lo8(-(28))
+ 1000               	.LVL93:
+ 1001               	.L73:
+ 385:pattern_edit.c **** 	  curr_note += F2_SHARP;
+ 1002               		.loc 1 385 2 is_stmt 1 view .LVU297
+ 385:pattern_edit.c **** 	  curr_note += F2_SHARP;
+ 1003               		.loc 1 385 6 is_stmt 0 view .LVU298
+ 1004 0442 8BE0      		ldi r24,lo8(11)
+ 1005 0444 0E94 0000 		call just_pressed
+ 1006               	.LVL94:
+ 385:pattern_edit.c **** 	  curr_note += F2_SHARP;
+ 1007               		.loc 1 385 5 view .LVU299
+ 1008 0448 8111      		cpse r24,__zero_reg__
+ 386:pattern_edit.c **** 	if (just_pressed(KEY_G))
+ 1009               		.loc 1 386 4 is_stmt 1 view .LVU300
+ 386:pattern_edit.c **** 	if (just_pressed(KEY_G))
+ 1010               		.loc 1 386 14 is_stmt 0 view .LVU301
+ 1011 044a 135E      		subi r17,lo8(-(29))
+ 1012               	.LVL95:
+ 1013               	.L74:
+ 387:pattern_edit.c **** 	  curr_note += G2;
+ 1014               		.loc 1 387 2 is_stmt 1 view .LVU302
+ 387:pattern_edit.c **** 	  curr_note += G2;
+ 1015               		.loc 1 387 6 is_stmt 0 view .LVU303
+ 1016 044c 81E1      		ldi r24,lo8(17)
+ 1017 044e 0E94 0000 		call just_pressed
+ 1018               	.LVL96:
+ 387:pattern_edit.c **** 	  curr_note += G2;
+ 1019               		.loc 1 387 5 view .LVU304
+ 1020 0452 8111      		cpse r24,__zero_reg__
+ 388:pattern_edit.c **** 	if (just_pressed(KEY_GS))
+ 1021               		.loc 1 388 4 is_stmt 1 view .LVU305
+ 388:pattern_edit.c **** 	if (just_pressed(KEY_GS))
+ 1022               		.loc 1 388 14 is_stmt 0 view .LVU306
+ 1023 0454 125E      		subi r17,lo8(-(30))
+ 1024               	.LVL97:
+ 1025               	.L75:
+ 389:pattern_edit.c **** 	  curr_note += G2_SHARP;
+ 1026               		.loc 1 389 2 is_stmt 1 view .LVU307
+ 389:pattern_edit.c **** 	  curr_note += G2_SHARP;
+ 1027               		.loc 1 389 6 is_stmt 0 view .LVU308
+ 1028 0456 8CE0      		ldi r24,lo8(12)
+ 1029 0458 0E94 0000 		call just_pressed
+ 1030               	.LVL98:
+ 389:pattern_edit.c **** 	  curr_note += G2_SHARP;
+ 1031               		.loc 1 389 5 view .LVU309
+ 1032 045c 8111      		cpse r24,__zero_reg__
+ 390:pattern_edit.c **** 	if (just_pressed(KEY_A))
+ 1033               		.loc 1 390 4 is_stmt 1 view .LVU310
+ 390:pattern_edit.c **** 	if (just_pressed(KEY_A))
+ 1034               		.loc 1 390 14 is_stmt 0 view .LVU311
+ 1035 045e 115E      		subi r17,lo8(-(31))
+ 1036               	.LVL99:
+ 1037               	.L76:
+ 391:pattern_edit.c **** 	  curr_note += A3;
+ 1038               		.loc 1 391 2 is_stmt 1 view .LVU312
+ 391:pattern_edit.c **** 	  curr_note += A3;
+ 1039               		.loc 1 391 6 is_stmt 0 view .LVU313
+ 1040 0460 82E1      		ldi r24,lo8(18)
+ 1041 0462 0E94 0000 		call just_pressed
+ 1042               	.LVL100:
+ 391:pattern_edit.c **** 	  curr_note += A3;
+ 1043               		.loc 1 391 5 view .LVU314
+ 1044 0466 8111      		cpse r24,__zero_reg__
+ 392:pattern_edit.c **** 	if (just_pressed(KEY_AS))
+ 1045               		.loc 1 392 4 is_stmt 1 view .LVU315
+ 392:pattern_edit.c **** 	if (just_pressed(KEY_AS))
+ 1046               		.loc 1 392 14 is_stmt 0 view .LVU316
+ 1047 0468 105E      		subi r17,lo8(-(32))
+ 1048               	.LVL101:
+ 1049               	.L77:
+ 393:pattern_edit.c **** 	  curr_note += A3_SHARP;
+ 1050               		.loc 1 393 2 is_stmt 1 view .LVU317
+ 393:pattern_edit.c **** 	  curr_note += A3_SHARP;
+ 1051               		.loc 1 393 6 is_stmt 0 view .LVU318
+ 1052 046a 8DE0      		ldi r24,lo8(13)
+ 1053 046c 0E94 0000 		call just_pressed
+ 1054               	.LVL102:
+ 393:pattern_edit.c **** 	  curr_note += A3_SHARP;
+ 1055               		.loc 1 393 5 view .LVU319
+ 1056 0470 8111      		cpse r24,__zero_reg__
+ 394:pattern_edit.c **** 	if (just_pressed(KEY_B))
+ 1057               		.loc 1 394 4 is_stmt 1 view .LVU320
+ 394:pattern_edit.c **** 	if (just_pressed(KEY_B))
+ 1058               		.loc 1 394 14 is_stmt 0 view .LVU321
+ 1059 0472 1F5D      		subi r17,lo8(-(33))
+ 1060               	.LVL103:
+ 1061               	.L78:
+ 395:pattern_edit.c **** 	  curr_note += B3;
+ 1062               		.loc 1 395 2 is_stmt 1 view .LVU322
+ 395:pattern_edit.c **** 	  curr_note += B3;
+ 1063               		.loc 1 395 6 is_stmt 0 view .LVU323
+ 1064 0474 80E1      		ldi r24,lo8(16)
+ 1065 0476 0E94 0000 		call just_pressed
+ 1066               	.LVL104:
+ 395:pattern_edit.c **** 	  curr_note += B3;
+ 1067               		.loc 1 395 5 view .LVU324
+ 1068 047a 8111      		cpse r24,__zero_reg__
+ 396:pattern_edit.c **** 	if (just_pressed(KEY_C2)) {
+ 1069               		.loc 1 396 4 is_stmt 1 view .LVU325
+ 396:pattern_edit.c **** 	if (just_pressed(KEY_C2)) {
+ 1070               		.loc 1 396 14 is_stmt 0 view .LVU326
+ 1071 047c 1E5D      		subi r17,lo8(-(34))
+ 1072               	.LVL105:
+ 1073               	.L79:
+ 397:pattern_edit.c **** 	  curr_note += C3;
+ 1074               		.loc 1 397 2 is_stmt 1 view .LVU327
+ 397:pattern_edit.c **** 	  curr_note += C3;
+ 1075               		.loc 1 397 6 is_stmt 0 view .LVU328
+ 1076 047e 83E1      		ldi r24,lo8(19)
+ 1077 0480 0E94 0000 		call just_pressed
+ 1078               	.LVL106:
+ 397:pattern_edit.c **** 	  curr_note += C3;
+ 1079               		.loc 1 397 5 view .LVU329
+ 1080 0484 8111      		cpse r24,__zero_reg__
+ 398:pattern_edit.c **** 	}
+ 1081               		.loc 1 398 4 is_stmt 1 view .LVU330
+ 398:pattern_edit.c **** 	}
+ 1082               		.loc 1 398 14 is_stmt 0 view .LVU331
+ 1083 0486 1D5D      		subi r17,lo8(-(35))
+ 1084               	.LVL107:
+ 1085               	.L71:
+ 403:pattern_edit.c **** 	curr_note |= (pattern_buff[index] & 0xC0);   
+ 1086               		.loc 1 403 7 is_stmt 1 view .LVU332
+ 403:pattern_edit.c **** 	curr_note |= (pattern_buff[index] & 0xC0);   
+ 1087               		.loc 1 403 24 is_stmt 0 view .LVU333
+ 1088 0488 F701      		movw r30,r14
+ 1089 048a 8081      		ld r24,Z
+ 403:pattern_edit.c **** 	curr_note |= (pattern_buff[index] & 0xC0);   
+ 1090               		.loc 1 403 10 view .LVU334
+ 1091 048c 8F3F      		cpi r24,lo8(-1)
+ 1092 048e 01F4      		brne .L80
+ 403:pattern_edit.c **** 	curr_note |= (pattern_buff[index] & 0xC0);   
+ 1093               		.loc 1 403 41 discriminator 1 view .LVU335
+ 1094 0490 1F33      		cpi r17,lo8(63)
+ 1095 0492 01F4      		brne .L81
+ 1096               	.L80:
+ 404:pattern_edit.c **** 
+ 1097               		.loc 1 404 2 is_stmt 1 view .LVU336
+ 404:pattern_edit.c **** 
+ 1098               		.loc 1 404 28 is_stmt 0 view .LVU337
+ 1099 0494 F701      		movw r30,r14
+ 1100 0496 8081      		ld r24,Z
+ 404:pattern_edit.c **** 
+ 1101               		.loc 1 404 12 view .LVU338
+ 1102 0498 807C      		andi r24,lo8(-64)
+ 1103 049a 182B      		or r17,r24
+ 1104               	.LVL108:
+ 1105               	.L81:
+ 406:pattern_edit.c **** 	    	   
+ 1106               		.loc 1 406 7 is_stmt 1 view .LVU339
+ 406:pattern_edit.c **** 	    	   
+ 1107               		.loc 1 406 36 is_stmt 0 view .LVU340
+ 1108 049c F701      		movw r30,r14
+ 1109 049e 8081      		ld r24,Z
+ 406:pattern_edit.c **** 	    	   
+ 1110               		.loc 1 406 10 view .LVU341
+ 1111 04a0 8117      		cp r24,r17
+ 1112 04a2 01F0      		breq .L83
+ 408:pattern_edit.c **** 	  note_off(0);
+ 1113               		.loc 1 408 2 is_stmt 1 view .LVU342
+ 408:pattern_edit.c **** 	  note_off(0);
+ 1114               		.loc 1 408 5 is_stmt 0 view .LVU343
+ 1115 04a4 8091 0000 		lds r24,in_stepwrite_mode
+ 1116 04a8 8823      		tst r24
+ 1117 04aa 01F0      		breq .L84
+ 409:pattern_edit.c **** 	  delay_ms(1);
+ 1118               		.loc 1 409 4 is_stmt 1 view .LVU344
+ 1119 04ac 80E0      		ldi r24,0
+ 1120 04ae 0E94 0000 		call note_off
+ 1121               	.LVL109:
+ 410:pattern_edit.c **** 	}
+ 1122               		.loc 1 410 4 view .LVU345
+ 1123 04b2 81E0      		ldi r24,lo8(1)
+ 1124 04b4 0E94 0000 		call delay_ms
+ 1125               	.LVL110:
+ 1126               	.L84:
+ 413:pattern_edit.c **** 	dirtyflag = 1; // clearly, changed
+ 1127               		.loc 1 413 2 view .LVU346
+ 413:pattern_edit.c **** 	dirtyflag = 1; // clearly, changed
+ 1128               		.loc 1 413 22 is_stmt 0 view .LVU347
+ 1129 04b8 F701      		movw r30,r14
+ 1130 04ba 1083      		st Z,r17
+ 414:pattern_edit.c **** 
+ 1131               		.loc 1 414 2 is_stmt 1 view .LVU348
+ 414:pattern_edit.c **** 
+ 1132               		.loc 1 414 12 is_stmt 0 view .LVU349
+ 1133 04bc 81E0      		ldi r24,lo8(1)
+ 1134 04be 8093 0000 		sts dirtyflag,r24
+ 416:pattern_edit.c **** 	  note_on(curr_note & 0x3F,
+ 1135               		.loc 1 416 2 is_stmt 1 view .LVU350
+ 416:pattern_edit.c **** 	  note_on(curr_note & 0x3F,
+ 1136               		.loc 1 416 5 is_stmt 0 view .LVU351
+ 1137 04c2 8091 0000 		lds r24,in_stepwrite_mode
+ 1138 04c6 8823      		tst r24
+ 1139 04c8 01F0      		breq .L83
+ 417:pattern_edit.c **** 		  0,              // no slide
+ 1140               		.loc 1 417 4 is_stmt 1 view .LVU352
+ 1141 04ca 16FB      		bst r17,6
+ 1142 04cc 4427      		clr r20
+ 1143 04ce 40F9      		bld r20,0
+ 1144 04d0 60E0      		ldi r22,0
+ 1145 04d2 812F      		mov r24,r17
+ 1146 04d4 8F73      		andi r24,lo8(63)
+ 1147 04d6 0E94 0000 		call note_on
+ 1148               	.LVL111:
+ 1149               	.L83:
+ 422:pattern_edit.c **** 	set_note_led(curr_note);
+ 1150               		.loc 1 422 7 view .LVU353
+ 422:pattern_edit.c **** 	set_note_led(curr_note);
+ 1151               		.loc 1 422 10 is_stmt 0 view .LVU354
+ 1152 04da 1F3F      		cpi r17,lo8(-1)
+ 1153 04dc 01F4      		brne .+2
+ 1154 04de 00C0      		rjmp .L86
+ 423:pattern_edit.c **** 	if (dirtyflag)
+ 1155               		.loc 1 423 2 is_stmt 1 view .LVU355
+ 1156 04e0 812F      		mov r24,r17
+ 1157 04e2 0E94 0000 		call set_note_led
+ 1158               	.LVL112:
+ 424:pattern_edit.c **** 	  set_led_blink(LED_DONE);
+ 1159               		.loc 1 424 2 view .LVU356
+ 424:pattern_edit.c **** 	  set_led_blink(LED_DONE);
+ 1160               		.loc 1 424 5 is_stmt 0 view .LVU357
+ 1161 04e6 8091 0000 		lds r24,dirtyflag
+ 1162 04ea 8823      		tst r24
+ 1163 04ec 01F4      		brne .+2
+ 1164 04ee 00C0      		rjmp .L87
+ 425:pattern_edit.c **** 	else
+ 1165               		.loc 1 425 4 is_stmt 1 view .LVU358
+ 1166 04f0 80E0      		ldi r24,0
+ 1167 04f2 0E94 0000 		call set_led_blink
+ 1168               	.LVL113:
+ 1169               	.L56:
+ 425:pattern_edit.c **** 	else
+ 1170               		.loc 1 425 4 is_stmt 0 view .LVU359
+ 1171               	.LBE3:
+ 437:pattern_edit.c **** 	  uint8_t i = 0;
+ 1172               		.loc 1 437 2 is_stmt 1 view .LVU360
+ 437:pattern_edit.c **** 	  uint8_t i = 0;
+ 1173               		.loc 1 437 6 is_stmt 0 view .LVU361
+ 1174 04f6 83E0      		ldi r24,lo8(3)
+ 1175 04f8 0E94 0000 		call just_pressed
+ 1176               	.LVL114:
+ 437:pattern_edit.c **** 	  uint8_t i = 0;
+ 1177               		.loc 1 437 5 view .LVU362
+ 1178 04fc 8823      		tst r24
+ 1179 04fe 01F4      		brne .+2
+ 1180 0500 00C0      		rjmp .L88
+ 437:pattern_edit.c **** 	  uint8_t i = 0;
+ 1181               		.loc 1 437 32 discriminator 1 view .LVU363
+ 1182 0502 88E0      		ldi r24,lo8(8)
+ 1183 0504 0E94 0000 		call is_pressed
+ 1184               	.LVL115:
+ 437:pattern_edit.c **** 	  uint8_t i = 0;
+ 1185               		.loc 1 437 29 discriminator 1 view .LVU364
+ 1186 0508 8823      		tst r24
+ 1187 050a 01F4      		brne .+2
+ 1188 050c 00C0      		rjmp .L88
+ 1189               	.LBB4:
+ 438:pattern_edit.c **** 	  uint8_t first = pattern_buff[0];
+ 1190               		.loc 1 438 4 is_stmt 1 view .LVU365
+ 1191               	.LVL116:
+ 439:pattern_edit.c **** 	  while (i < PATT_LENGTH-1 && pattern_buff[i+1] != 0xFF) {
+ 1192               		.loc 1 439 4 view .LVU366
+ 439:pattern_edit.c **** 	  while (i < PATT_LENGTH-1 && pattern_buff[i+1] != 0xFF) {
+ 1193               		.loc 1 439 12 is_stmt 0 view .LVU367
+ 1194 050e 5091 0000 		lds r21,pattern_buff
+ 1195               	.LVL117:
+ 440:pattern_edit.c **** 	    pattern_buff[i] = pattern_buff[i+1];
+ 1196               		.loc 1 440 4 is_stmt 1 view .LVU368
+ 440:pattern_edit.c **** 	    pattern_buff[i] = pattern_buff[i+1];
+ 1197               		.loc 1 440 26 is_stmt 0 view .LVU369
+ 1198 0512 2091 0000 		lds r18,PATT_LENGTH
+ 1199 0516 2150      		subi r18,1
+ 1200 0518 330B      		sbc r19,r19
+ 438:pattern_edit.c **** 	  uint8_t first = pattern_buff[0];
+ 1201               		.loc 1 438 12 view .LVU370
+ 1202 051a 40E0      		ldi r20,0
+ 1203               	.LVL118:
+ 1204               	.L89:
+ 440:pattern_edit.c **** 	    pattern_buff[i] = pattern_buff[i+1];
+ 1205               		.loc 1 440 13 view .LVU371
+ 1206 051c E42F      		mov r30,r20
+ 1207 051e F0E0      		ldi r31,0
+ 1208 0520 DF01      		movw r26,r30
+ 1209 0522 A050      		subi r26,lo8(-(pattern_buff))
+ 1210 0524 B040      		sbci r27,hi8(-(pattern_buff))
+ 440:pattern_edit.c **** 	    pattern_buff[i] = pattern_buff[i+1];
+ 1211               		.loc 1 440 10 view .LVU372
+ 1212 0526 E217      		cp r30,r18
+ 1213 0528 F307      		cpc r31,r19
+ 1214 052a 04F4      		brge .L90
+ 440:pattern_edit.c **** 	    pattern_buff[i] = pattern_buff[i+1];
+ 1215               		.loc 1 440 44 discriminator 1 view .LVU373
+ 1216 052c E050      		subi r30,lo8(-(pattern_buff+1))
+ 1217 052e F040      		sbci r31,hi8(-(pattern_buff+1))
+ 1218 0530 8081      		ld r24,Z
+ 440:pattern_edit.c **** 	    pattern_buff[i] = pattern_buff[i+1];
+ 1219               		.loc 1 440 29 discriminator 1 view .LVU374
+ 1220 0532 8F3F      		cpi r24,lo8(-1)
+ 1221 0534 01F0      		breq .+2
+ 1222 0536 00C0      		rjmp .L91
+ 1223               	.L90:
+ 444:pattern_edit.c **** 	  dirtyflag = 1;
+ 1224               		.loc 1 444 4 is_stmt 1 view .LVU375
+ 444:pattern_edit.c **** 	  dirtyflag = 1;
+ 1225               		.loc 1 444 20 is_stmt 0 view .LVU376
+ 1226 0538 5C93      		st X,r21
+ 445:pattern_edit.c **** 	}
+ 1227               		.loc 1 445 4 is_stmt 1 view .LVU377
+ 1228               	.LVL119:
+ 1229               	.L302:
+ 445:pattern_edit.c **** 	}
+ 1230               		.loc 1 445 4 is_stmt 0 view .LVU378
+ 1231               	.LBE4:
+ 1232               	.LBB5:
+ 459:pattern_edit.c **** 	}
+ 1233               		.loc 1 459 4 is_stmt 1 view .LVU379
+ 459:pattern_edit.c **** 	}
+ 1234               		.loc 1 459 14 is_stmt 0 view .LVU380
+ 1235 053a 81E0      		ldi r24,lo8(1)
+ 1236 053c 8093 0000 		sts dirtyflag,r24
+ 1237               	.L92:
+ 1238               	.LVL120:
+ 459:pattern_edit.c **** 	}
+ 1239               		.loc 1 459 14 view .LVU381
+ 1240               	.LBE5:
+ 587:pattern_edit.c ****       if (in_stepwrite_mode) {
+ 1241               		.loc 1 587 5 is_stmt 1 view .LVU382
+ 587:pattern_edit.c ****       if (in_stepwrite_mode) {
+ 1242               		.loc 1 587 9 is_stmt 0 view .LVU383
+ 1243 0540 87E1      		ldi r24,lo8(23)
+ 1244 0542 0E94 0000 		call just_pressed
+ 1245               	.LVL121:
+ 587:pattern_edit.c ****       if (in_stepwrite_mode) {
+ 1246               		.loc 1 587 8 view .LVU384
+ 1247 0546 8823      		tst r24
+ 1248 0548 01F0      		breq .L34
+ 588:pattern_edit.c **** 	
+ 1249               		.loc 1 588 7 is_stmt 1 view .LVU385
+ 588:pattern_edit.c **** 	
+ 1250               		.loc 1 588 10 is_stmt 0 view .LVU386
+ 1251 054a 8091 0000 		lds r24,in_stepwrite_mode
+ 1252 054e 8823      		tst r24
+ 1253 0550 01F0      		breq .L130
+ 590:pattern_edit.c **** 	  pattern_buff[curr_pattern_index+1] = 0xff;
+ 1254               		.loc 1 590 2 is_stmt 1 view .LVU387
+ 590:pattern_edit.c **** 	  pattern_buff[curr_pattern_index+1] = 0xff;
+ 1255               		.loc 1 590 24 is_stmt 0 view .LVU388
+ 1256 0552 8091 0000 		lds r24,curr_pattern_index
+ 1257 0556 90E0      		ldi r25,0
+ 1258 0558 0196      		adiw r24,1
+ 590:pattern_edit.c **** 	  pattern_buff[curr_pattern_index+1] = 0xff;
+ 1259               		.loc 1 590 27 view .LVU389
+ 1260 055a 2091 0000 		lds r18,PATT_LENGTH
+ 590:pattern_edit.c **** 	  pattern_buff[curr_pattern_index+1] = 0xff;
+ 1261               		.loc 1 590 5 view .LVU390
+ 1262 055e 2817      		cp r18,r24
+ 1263 0560 1906      		cpc __zero_reg__,r25
+ 1264 0562 01F0      		breq .L131
+ 1265 0564 04F0      		brlt .L131
+ 591:pattern_edit.c **** 
+ 1266               		.loc 1 591 4 is_stmt 1 view .LVU391
+ 591:pattern_edit.c **** 
+ 1267               		.loc 1 591 35 is_stmt 0 view .LVU392
+ 1268 0566 E091 0000 		lds r30,curr_pattern_index
+ 1269 056a F0E0      		ldi r31,0
+ 591:pattern_edit.c **** 
+ 1270               		.loc 1 591 39 view .LVU393
+ 1271 056c E050      		subi r30,lo8(-(pattern_buff+1))
+ 1272 056e F040      		sbci r31,hi8(-(pattern_buff+1))
+ 1273 0570 8FEF      		ldi r24,lo8(-1)
+ 1274 0572 8083      		st Z,r24
+ 1275               	.L131:
+ 593:pattern_edit.c ****       }
+ 1276               		.loc 1 593 2 is_stmt 1 view .LVU394
+ 1277 0574 0E94 0000 		call stop_stepwrite_mode
+ 1278               	.LVL122:
+ 1279               	.L130:
+ 595:pattern_edit.c **** 	  set_led_blink(LED_DONE);
+ 1280               		.loc 1 595 4 view .LVU395
+ 595:pattern_edit.c **** 	  set_led_blink(LED_DONE);
+ 1281               		.loc 1 595 22 is_stmt 0 view .LVU396
+ 1282 0578 1092 0000 		sts running_stepwrite,__zero_reg__
+ 596:pattern_edit.c **** 	  while (1) {
+ 1283               		.loc 1 596 4 is_stmt 1 view .LVU397
+ 1284 057c 80E0      		ldi r24,0
+ 1285 057e 0E94 0000 		call set_led_blink
+ 1286               	.LVL123:
+ 1287               	.L133:
+ 597:pattern_edit.c **** 	    clock_ticks();
+ 1288               		.loc 1 597 4 view .LVU398
+ 598:pattern_edit.c **** 	    read_switches();
+ 1289               		.loc 1 598 6 view .LVU399
+ 1290 0582 0E94 0000 		call clock_ticks
+ 1291               	.LVL124:
+ 599:pattern_edit.c **** 		patt_bank = bank;
+ 1292               		.loc 1 599 6 view .LVU400
+ 1293 0586 0E94 0000 		call read_switches
+ 1294               	.LVL125:
+ 600:pattern_edit.c **** 		i = get_lowest_numkey_pressed();
+ 1295               		.loc 1 600 3 view .LVU401
+ 600:pattern_edit.c **** 		i = get_lowest_numkey_pressed();
+ 1296               		.loc 1 600 13 is_stmt 0 view .LVU402
+ 1297 058a 8091 0000 		lds r24,bank
+ 1298 058e 8093 0000 		sts patt_bank,r24
+ 601:pattern_edit.c **** 		if (i != 0) patt_location = i - 1;
+ 1299               		.loc 1 601 3 is_stmt 1 view .LVU403
+ 601:pattern_edit.c **** 		if (i != 0) patt_location = i - 1;
+ 1300               		.loc 1 601 7 is_stmt 0 view .LVU404
+ 1301 0592 0E94 0000 		call get_lowest_numkey_pressed
+ 1302               	.LVL126:
+ 602:pattern_edit.c **** 		if (just_pressed(KEY_DONE)) break;
+ 1303               		.loc 1 602 3 is_stmt 1 view .LVU405
+ 602:pattern_edit.c **** 		if (just_pressed(KEY_DONE)) break;
+ 1304               		.loc 1 602 6 is_stmt 0 view .LVU406
+ 1305 0596 8823      		tst r24
+ 1306 0598 01F0      		breq .L132
+ 602:pattern_edit.c **** 		if (just_pressed(KEY_DONE)) break;
+ 1307               		.loc 1 602 15 is_stmt 1 discriminator 1 view .LVU407
+ 602:pattern_edit.c **** 		if (just_pressed(KEY_DONE)) break;
+ 1308               		.loc 1 602 33 is_stmt 0 discriminator 1 view .LVU408
+ 1309 059a 8150      		subi r24,lo8(-(-1))
+ 1310               	.LVL127:
+ 602:pattern_edit.c **** 		if (just_pressed(KEY_DONE)) break;
+ 1311               		.loc 1 602 29 discriminator 1 view .LVU409
+ 1312 059c 8093 0000 		sts patt_location,r24
+ 1313               	.LVL128:
+ 1314               	.L132:
+ 603:pattern_edit.c **** 	  }
+ 1315               		.loc 1 603 3 is_stmt 1 view .LVU410
+ 603:pattern_edit.c **** 	  }
+ 1316               		.loc 1 603 7 is_stmt 0 view .LVU411
+ 1317 05a0 87E1      		ldi r24,lo8(23)
+ 1318 05a2 0E94 0000 		call just_pressed
+ 1319               	.LVL129:
+ 603:pattern_edit.c **** 	  }
+ 1320               		.loc 1 603 6 view .LVU412
+ 1321 05a6 8823      		tst r24
+ 1322 05a8 01F0      		breq .L133
+ 605:pattern_edit.c ****       dirtyflag = 0; // not dirty anymore, saved!
+ 1323               		.loc 1 605 7 is_stmt 1 view .LVU413
+ 1324 05aa 6091 0000 		lds r22,patt_location
+ 1325 05ae 8091 0000 		lds r24,patt_bank
+ 1326 05b2 0E94 0000 		call write_pattern
+ 1327               	.LVL130:
+ 606:pattern_edit.c ****       clear_led_blink(LED_DONE);
+ 1328               		.loc 1 606 7 view .LVU414
+ 606:pattern_edit.c ****       clear_led_blink(LED_DONE);
+ 1329               		.loc 1 606 17 is_stmt 0 view .LVU415
+ 1330 05b6 1092 0000 		sts dirtyflag,__zero_reg__
+ 607:pattern_edit.c ****     }
+ 1331               		.loc 1 607 7 is_stmt 1 view .LVU416
+ 1332 05ba 80E0      		ldi r24,0
+ 1333 05bc 0E94 0000 		call clear_led_blink
+ 1334               	.LVL131:
+ 1335               	.L34:
+ 1336               	/* epilogue start */
+ 611:pattern_edit.c **** 
+ 1337               		.loc 1 611 1 is_stmt 0 view .LVU417
+ 1338 05c0 2596      		adiw r28,5
+ 1339 05c2 E7E0      		ldi r30, lo8(7)
+ 1340 05c4 0C94 0000 		jmp __epilogue_restores__ + ((18 - 7) * 2)
+ 1341               	.LVL132:
+ 1342               	.L46:
+ 309:pattern_edit.c **** 	 ((sync == DIN_SYNC) && dinsync_stopped()))) {
+ 1343               		.loc 1 309 24 view .LVU418
+ 1344 05c8 8091 0000 		lds r24,midi_cmd
+ 1345 05cc 8C3F      		cpi r24,lo8(-4)
+ 1346 05ce 01F4      		brne .+2
+ 1347 05d0 00C0      		rjmp .L50
+ 1348               	.L51:
+ 316:pattern_edit.c ****       if (in_stepwrite_mode)
+ 1349               		.loc 1 316 29 view .LVU419
+ 1350 05d2 8091 0000 		lds r24,midi_cmd
+ 1351 05d6 8A5F      		subi r24,lo8(-(6))
+ 315:pattern_edit.c **** 		((midi_cmd == MIDI_START) || (midi_cmd == MIDI_CONTINUE)) ) ) {
+ 1352               		.loc 1 315 30 view .LVU420
+ 1353 05d8 8230      		cpi r24,lo8(2)
+ 1354 05da 00F4      		brsh .+2
+ 1355 05dc 00C0      		rjmp .L55
+ 1356 05de 00C0      		rjmp .L49
+ 1357               	.L52:
+ 314:pattern_edit.c **** 	       ((sync == MIDI_SYNC) && 
+ 1358               		.loc 1 314 66 view .LVU421
+ 1359 05e0 8091 0000 		lds r24,sync
+ 1360 05e4 8230      		cpi r24,lo8(2)
+ 1361 05e6 01F0      		breq .L51
+ 1362 05e8 00C0      		rjmp .L49
+ 1363               	.L53:
+ 318:pattern_edit.c ****       start_runwrite_mode();
+ 1364               		.loc 1 318 2 is_stmt 1 view .LVU422
+ 1365 05ea 0E94 0000 		call stop_stepwrite_mode
+ 1366               	.LVL133:
+ 1367 05ee 00C0      		rjmp .L54
+ 1368               	.LVL134:
+ 1369               	.L59:
+ 1370               	.LBB6:
+ 332:pattern_edit.c **** 	//putstring("accent ");
+ 1371               		.loc 1 332 7 view .LVU423
+ 332:pattern_edit.c **** 	//putstring("accent ");
+ 1372               		.loc 1 332 11 is_stmt 0 view .LVU424
+ 1373 05f0 85E1      		ldi r24,lo8(21)
+ 1374 05f2 0E94 0000 		call just_pressed
+ 1375               	.LVL135:
+ 332:pattern_edit.c **** 	//putstring("accent ");
+ 1376               		.loc 1 332 10 view .LVU425
+ 1377 05f6 8823      		tst r24
+ 1378 05f8 01F0      		breq .L61
+ 334:pattern_edit.c **** 	dirtyflag = 1; // clearly, changed
+ 1379               		.loc 1 334 2 is_stmt 1 view .LVU426
+ 334:pattern_edit.c **** 	dirtyflag = 1; // clearly, changed
+ 1380               		.loc 1 334 22 is_stmt 0 view .LVU427
+ 1381 05fa F701      		movw r30,r14
+ 1382 05fc 8081      		ld r24,Z
+ 1383 05fe 90E4      		ldi r25,lo8(64)
+ 1384 0600 8927      		eor r24,r25
+ 1385 0602 8083      		st Z,r24
+ 335:pattern_edit.c ****       }
+ 1386               		.loc 1 335 2 is_stmt 1 view .LVU428
+ 335:pattern_edit.c ****       }
+ 1387               		.loc 1 335 12 is_stmt 0 view .LVU429
+ 1388 0604 81E0      		ldi r24,lo8(1)
+ 1389 0606 8093 0000 		sts dirtyflag,r24
+ 1390               	.L61:
+ 337:pattern_edit.c **** 	//putstring("slide ");
+ 1391               		.loc 1 337 7 is_stmt 1 view .LVU430
+ 337:pattern_edit.c **** 	//putstring("slide ");
+ 1392               		.loc 1 337 11 is_stmt 0 view .LVU431
+ 1393 060a 86E1      		ldi r24,lo8(22)
+ 1394 060c 0E94 0000 		call just_pressed
+ 1395               	.LVL136:
+ 337:pattern_edit.c **** 	//putstring("slide ");
+ 1396               		.loc 1 337 10 view .LVU432
+ 1397 0610 8823      		tst r24
+ 1398 0612 01F0      		breq .L62
+ 339:pattern_edit.c **** 	dirtyflag = 1; // clearly, changed
+ 1399               		.loc 1 339 8 is_stmt 1 view .LVU433
+ 339:pattern_edit.c **** 	dirtyflag = 1; // clearly, changed
+ 1400               		.loc 1 339 28 is_stmt 0 view .LVU434
+ 1401 0614 F701      		movw r30,r14
+ 1402 0616 8081      		ld r24,Z
+ 1403 0618 8058      		subi r24,lo8(-(-128))
+ 1404 061a 8083      		st Z,r24
+ 340:pattern_edit.c ****       }
+ 1405               		.loc 1 340 2 is_stmt 1 view .LVU435
+ 340:pattern_edit.c ****       }
+ 1406               		.loc 1 340 12 is_stmt 0 view .LVU436
+ 1407 061c 81E0      		ldi r24,lo8(1)
+ 1408 061e 8093 0000 		sts dirtyflag,r24
+ 1409               	.L62:
+ 345:pattern_edit.c **** 	shift = 0;
+ 1410               		.loc 1 345 7 is_stmt 1 view .LVU437
+ 345:pattern_edit.c **** 	shift = 0;
+ 1411               		.loc 1 345 31 is_stmt 0 view .LVU438
+ 1412 0622 1123      		tst r17
+ 1413 0624 01F4      		brne .+2
+ 1414 0626 00C0      		rjmp .L63
+ 347:pattern_edit.c **** 	shift = -1;
+ 1415               		.loc 1 347 12 is_stmt 1 view .LVU439
+ 348:pattern_edit.c ****       else if (curr_note <= C3)
+ 1416               		.loc 1 348 8 is_stmt 0 view .LVU440
+ 1417 0628 0FEF      		ldi r16,lo8(-1)
+ 347:pattern_edit.c **** 	shift = -1;
+ 1418               		.loc 1 347 15 view .LVU441
+ 1419 062a 1731      		cpi r17,lo8(23)
+ 1420 062c 00F4      		brsh .+2
+ 1421 062e 00C0      		rjmp .L60
+ 349:pattern_edit.c **** 	shift = 0;
+ 1422               		.loc 1 349 12 is_stmt 1 view .LVU442
+ 349:pattern_edit.c **** 	shift = 0;
+ 1423               		.loc 1 349 15 is_stmt 0 view .LVU443
+ 1424 0630 1432      		cpi r17,lo8(36)
+ 1425 0632 00F4      		brsh .+2
+ 1426 0634 00C0      		rjmp .L63
+ 351:pattern_edit.c **** 	shift = 1;
+ 1427               		.loc 1 351 12 is_stmt 1 view .LVU444
+ 352:pattern_edit.c ****       else if (curr_note <= C5)
+ 1428               		.loc 1 352 8 is_stmt 0 view .LVU445
+ 1429 0636 01E0      		ldi r16,lo8(1)
+ 351:pattern_edit.c **** 	shift = 1;
+ 1430               		.loc 1 351 15 view .LVU446
+ 1431 0638 1033      		cpi r17,lo8(48)
+ 1432 063a 00F4      		brsh .+2
+ 1433 063c 00C0      		rjmp .L60
+ 353:pattern_edit.c **** 	shift = 2;
+ 1434               		.loc 1 353 12 is_stmt 1 view .LVU447
+ 356:pattern_edit.c **** 
+ 1435               		.loc 1 356 8 is_stmt 0 view .LVU448
+ 1436 063e 03E0      		ldi r16,lo8(3)
+ 353:pattern_edit.c **** 	shift = 2;
+ 1437               		.loc 1 353 15 view .LVU449
+ 1438 0640 1C33      		cpi r17,lo8(60)
+ 1439 0642 00F0      		brlo .+2
+ 1440 0644 00C0      		rjmp .L60
+ 354:pattern_edit.c ****       else 
+ 1441               		.loc 1 354 8 view .LVU450
+ 1442 0646 02E0      		ldi r16,lo8(2)
+ 1443 0648 00C0      		rjmp .L60
+ 1444               	.LVL137:
+ 1445               	.L139:
+ 359:pattern_edit.c ****       }
+ 1446               		.loc 1 359 12 view .LVU451
+ 1447 064a 10E0      		ldi r17,0
+ 1448               	.LVL138:
+ 359:pattern_edit.c ****       }
+ 1449               		.loc 1 359 12 view .LVU452
+ 1450 064c 00C0      		rjmp .L64
+ 1451               	.LVL139:
+ 1452               	.L87:
+ 427:pattern_edit.c ****       } else {
+ 1453               		.loc 1 427 4 is_stmt 1 view .LVU453
+ 1454 064e 80E0      		ldi r24,0
+ 1455 0650 0E94 0000 		call clear_led
+ 1456               	.LVL140:
+ 1457 0654 00C0      		rjmp .L56
+ 1458               	.L86:
+ 429:pattern_edit.c **** 	clear_led_blink(LED_DONE);
+ 1459               		.loc 1 429 2 view .LVU454
+ 1460 0656 0E94 0000 		call clear_note_leds
+ 1461               	.LVL141:
+ 430:pattern_edit.c **** 	clear_led_blink(LED_UP);
+ 1462               		.loc 1 430 2 view .LVU455
+ 1463 065a 80E0      		ldi r24,0
+ 1464 065c 0E94 0000 		call clear_led_blink
+ 1465               	.LVL142:
+ 431:pattern_edit.c **** 	set_led(LED_DONE);
+ 1466               		.loc 1 431 2 view .LVU456
+ 1467 0660 83E0      		ldi r24,lo8(3)
+ 1468 0662 0E94 0000 		call clear_led_blink
+ 1469               	.LVL143:
+ 432:pattern_edit.c ****       }
+ 1470               		.loc 1 432 2 view .LVU457
+ 1471 0666 80E0      		ldi r24,0
+ 1472 0668 0E94 0000 		call set_led
+ 1473               	.LVL144:
+ 1474 066c 00C0      		rjmp .L56
+ 1475               	.LVL145:
+ 1476               	.L91:
+ 432:pattern_edit.c ****       }
+ 1477               		.loc 1 432 2 is_stmt 0 view .LVU458
+ 1478               	.LBE6:
+ 1479               	.LBB7:
+ 441:pattern_edit.c **** 	    i++;
+ 1480               		.loc 1 441 6 is_stmt 1 view .LVU459
+ 441:pattern_edit.c **** 	    i++;
+ 1481               		.loc 1 441 36 is_stmt 0 view .LVU460
+ 1482 066e 8081      		ld r24,Z
+ 441:pattern_edit.c **** 	    i++;
+ 1483               		.loc 1 441 22 view .LVU461
+ 1484 0670 8C93      		st X,r24
+ 442:pattern_edit.c **** 	  }
+ 1485               		.loc 1 442 6 is_stmt 1 view .LVU462
+ 442:pattern_edit.c **** 	  }
+ 1486               		.loc 1 442 7 is_stmt 0 view .LVU463
+ 1487 0672 4F5F      		subi r20,lo8(-(1))
+ 1488               	.LVL146:
+ 442:pattern_edit.c **** 	  }
+ 1489               		.loc 1 442 7 view .LVU464
+ 1490 0674 00C0      		rjmp .L89
+ 1491               	.LVL147:
+ 1492               	.L88:
+ 442:pattern_edit.c **** 	  }
+ 1493               		.loc 1 442 7 view .LVU465
+ 1494               	.LBE7:
+ 449:pattern_edit.c **** 	  uint8_t i  = 0;
+ 1495               		.loc 1 449 2 is_stmt 1 view .LVU466
+ 449:pattern_edit.c **** 	  uint8_t i  = 0;
+ 1496               		.loc 1 449 6 is_stmt 0 view .LVU467
+ 1497 0676 88E0      		ldi r24,lo8(8)
+ 1498 0678 0E94 0000 		call just_pressed
+ 1499               	.LVL148:
+ 449:pattern_edit.c **** 	  uint8_t i  = 0;
+ 1500               		.loc 1 449 5 view .LVU468
+ 1501 067c 8823      		tst r24
+ 1502 067e 01F0      		breq .L93
+ 449:pattern_edit.c **** 	  uint8_t i  = 0;
+ 1503               		.loc 1 449 32 discriminator 1 view .LVU469
+ 1504 0680 83E0      		ldi r24,lo8(3)
+ 1505 0682 0E94 0000 		call is_pressed
+ 1506               	.LVL149:
+ 449:pattern_edit.c **** 	  uint8_t i  = 0;
+ 1507               		.loc 1 449 29 discriminator 1 view .LVU470
+ 1508 0686 8823      		tst r24
+ 1509 0688 01F0      		breq .L93
+ 1510               	.LBB8:
+ 450:pattern_edit.c **** 	  uint8_t next;
+ 1511               		.loc 1 450 4 is_stmt 1 view .LVU471
+ 1512               	.LVL150:
+ 451:pattern_edit.c **** 	  uint8_t prev = pattern_buff[0];
+ 1513               		.loc 1 451 4 view .LVU472
+ 452:pattern_edit.c **** 	  while (i < PATT_LENGTH-1 && pattern_buff[i+1] != 0xFF) {
+ 1514               		.loc 1 452 4 view .LVU473
+ 452:pattern_edit.c **** 	  while (i < PATT_LENGTH-1 && pattern_buff[i+1] != 0xFF) {
+ 1515               		.loc 1 452 12 is_stmt 0 view .LVU474
+ 1516 068a 3091 0000 		lds r19,pattern_buff
+ 1517               	.LVL151:
+ 453:pattern_edit.c **** 		next = pattern_buff[i+1];
+ 1518               		.loc 1 453 4 is_stmt 1 view .LVU475
+ 453:pattern_edit.c **** 		next = pattern_buff[i+1];
+ 1519               		.loc 1 453 26 is_stmt 0 view .LVU476
+ 1520 068e 8091 0000 		lds r24,PATT_LENGTH
+ 1521 0692 8150      		subi r24,1
+ 1522 0694 990B      		sbc r25,r25
+ 450:pattern_edit.c **** 	  uint8_t next;
+ 1523               		.loc 1 450 12 view .LVU477
+ 1524 0696 20E0      		ldi r18,0
+ 1525               	.LVL152:
+ 1526               	.L94:
+ 453:pattern_edit.c **** 		next = pattern_buff[i+1];
+ 1527               		.loc 1 453 13 view .LVU478
+ 1528 0698 E22F      		mov r30,r18
+ 1529 069a F0E0      		ldi r31,0
+ 453:pattern_edit.c **** 		next = pattern_buff[i+1];
+ 1530               		.loc 1 453 10 view .LVU479
+ 1531 069c E817      		cp r30,r24
+ 1532 069e F907      		cpc r31,r25
+ 1533 06a0 04F4      		brge .L95
+ 453:pattern_edit.c **** 		next = pattern_buff[i+1];
+ 1534               		.loc 1 453 44 discriminator 1 view .LVU480
+ 1535 06a2 E050      		subi r30,lo8(-(pattern_buff+1))
+ 1536 06a4 F040      		sbci r31,hi8(-(pattern_buff+1))
+ 1537 06a6 4081      		ld r20,Z
+ 453:pattern_edit.c **** 		next = pattern_buff[i+1];
+ 1538               		.loc 1 453 29 discriminator 1 view .LVU481
+ 1539 06a8 4F3F      		cpi r20,lo8(-1)
+ 1540 06aa 01F4      		brne .L96
+ 1541               	.L95:
+ 458:pattern_edit.c **** 	  dirtyflag = 1;
+ 1542               		.loc 1 458 4 is_stmt 1 view .LVU482
+ 458:pattern_edit.c **** 	  dirtyflag = 1;
+ 1543               		.loc 1 458 20 is_stmt 0 view .LVU483
+ 1544 06ac D092 0000 		sts pattern_buff,r13
+ 1545 06b0 00C0      		rjmp .L302
+ 1546               	.L96:
+ 454:pattern_edit.c **** 	    pattern_buff[++i] = prev;
+ 1547               		.loc 1 454 3 is_stmt 1 view .LVU484
+ 454:pattern_edit.c **** 	    pattern_buff[++i] = prev;
+ 1548               		.loc 1 454 8 is_stmt 0 view .LVU485
+ 1549 06b2 D080      		ld r13,Z
+ 1550               	.LVL153:
+ 455:pattern_edit.c **** 		prev=next;
+ 1551               		.loc 1 455 6 is_stmt 1 view .LVU486
+ 455:pattern_edit.c **** 		prev=next;
+ 1552               		.loc 1 455 24 is_stmt 0 view .LVU487
+ 1553 06b4 2F5F      		subi r18,lo8(-(1))
+ 1554               	.LVL154:
+ 455:pattern_edit.c **** 		prev=next;
+ 1555               		.loc 1 455 24 view .LVU488
+ 1556 06b6 3083      		st Z,r19
+ 456:pattern_edit.c **** 	  }
+ 1557               		.loc 1 456 3 is_stmt 1 view .LVU489
+ 1558               	.LVL155:
+ 456:pattern_edit.c **** 	  }
+ 1559               		.loc 1 456 7 is_stmt 0 view .LVU490
+ 1560 06b8 3D2D      		mov r19,r13
+ 1561 06ba 00C0      		rjmp .L94
+ 1562               	.LVL156:
+ 1563               	.L93:
+ 456:pattern_edit.c **** 	  }
+ 1564               		.loc 1 456 7 view .LVU491
+ 1565               	.LBE8:
+ 464:pattern_edit.c ****         uint8_t tu = 0;
+ 1566               		.loc 1 464 5 is_stmt 1 view .LVU492
+ 464:pattern_edit.c ****         uint8_t tu = 0;
+ 1567               		.loc 1 464 9 is_stmt 0 view .LVU493
+ 1568 06bc 8FE0      		ldi r24,lo8(15)
+ 1569 06be 0E94 0000 		call just_pressed
+ 1570               	.LVL157:
+ 464:pattern_edit.c ****         uint8_t tu = 0;
+ 1571               		.loc 1 464 8 view .LVU494
+ 1572 06c2 8823      		tst r24
+ 1573 06c4 01F0      		breq .L97
+ 464:pattern_edit.c ****         uint8_t tu = 0;
+ 1574               		.loc 1 464 33 discriminator 1 view .LVU495
+ 1575 06c6 83E0      		ldi r24,lo8(3)
+ 1576 06c8 0E94 0000 		call is_pressed
+ 1577               	.LVL158:
+ 464:pattern_edit.c ****         uint8_t tu = 0;
+ 1578               		.loc 1 464 30 discriminator 1 view .LVU496
+ 1579 06cc 8823      		tst r24
+ 1580 06ce 01F0      		breq .L97
+ 1581               	.LBB9:
+ 466:pattern_edit.c ****             if (pattern_buff[tu] != 0x3E) pattern_buff[tu]++;
+ 1582               		.loc 1 466 18 view .LVU497
+ 1583 06d0 3091 0000 		lds r19,PATT_LENGTH
+ 1584 06d4 90E0      		ldi r25,0
+ 1585 06d6 80E0      		ldi r24,0
+ 1586               	.L98:
+ 1587               	.LVL159:
+ 466:pattern_edit.c ****             if (pattern_buff[tu] != 0x3E) pattern_buff[tu]++;
+ 1588               		.loc 1 466 14 view .LVU498
+ 1589 06d8 8317      		cp r24,r19
+ 1590 06da 00F0      		brlo .+2
+ 1591 06dc 00C0      		rjmp .L302
+ 466:pattern_edit.c ****             if (pattern_buff[tu] != 0x3E) pattern_buff[tu]++;
+ 1592               		.loc 1 466 47 discriminator 1 view .LVU499
+ 1593 06de FC01      		movw r30,r24
+ 1594 06e0 E050      		subi r30,lo8(-(pattern_buff))
+ 1595 06e2 F040      		sbci r31,hi8(-(pattern_buff))
+ 1596 06e4 2081      		ld r18,Z
+ 466:pattern_edit.c ****             if (pattern_buff[tu] != 0x3E) pattern_buff[tu]++;
+ 1597               		.loc 1 466 32 discriminator 1 view .LVU500
+ 1598 06e6 2F3F      		cpi r18,lo8(-1)
+ 1599 06e8 01F4      		brne .+2
+ 1600 06ea 00C0      		rjmp .L302
+ 467:pattern_edit.c ****             tu++;
+ 1601               		.loc 1 467 13 is_stmt 1 view .LVU501
+ 467:pattern_edit.c ****             tu++;
+ 1602               		.loc 1 467 29 is_stmt 0 view .LVU502
+ 1603 06ec 2081      		ld r18,Z
+ 467:pattern_edit.c ****             tu++;
+ 1604               		.loc 1 467 16 view .LVU503
+ 1605 06ee 2E33      		cpi r18,lo8(62)
+ 1606 06f0 01F0      		breq .L99
+ 467:pattern_edit.c ****             tu++;
+ 1607               		.loc 1 467 43 is_stmt 1 discriminator 1 view .LVU504
+ 467:pattern_edit.c ****             tu++;
+ 1608               		.loc 1 467 55 is_stmt 0 discriminator 1 view .LVU505
+ 1609 06f2 2081      		ld r18,Z
+ 467:pattern_edit.c ****             tu++;
+ 1610               		.loc 1 467 59 discriminator 1 view .LVU506
+ 1611 06f4 2F5F      		subi r18,lo8(-(1))
+ 1612 06f6 2083      		st Z,r18
+ 1613               	.L99:
+ 468:pattern_edit.c ****         }
+ 1614               		.loc 1 468 13 is_stmt 1 view .LVU507
+ 1615               	.LVL160:
+ 468:pattern_edit.c ****         }
+ 1616               		.loc 1 468 13 is_stmt 0 view .LVU508
+ 1617 06f8 0196      		adiw r24,1
+ 1618               	.LVL161:
+ 468:pattern_edit.c ****         }
+ 1619               		.loc 1 468 13 view .LVU509
+ 1620 06fa 00C0      		rjmp .L98
+ 1621               	.LVL162:
+ 1622               	.L97:
+ 468:pattern_edit.c ****         }
+ 1623               		.loc 1 468 13 view .LVU510
+ 1624               	.LBE9:
+ 473:pattern_edit.c ****         uint8_t td = 0;
+ 1625               		.loc 1 473 5 is_stmt 1 view .LVU511
+ 473:pattern_edit.c ****         uint8_t td = 0;
+ 1626               		.loc 1 473 9 is_stmt 0 view .LVU512
+ 1627 06fc 8EE0      		ldi r24,lo8(14)
+ 1628 06fe 0E94 0000 		call just_pressed
+ 1629               	.LVL163:
+ 473:pattern_edit.c ****         uint8_t td = 0;
+ 1630               		.loc 1 473 8 view .LVU513
+ 1631 0702 8823      		tst r24
+ 1632 0704 01F0      		breq .L103
+ 473:pattern_edit.c ****         uint8_t td = 0;
+ 1633               		.loc 1 473 35 discriminator 1 view .LVU514
+ 1634 0706 83E0      		ldi r24,lo8(3)
+ 1635 0708 0E94 0000 		call is_pressed
+ 1636               	.LVL164:
+ 473:pattern_edit.c ****         uint8_t td = 0;
+ 1637               		.loc 1 473 32 discriminator 1 view .LVU515
+ 1638 070c 8823      		tst r24
+ 1639 070e 01F0      		breq .L103
+ 1640               	.LBB10:
+ 475:pattern_edit.c ****             if (pattern_buff[td] != 0x0B) pattern_buff[td]--;
+ 1641               		.loc 1 475 18 view .LVU516
+ 1642 0710 3091 0000 		lds r19,PATT_LENGTH
+ 1643 0714 90E0      		ldi r25,0
+ 1644 0716 80E0      		ldi r24,0
+ 1645               	.L104:
+ 1646               	.LVL165:
+ 475:pattern_edit.c ****             if (pattern_buff[td] != 0x0B) pattern_buff[td]--;
+ 1647               		.loc 1 475 14 view .LVU517
+ 1648 0718 8317      		cp r24,r19
+ 1649 071a 00F0      		brlo .+2
+ 1650 071c 00C0      		rjmp .L302
+ 475:pattern_edit.c ****             if (pattern_buff[td] != 0x0B) pattern_buff[td]--;
+ 1651               		.loc 1 475 47 discriminator 1 view .LVU518
+ 1652 071e FC01      		movw r30,r24
+ 1653 0720 E050      		subi r30,lo8(-(pattern_buff))
+ 1654 0722 F040      		sbci r31,hi8(-(pattern_buff))
+ 1655 0724 2081      		ld r18,Z
+ 475:pattern_edit.c ****             if (pattern_buff[td] != 0x0B) pattern_buff[td]--;
+ 1656               		.loc 1 475 32 discriminator 1 view .LVU519
+ 1657 0726 2F3F      		cpi r18,lo8(-1)
+ 1658 0728 01F4      		brne .+2
+ 1659 072a 00C0      		rjmp .L302
+ 476:pattern_edit.c ****             td++;
+ 1660               		.loc 1 476 13 is_stmt 1 view .LVU520
+ 476:pattern_edit.c ****             td++;
+ 1661               		.loc 1 476 29 is_stmt 0 view .LVU521
+ 1662 072c 2081      		ld r18,Z
+ 476:pattern_edit.c ****             td++;
+ 1663               		.loc 1 476 16 view .LVU522
+ 1664 072e 2B30      		cpi r18,lo8(11)
+ 1665 0730 01F0      		breq .L105
+ 476:pattern_edit.c ****             td++;
+ 1666               		.loc 1 476 43 is_stmt 1 discriminator 1 view .LVU523
+ 476:pattern_edit.c ****             td++;
+ 1667               		.loc 1 476 55 is_stmt 0 discriminator 1 view .LVU524
+ 1668 0732 2081      		ld r18,Z
+ 476:pattern_edit.c ****             td++;
+ 1669               		.loc 1 476 59 discriminator 1 view .LVU525
+ 1670 0734 2150      		subi r18,lo8(-(-1))
+ 1671 0736 2083      		st Z,r18
+ 1672               	.L105:
+ 477:pattern_edit.c ****         }
+ 1673               		.loc 1 477 13 is_stmt 1 view .LVU526
+ 1674               	.LVL166:
+ 477:pattern_edit.c ****         }
+ 1675               		.loc 1 477 13 is_stmt 0 view .LVU527
+ 1676 0738 0196      		adiw r24,1
+ 1677               	.LVL167:
+ 477:pattern_edit.c ****         }
+ 1678               		.loc 1 477 13 view .LVU528
+ 1679 073a 00C0      		rjmp .L104
+ 1680               	.LVL168:
+ 1681               	.L103:
+ 477:pattern_edit.c ****         }
+ 1682               		.loc 1 477 13 view .LVU529
+ 1683               	.LBE10:
+ 485:pattern_edit.c ****       uint8_t prev_note = curr_note;
+ 1684               		.loc 1 485 2 is_stmt 1 view .LVU530
+ 485:pattern_edit.c ****       uint8_t prev_note = curr_note;
+ 1685               		.loc 1 485 6 is_stmt 0 view .LVU531
+ 1686 073c 88E0      		ldi r24,lo8(8)
+ 1687 073e 0E94 0000 		call just_pressed
+ 1688               	.LVL169:
+ 485:pattern_edit.c ****       uint8_t prev_note = curr_note;
+ 1689               		.loc 1 485 5 view .LVU532
+ 1690 0742 8823      		tst r24
+ 1691 0744 01F0      		breq .L107
+ 1692               	.L110:
+ 1693               	.LBB11:
+ 486:pattern_edit.c **** 
+ 1694               		.loc 1 486 7 is_stmt 1 view .LVU533
+ 1695               	.LVL170:
+ 488:pattern_edit.c **** 	// turn off the last note
+ 1696               		.loc 1 488 7 view .LVU534
+ 488:pattern_edit.c **** 	// turn off the last note
+ 1697               		.loc 1 488 10 is_stmt 0 view .LVU535
+ 1698 0746 8091 0000 		lds r24,in_stepwrite_mode
+ 1699 074a 8111      		cpse r24,__zero_reg__
+ 1700 074c 00C0      		rjmp .L108
+ 539:pattern_edit.c **** 	      if (!in_runwrite_mode) {
+ 1701               		.loc 1 539 6 is_stmt 1 view .LVU536
+ 539:pattern_edit.c **** 	      if (!in_runwrite_mode) {
+ 1702               		.loc 1 539 10 is_stmt 0 view .LVU537
+ 1703 074e 88E0      		ldi r24,lo8(8)
+ 1704 0750 0E94 0000 		call just_pressed
+ 1705               	.LVL171:
+ 539:pattern_edit.c **** 	      if (!in_runwrite_mode) {
+ 1706               		.loc 1 539 9 view .LVU538
+ 1707 0754 8823      		tst r24
+ 1708 0756 01F4      		brne .+2
+ 1709 0758 00C0      		rjmp .L120
+ 540:pattern_edit.c **** 		    start_stepwrite_mode();
+ 1710               		.loc 1 540 8 is_stmt 1 view .LVU539
+ 540:pattern_edit.c **** 		    start_stepwrite_mode();
+ 1711               		.loc 1 540 11 is_stmt 0 view .LVU540
+ 1712 075a 8091 0000 		lds r24,in_runwrite_mode
+ 1713 075e 8111      		cpse r24,__zero_reg__
+ 1714 0760 00C0      		rjmp .L121
+ 541:pattern_edit.c **** 
+ 1715               		.loc 1 541 7 is_stmt 1 view .LVU541
+ 1716 0762 0E94 0000 		call start_stepwrite_mode
+ 1717               	.LVL172:
+ 543:pattern_edit.c **** 
+ 1718               		.loc 1 543 7 view .LVU542
+ 543:pattern_edit.c **** 
+ 1719               		.loc 1 543 26 is_stmt 0 view .LVU543
+ 1720 0766 1092 0000 		sts curr_pattern_index,__zero_reg__
+ 545:pattern_edit.c **** 		    if (curr_note != 0xFF) {
+ 1721               		.loc 1 545 7 is_stmt 1 view .LVU544
+ 545:pattern_edit.c **** 		    if (curr_note != 0xFF) {
+ 1722               		.loc 1 545 31 is_stmt 0 view .LVU545
+ 1723 076a E091 0000 		lds r30,curr_pattern_index
+ 1724 076e F0E0      		ldi r31,0
+ 1725 0770 E050      		subi r30,lo8(-(pattern_buff))
+ 1726 0772 F040      		sbci r31,hi8(-(pattern_buff))
+ 1727 0774 8081      		ld r24,Z
+ 545:pattern_edit.c **** 		    if (curr_note != 0xFF) {
+ 1728               		.loc 1 545 17 view .LVU546
+ 1729 0776 8093 0000 		sts curr_note,r24
+ 546:pattern_edit.c **** 			  note_on(curr_note & 0x3F,
+ 1730               		.loc 1 546 7 is_stmt 1 view .LVU547
+ 546:pattern_edit.c **** 			  note_on(curr_note & 0x3F,
+ 1731               		.loc 1 546 10 is_stmt 0 view .LVU548
+ 1732 077a 8F3F      		cpi r24,lo8(-1)
+ 1733 077c 01F4      		brne .+2
+ 1734 077e 00C0      		rjmp .L92
+ 547:pattern_edit.c **** 					  0,              // no slide on first note
+ 1735               		.loc 1 547 6 is_stmt 1 view .LVU549
+ 1736 0780 86FB      		bst r24,6
+ 1737 0782 4427      		clr r20
+ 1738 0784 40F9      		bld r20,0
+ 1739 0786 60E0      		ldi r22,0
+ 1740 0788 00C0      		rjmp .L304
+ 1741               	.L107:
+ 547:pattern_edit.c **** 					  0,              // no slide on first note
+ 1742               		.loc 1 547 6 is_stmt 0 view .LVU550
+ 1743               	.LBE11:
+ 485:pattern_edit.c ****       uint8_t prev_note = curr_note;
+ 1744               		.loc 1 485 32 discriminator 1 view .LVU551
+ 1745 078a 83E0      		ldi r24,lo8(3)
+ 1746 078c 0E94 0000 		call just_pressed
+ 1747               	.LVL173:
+ 485:pattern_edit.c ****       uint8_t prev_note = curr_note;
+ 1748               		.loc 1 485 29 discriminator 1 view .LVU552
+ 1749 0790 8111      		cpse r24,__zero_reg__
+ 1750 0792 00C0      		rjmp .L110
+ 1751 0794 00C0      		rjmp .L92
+ 1752               	.LVL174:
+ 1753               	.L108:
+ 1754               	.LBB12:
+ 490:pattern_edit.c **** 	delay_ms(1);
+ 1755               		.loc 1 490 2 is_stmt 1 view .LVU553
+ 1756 0796 1091 0000 		lds r17,curr_note
+ 1757 079a 111F      		rol r17
+ 1758 079c 1127      		clr r17
+ 1759 079e 111F      		rol r17
+ 1760 07a0 812F      		mov r24,r17
+ 1761 07a2 0E94 0000 		call note_off
+ 1762               	.LVL175:
+ 491:pattern_edit.c **** 	//putstring("step");
+ 1763               		.loc 1 491 2 view .LVU554
+ 1764 07a6 81E0      		ldi r24,lo8(1)
+ 1765 07a8 0E94 0000 		call delay_ms
+ 1766               	.LVL176:
+ 495:pattern_edit.c **** 	  // get previous note from pattern
+ 1767               		.loc 1 495 2 view .LVU555
+ 495:pattern_edit.c **** 	  // get previous note from pattern
+ 1768               		.loc 1 495 6 is_stmt 0 view .LVU556
+ 1769 07ac 83E0      		ldi r24,lo8(3)
+ 1770 07ae 0E94 0000 		call just_pressed
+ 1771               	.LVL177:
+ 495:pattern_edit.c **** 	  // get previous note from pattern
+ 1772               		.loc 1 495 5 view .LVU557
+ 1773 07b2 8823      		tst r24
+ 1774 07b4 01F0      		breq .L111
+ 497:pattern_edit.c **** 	    // search thru the buffer -forward- to find the EOP byte
+ 1775               		.loc 1 497 4 is_stmt 1 view .LVU558
+ 497:pattern_edit.c **** 	    // search thru the buffer -forward- to find the EOP byte
+ 1776               		.loc 1 497 27 is_stmt 0 view .LVU559
+ 1777 07b6 8091 0000 		lds r24,curr_pattern_index
+ 497:pattern_edit.c **** 	    // search thru the buffer -forward- to find the EOP byte
+ 1778               		.loc 1 497 7 view .LVU560
+ 1779 07ba 8111      		cpse r24,__zero_reg__
+ 1780 07bc 00C0      		rjmp .L112
+ 499:pattern_edit.c **** 		   (pattern_buff[curr_pattern_index] != END_OF_PATTERN))
+ 1781               		.loc 1 499 46 view .LVU561
+ 1782 07be 8091 0000 		lds r24,PATT_LENGTH
+ 1783 07c2 8150      		subi r24,1
+ 1784 07c4 990B      		sbc r25,r25
+ 1785               	.L113:
+ 499:pattern_edit.c **** 		   (pattern_buff[curr_pattern_index] != END_OF_PATTERN))
+ 1786               		.loc 1 499 33 view .LVU562
+ 1787 07c6 2091 0000 		lds r18,curr_pattern_index
+ 499:pattern_edit.c **** 		   (pattern_buff[curr_pattern_index] != END_OF_PATTERN))
+ 1788               		.loc 1 499 12 view .LVU563
+ 1789 07ca 2817      		cp r18,r24
+ 1790 07cc 1906      		cpc __zero_reg__,r25
+ 1791 07ce 04F4      		brge .L114
+ 500:pattern_edit.c **** 	      curr_pattern_index++;
+ 1792               		.loc 1 500 19 discriminator 1 view .LVU564
+ 1793 07d0 E091 0000 		lds r30,curr_pattern_index
+ 1794 07d4 F0E0      		ldi r31,0
+ 1795 07d6 E050      		subi r30,lo8(-(pattern_buff))
+ 1796 07d8 F040      		sbci r31,hi8(-(pattern_buff))
+ 1797 07da 2081      		ld r18,Z
+ 499:pattern_edit.c **** 		   (pattern_buff[curr_pattern_index] != END_OF_PATTERN))
+ 1798               		.loc 1 499 50 discriminator 1 view .LVU565
+ 1799 07dc 2F3F      		cpi r18,lo8(-1)
+ 1800 07de 01F4      		brne .L115
+ 1801               	.L114:
+ 515:pattern_edit.c **** 	set_bank_led(curr_pattern_index);
+ 1802               		.loc 1 515 2 is_stmt 1 view .LVU566
+ 1803 07e0 0E94 0000 		call clear_bank_leds
+ 1804               	.LVL178:
+ 516:pattern_edit.c **** 
+ 1805               		.loc 1 516 2 view .LVU567
+ 1806 07e4 8091 0000 		lds r24,curr_pattern_index
+ 1807 07e8 0E94 0000 		call set_bank_led
+ 1808               	.LVL179:
+ 520:pattern_edit.c **** 
+ 1809               		.loc 1 520 2 view .LVU568
+ 520:pattern_edit.c **** 
+ 1810               		.loc 1 520 26 is_stmt 0 view .LVU569
+ 1811 07ec E091 0000 		lds r30,curr_pattern_index
+ 1812 07f0 F0E0      		ldi r31,0
+ 1813 07f2 E050      		subi r30,lo8(-(pattern_buff))
+ 1814 07f4 F040      		sbci r31,hi8(-(pattern_buff))
+ 1815 07f6 8081      		ld r24,Z
+ 520:pattern_edit.c **** 
+ 1816               		.loc 1 520 12 view .LVU570
+ 1817 07f8 8093 0000 		sts curr_note,r24
+ 522:pattern_edit.c **** 	  clear_led(LED_ACCENT);
+ 1818               		.loc 1 522 2 is_stmt 1 view .LVU571
+ 522:pattern_edit.c **** 	  clear_led(LED_ACCENT);
+ 1819               		.loc 1 522 5 is_stmt 0 view .LVU572
+ 1820 07fc 8F3F      		cpi r24,lo8(-1)
+ 1821 07fe 01F4      		brne .L118
+ 523:pattern_edit.c **** 	  clear_led(LED_SLIDE);
+ 1822               		.loc 1 523 4 is_stmt 1 view .LVU573
+ 1823 0800 81E0      		ldi r24,lo8(1)
+ 1824 0802 0E94 0000 		call clear_led
+ 1825               	.LVL180:
+ 524:pattern_edit.c **** 	  set_led(LED_DONE);
+ 1826               		.loc 1 524 4 view .LVU574
+ 1827 0806 82E0      		ldi r24,lo8(2)
+ 1828 0808 0E94 0000 		call clear_led
+ 1829               	.LVL181:
+ 525:pattern_edit.c **** 	  clear_led_blink(LED_DONE);
+ 1830               		.loc 1 525 4 view .LVU575
+ 1831 080c 80E0      		ldi r24,0
+ 1832 080e 0E94 0000 		call set_led
+ 1833               	.LVL182:
+ 526:pattern_edit.c **** 	} else {
+ 1834               		.loc 1 526 4 view .LVU576
+ 1835 0812 80E0      		ldi r24,0
+ 1836 0814 0E94 0000 		call clear_led_blink
+ 1837               	.LVL183:
+ 1838 0818 00C0      		rjmp .L92
+ 1839               	.L115:
+ 501:pattern_edit.c **** 	  } else {
+ 1840               		.loc 1 501 8 view .LVU577
+ 501:pattern_edit.c **** 	  } else {
+ 1841               		.loc 1 501 26 is_stmt 0 view .LVU578
+ 1842 081a 2091 0000 		lds r18,curr_pattern_index
+ 1843 081e 2F5F      		subi r18,lo8(-(1))
+ 1844 0820 2093 0000 		sts curr_pattern_index,r18
+ 1845 0824 00C0      		rjmp .L113
+ 1846               	.L112:
+ 503:pattern_edit.c **** 	  }
+ 1847               		.loc 1 503 6 is_stmt 1 view .LVU579
+ 503:pattern_edit.c **** 	  }
+ 1848               		.loc 1 503 24 is_stmt 0 view .LVU580
+ 1849 0826 8091 0000 		lds r24,curr_pattern_index
+ 1850 082a 8150      		subi r24,lo8(-(-1))
+ 1851               	.L301:
+ 511:pattern_edit.c **** 	}
+ 1852               		.loc 1 511 24 view .LVU581
+ 1853 082c 8093 0000 		sts curr_pattern_index,r24
+ 1854 0830 00C0      		rjmp .L114
+ 1855               	.L111:
+ 507:pattern_edit.c **** 	      (pattern_buff[curr_pattern_index] == END_OF_PATTERN))
+ 1856               		.loc 1 507 4 is_stmt 1 view .LVU582
+ 507:pattern_edit.c **** 	      (pattern_buff[curr_pattern_index] == END_OF_PATTERN))
+ 1857               		.loc 1 507 28 is_stmt 0 view .LVU583
+ 1858 0832 8091 0000 		lds r24,curr_pattern_index
+ 1859 0836 90E0      		ldi r25,0
+ 1860 0838 0196      		adiw r24,1
+ 507:pattern_edit.c **** 	      (pattern_buff[curr_pattern_index] == END_OF_PATTERN))
+ 1861               		.loc 1 507 32 view .LVU584
+ 1862 083a 2091 0000 		lds r18,PATT_LENGTH
+ 507:pattern_edit.c **** 	      (pattern_buff[curr_pattern_index] == END_OF_PATTERN))
+ 1863               		.loc 1 507 7 view .LVU585
+ 1864 083e 2817      		cp r18,r24
+ 1865 0840 1906      		cpc __zero_reg__,r25
+ 1866 0842 01F0      		breq .L116
+ 1867 0844 04F0      		brlt .L116
+ 508:pattern_edit.c **** 	    curr_pattern_index = 0;
+ 1868               		.loc 1 508 21 discriminator 1 view .LVU586
+ 1869 0846 E091 0000 		lds r30,curr_pattern_index
+ 1870 084a F0E0      		ldi r31,0
+ 1871 084c E050      		subi r30,lo8(-(pattern_buff))
+ 1872 084e F040      		sbci r31,hi8(-(pattern_buff))
+ 1873 0850 8081      		ld r24,Z
+ 507:pattern_edit.c **** 	      (pattern_buff[curr_pattern_index] == END_OF_PATTERN))
+ 1874               		.loc 1 507 48 discriminator 1 view .LVU587
+ 1875 0852 8F3F      		cpi r24,lo8(-1)
+ 1876 0854 01F4      		brne .L117
+ 1877               	.L116:
+ 509:pattern_edit.c **** 	  else
+ 1878               		.loc 1 509 6 is_stmt 1 view .LVU588
+ 509:pattern_edit.c **** 	  else
+ 1879               		.loc 1 509 25 is_stmt 0 view .LVU589
+ 1880 0856 1092 0000 		sts curr_pattern_index,__zero_reg__
+ 1881 085a 00C0      		rjmp .L114
+ 1882               	.L117:
+ 511:pattern_edit.c **** 	}
+ 1883               		.loc 1 511 6 is_stmt 1 view .LVU590
+ 511:pattern_edit.c **** 	}
+ 1884               		.loc 1 511 24 is_stmt 0 view .LVU591
+ 1885 085c 8091 0000 		lds r24,curr_pattern_index
+ 1886 0860 8F5F      		subi r24,lo8(-(1))
+ 1887 0862 00C0      		rjmp .L301
+ 1888               	.L118:
+ 528:pattern_edit.c **** 	  if (dirtyflag)
+ 1889               		.loc 1 528 4 is_stmt 1 view .LVU592
+ 1890 0864 80E0      		ldi r24,0
+ 1891 0866 0E94 0000 		call clear_led
+ 1892               	.LVL184:
+ 529:pattern_edit.c **** 	    set_led_blink(LED_DONE);
+ 1893               		.loc 1 529 4 view .LVU593
+ 529:pattern_edit.c **** 	    set_led_blink(LED_DONE);
+ 1894               		.loc 1 529 7 is_stmt 0 view .LVU594
+ 1895 086a 8091 0000 		lds r24,dirtyflag
+ 1896 086e 8823      		tst r24
+ 1897 0870 01F0      		breq .L119
+ 530:pattern_edit.c **** 
+ 1898               		.loc 1 530 6 is_stmt 1 view .LVU595
+ 1899 0872 80E0      		ldi r24,0
+ 1900 0874 0E94 0000 		call set_led_blink
+ 1901               	.LVL185:
+ 1902               	.L119:
+ 532:pattern_edit.c **** 		  prev_note >> 7,              // slide
+ 1903               		.loc 1 532 4 view .LVU596
+ 534:pattern_edit.c **** 	  
+ 1904               		.loc 1 534 20 is_stmt 0 view .LVU597
+ 1905 0878 8091 0000 		lds r24,curr_note
+ 532:pattern_edit.c **** 		  prev_note >> 7,              // slide
+ 1906               		.loc 1 532 4 view .LVU598
+ 1907 087c 86FB      		bst r24,6
+ 1908 087e 4427      		clr r20
+ 1909 0880 40F9      		bld r20,0
+ 1910 0882 612F      		mov r22,r17
+ 1911               	.L304:
+ 547:pattern_edit.c **** 					  0,              // no slide on first note
+ 1912               		.loc 1 547 6 view .LVU599
+ 1913 0884 8F73      		andi r24,lo8(63)
+ 1914 0886 0E94 0000 		call note_on
+ 1915               	.LVL186:
+ 551:pattern_edit.c **** 		    }
+ 1916               		.loc 1 551 6 is_stmt 1 view .LVU600
+ 1917 088a 8091 0000 		lds r24,curr_note
+ 1918 088e 0E94 0000 		call set_note_led
+ 1919               	.LVL187:
+ 1920 0892 00C0      		rjmp .L92
+ 1921               	.L121:
+ 555:pattern_edit.c **** 		      running_stepwrite = TRUE;
+ 1922               		.loc 1 555 7 view .LVU601
+ 555:pattern_edit.c **** 		      running_stepwrite = TRUE;
+ 1923               		.loc 1 555 10 is_stmt 0 view .LVU602
+ 1924 0894 8091 0000 		lds r24,running_stepwrite
+ 1925 0898 8111      		cpse r24,__zero_reg__
+ 1926 089a 00C0      		rjmp .L123
+ 556:pattern_edit.c **** 			  runstepwrite_pattidx = 0;
+ 1927               		.loc 1 556 9 is_stmt 1 view .LVU603
+ 556:pattern_edit.c **** 			  runstepwrite_pattidx = 0;
+ 1928               		.loc 1 556 27 is_stmt 0 view .LVU604
+ 1929 089c 81E0      		ldi r24,lo8(1)
+ 1930 089e 8093 0000 		sts running_stepwrite,r24
+ 557:pattern_edit.c **** 			}
+ 1931               		.loc 1 557 6 is_stmt 1 view .LVU605
+ 1932               	.L305:
+ 563:pattern_edit.c **** 		}
+ 1933               		.loc 1 563 6 view .LVU606
+ 563:pattern_edit.c **** 		}
+ 1934               		.loc 1 563 27 is_stmt 0 view .LVU607
+ 1935 08a2 1092 0000 		sts runstepwrite_pattidx,__zero_reg__
+ 1936 08a6 00C0      		rjmp .L92
+ 1937               	.L123:
+ 560:pattern_edit.c **** 	      (pattern_buff[runstepwrite_pattidx] == END_OF_PATTERN)) {
+ 1938               		.loc 1 560 4 is_stmt 1 view .LVU608
+ 560:pattern_edit.c **** 	      (pattern_buff[runstepwrite_pattidx] == END_OF_PATTERN)) {
+ 1939               		.loc 1 560 30 is_stmt 0 view .LVU609
+ 1940 08a8 8091 0000 		lds r24,runstepwrite_pattidx
+ 1941 08ac 282F      		mov r18,r24
+ 1942 08ae 30E0      		ldi r19,0
+ 1943 08b0 A901      		movw r20,r18
+ 1944 08b2 4F5F      		subi r20,-1
+ 1945 08b4 5F4F      		sbci r21,-1
+ 560:pattern_edit.c **** 	      (pattern_buff[runstepwrite_pattidx] == END_OF_PATTERN)) {
+ 1946               		.loc 1 560 34 view .LVU610
+ 1947 08b6 9091 0000 		lds r25,PATT_LENGTH
+ 560:pattern_edit.c **** 	      (pattern_buff[runstepwrite_pattidx] == END_OF_PATTERN)) {
+ 1948               		.loc 1 560 7 view .LVU611
+ 1949 08ba 9417      		cp r25,r20
+ 1950 08bc 1506      		cpc __zero_reg__,r21
+ 1951 08be 01F0      		breq .L124
+ 1952 08c0 04F0      		brlt .L124
+ 561:pattern_edit.c **** 		running_stepwrite = FALSE;
+ 1953               		.loc 1 561 21 discriminator 1 view .LVU612
+ 1954 08c2 2050      		subi r18,lo8(-(pattern_buff))
+ 1955 08c4 3040      		sbci r19,hi8(-(pattern_buff))
+ 1956 08c6 F901      		movw r30,r18
+ 1957 08c8 9081      		ld r25,Z
+ 560:pattern_edit.c **** 	      (pattern_buff[runstepwrite_pattidx] == END_OF_PATTERN)) {
+ 1958               		.loc 1 560 50 discriminator 1 view .LVU613
+ 1959 08ca 9F3F      		cpi r25,lo8(-1)
+ 1960 08cc 01F4      		brne .L125
+ 1961               	.L124:
+ 562:pattern_edit.c **** 	    runstepwrite_pattidx = 0;
+ 1962               		.loc 1 562 3 is_stmt 1 view .LVU614
+ 562:pattern_edit.c **** 	    runstepwrite_pattidx = 0;
+ 1963               		.loc 1 562 21 is_stmt 0 view .LVU615
+ 1964 08ce 1092 0000 		sts running_stepwrite,__zero_reg__
+ 1965 08d2 00C0      		rjmp .L305
+ 1966               	.L125:
+ 566:pattern_edit.c **** 			}
+ 1967               		.loc 1 566 6 is_stmt 1 view .LVU616
+ 566:pattern_edit.c **** 			}
+ 1968               		.loc 1 566 26 is_stmt 0 view .LVU617
+ 1969 08d4 8F5F      		subi r24,lo8(-(1))
+ 1970               	.L303:
+ 578:pattern_edit.c **** 	  }
+ 1971               		.loc 1 578 26 view .LVU618
+ 1972 08d6 8093 0000 		sts runstepwrite_pattidx,r24
+ 1973 08da 00C0      		rjmp .L92
+ 1974               	.L120:
+ 570:pattern_edit.c **** 	  // get previous note from pattern
+ 1975               		.loc 1 570 8 is_stmt 1 view .LVU619
+ 570:pattern_edit.c **** 	  // get previous note from pattern
+ 1976               		.loc 1 570 11 is_stmt 0 view .LVU620
+ 1977 08dc 8091 0000 		lds r24,running_stepwrite
+ 1978 08e0 8823      		tst r24
+ 1979 08e2 01F4      		brne .+2
+ 1980 08e4 00C0      		rjmp .L92
+ 572:pattern_edit.c **** 	    // search thru the buffer -forward- to find the EOP byte
+ 1981               		.loc 1 572 4 is_stmt 1 view .LVU621
+ 572:pattern_edit.c **** 	    // search thru the buffer -forward- to find the EOP byte
+ 1982               		.loc 1 572 29 is_stmt 0 view .LVU622
+ 1983 08e6 8091 0000 		lds r24,runstepwrite_pattidx
+ 574:pattern_edit.c **** 		   (pattern_buff[runstepwrite_pattidx] != END_OF_PATTERN))
+ 1984               		.loc 1 574 48 view .LVU623
+ 1985 08ea 4091 0000 		lds r20,PATT_LENGTH
+ 1986 08ee 4150      		subi r20,1
+ 1987 08f0 550B      		sbc r21,r21
+ 572:pattern_edit.c **** 	    // search thru the buffer -forward- to find the EOP byte
+ 1988               		.loc 1 572 7 view .LVU624
+ 1989 08f2 8823      		tst r24
+ 1990 08f4 01F0      		breq .L128
+ 578:pattern_edit.c **** 	  }
+ 1991               		.loc 1 578 6 is_stmt 1 view .LVU625
+ 578:pattern_edit.c **** 	  }
+ 1992               		.loc 1 578 26 is_stmt 0 view .LVU626
+ 1993 08f6 8150      		subi r24,lo8(-(-1))
+ 1994 08f8 00C0      		rjmp .L303
+ 1995               	.L140:
+ 1996 08fa 822F      		mov r24,r18
+ 1997               	.L128:
+ 574:pattern_edit.c **** 		   (pattern_buff[runstepwrite_pattidx] != END_OF_PATTERN))
+ 1998               		.loc 1 574 35 view .LVU627
+ 1999 08fc 282F      		mov r18,r24
+ 2000 08fe 30E0      		ldi r19,0
+ 574:pattern_edit.c **** 		   (pattern_buff[runstepwrite_pattidx] != END_OF_PATTERN))
+ 2001               		.loc 1 574 12 view .LVU628
+ 2002 0900 2417      		cp r18,r20
+ 2003 0902 3507      		cpc r19,r21
+ 2004 0904 04F4      		brge .L303
+ 575:pattern_edit.c **** 	      runstepwrite_pattidx++;
+ 2005               		.loc 1 575 19 discriminator 1 view .LVU629
+ 2006 0906 2050      		subi r18,lo8(-(pattern_buff))
+ 2007 0908 3040      		sbci r19,hi8(-(pattern_buff))
+ 2008 090a F901      		movw r30,r18
+ 2009 090c 9081      		ld r25,Z
+ 2010 090e 21E0      		ldi r18,lo8(1)
+ 2011 0910 280F      		add r18,r24
+ 574:pattern_edit.c **** 		   (pattern_buff[runstepwrite_pattidx] != END_OF_PATTERN))
+ 2012               		.loc 1 574 52 discriminator 1 view .LVU630
+ 2013 0912 9F3F      		cpi r25,lo8(-1)
+ 2014 0914 01F4      		brne .L140
+ 2015 0916 00C0      		rjmp .L303
+ 2016               	.LBE12:
+ 2017               		.cfi_endproc
+ 2018               	.LFE5:
+ 2020               	.global	edit_live
+ 2022               	edit_live:
+ 2023               	.LFB6:
+ 613:pattern_edit.c ****   in_runwrite_mode = 1;
+ 2024               		.loc 1 613 18 is_stmt 1 view -0
+ 2025               		.cfi_startproc
+ 2026               	/* prologue: function */
+ 2027               	/* frame size = 0 */
+ 2028               	/* stack size = 0 */
+ 2029               	.L__stack_usage = 0
+ 614:pattern_edit.c ****   edit_pattern();
+ 2030               		.loc 1 614 3 view .LVU632
+ 614:pattern_edit.c ****   edit_pattern();
+ 2031               		.loc 1 614 20 is_stmt 0 view .LVU633
+ 2032 0918 81E0      		ldi r24,lo8(1)
+ 2033 091a 8093 0000 		sts in_runwrite_mode,r24
+ 615:pattern_edit.c **** }
+ 2034               		.loc 1 615 3 is_stmt 1 view .LVU634
+ 2035 091e 0E94 0000 		call edit_pattern
+ 2036               	.LVL188:
+ 2037               	/* epilogue start */
+ 616:pattern_edit.c **** 
+ 2038               		.loc 1 616 1 is_stmt 0 view .LVU635
+ 2039 0922 0895      		ret
+ 2040               		.cfi_endproc
+ 2041               	.LFE6:
+ 2043               	.global	do_pattern_edit
+ 2045               	do_pattern_edit:
+ 2046               	.LFB1:
+  74:pattern_edit.c ****   uint8_t i, curr_function;
+ 2047               		.loc 1 74 28 is_stmt 1 view -0
+ 2048               		.cfi_startproc
+ 2049 0924 CF93      		push r28
+ 2050               		.cfi_def_cfa_offset 3
+ 2051               		.cfi_offset 28, -2
+ 2052 0926 DF93      		push r29
+ 2053               		.cfi_def_cfa_offset 4
+ 2054               		.cfi_offset 29, -3
+ 2055               	/* prologue: function */
+ 2056               	/* frame size = 0 */
+ 2057               	/* stack size = 2 */
+ 2058               	.L__stack_usage = 2
+  75:pattern_edit.c **** 
+ 2059               		.loc 1 75 3 view .LVU637
+  77:pattern_edit.c **** 
+ 2060               		.loc 1 77 3 view .LVU638
+  77:pattern_edit.c **** 
+ 2061               		.loc 1 77 17 is_stmt 0 view .LVU639
+ 2062 0928 D091 0000 		lds r29,function
+ 2063               	.LVL189:
+  80:pattern_edit.c ****   in_stepwrite_mode = 0;
+ 2064               		.loc 1 80 3 is_stmt 1 view .LVU640
+  80:pattern_edit.c ****   in_stepwrite_mode = 0;
+ 2065               		.loc 1 80 17 is_stmt 0 view .LVU641
+ 2066 092c 1092 0000 		sts patt_location,__zero_reg__
+  81:pattern_edit.c ****   in_runwrite_mode = 0;
+ 2067               		.loc 1 81 3 is_stmt 1 view .LVU642
+  81:pattern_edit.c ****   in_runwrite_mode = 0;
+ 2068               		.loc 1 81 21 is_stmt 0 view .LVU643
+ 2069 0930 1092 0000 		sts in_stepwrite_mode,__zero_reg__
+  82:pattern_edit.c ****   running_stepwrite = FALSE;
+ 2070               		.loc 1 82 3 is_stmt 1 view .LVU644
+  82:pattern_edit.c ****   running_stepwrite = FALSE;
+ 2071               		.loc 1 82 20 is_stmt 0 view .LVU645
+ 2072 0934 1092 0000 		sts in_runwrite_mode,__zero_reg__
+  83:pattern_edit.c ****   play_loaded_pattern = 0;
+ 2073               		.loc 1 83 3 is_stmt 1 view .LVU646
+  83:pattern_edit.c ****   play_loaded_pattern = 0;
+ 2074               		.loc 1 83 21 is_stmt 0 view .LVU647
+ 2075 0938 1092 0000 		sts running_stepwrite,__zero_reg__
+  84:pattern_edit.c ****   curr_pattern_index = 0;
+ 2076               		.loc 1 84 3 is_stmt 1 view .LVU648
+  84:pattern_edit.c ****   curr_pattern_index = 0;
+ 2077               		.loc 1 84 23 is_stmt 0 view .LVU649
+ 2078 093c 1092 0000 		sts play_loaded_pattern,__zero_reg__
+  85:pattern_edit.c ****   curr_note = 0;
+ 2079               		.loc 1 85 3 is_stmt 1 view .LVU650
+  85:pattern_edit.c ****   curr_note = 0;
+ 2080               		.loc 1 85 22 is_stmt 0 view .LVU651
+ 2081 0940 1092 0000 		sts curr_pattern_index,__zero_reg__
+  86:pattern_edit.c ****   
+ 2082               		.loc 1 86 3 is_stmt 1 view .LVU652
+  86:pattern_edit.c ****   
+ 2083               		.loc 1 86 13 is_stmt 0 view .LVU653
+ 2084 0944 1092 0000 		sts curr_note,__zero_reg__
+  88:pattern_edit.c ****     turn_on_tempo();
+ 2085               		.loc 1 88 3 is_stmt 1 view .LVU654
+  88:pattern_edit.c ****     turn_on_tempo();
+ 2086               		.loc 1 88 6 is_stmt 0 view .LVU655
+ 2087 0948 8091 0000 		lds r24,sync
+ 2088 094c 8111      		cpse r24,__zero_reg__
+ 2089 094e 00C0      		rjmp .L308
+  89:pattern_edit.c ****   else {
+ 2090               		.loc 1 89 5 is_stmt 1 view .LVU656
+ 2091 0950 0E94 0000 		call turn_on_tempo
+ 2092               	.LVL190:
+ 2093               	.L309:
+  95:pattern_edit.c ****   patt_bank = bank;
+ 2094               		.loc 1 95 3 view .LVU657
+ 2095 0954 0E94 0000 		call read_switches
+ 2096               	.LVL191:
+  96:pattern_edit.c **** 
+ 2097               		.loc 1 96 3 view .LVU658
+  96:pattern_edit.c **** 
+ 2098               		.loc 1 96 13 is_stmt 0 view .LVU659
+ 2099 0958 8091 0000 		lds r24,bank
+ 2100 095c 8093 0000 		sts patt_bank,r24
+  98:pattern_edit.c ****   clear_all_leds();
+ 2101               		.loc 1 98 3 is_stmt 1 view .LVU660
+ 2102 0960 6091 0000 		lds r22,patt_location
+ 2103 0964 0E94 0000 		call load_pattern
+ 2104               	.LVL192:
+  99:pattern_edit.c **** 
+ 2105               		.loc 1 99 3 view .LVU661
+ 2106 0968 0E94 0000 		call clear_all_leds
+ 2107               	.LVL193:
+ 101:pattern_edit.c ****       
+ 2108               		.loc 1 101 3 view .LVU662
+ 2109 096c 8091 0000 		lds r24,bank
+ 2110 0970 0E94 0000 		call set_bank_led
+ 2111               	.LVL194:
+ 2112               	.L316:
+ 103:pattern_edit.c ****     read_switches();
+ 2113               		.loc 1 103 3 view .LVU663
+ 104:pattern_edit.c **** 
+ 2114               		.loc 1 104 5 view .LVU664
+ 2115 0974 0E94 0000 		call read_switches
+ 2116               	.LVL195:
+ 106:pattern_edit.c ****       // oops i guess they want something else, return!
+ 2117               		.loc 1 106 5 view .LVU665
+ 106:pattern_edit.c ****       // oops i guess they want something else, return!
+ 2118               		.loc 1 106 8 is_stmt 0 view .LVU666
+ 2119 0978 8091 0000 		lds r24,function
+ 2120 097c 8D17      		cp r24,r29
+ 2121 097e 01F0      		breq .L310
+ 108:pattern_edit.c ****       play_loaded_pattern = FALSE;
+ 2122               		.loc 1 108 7 is_stmt 1 view .LVU667
+ 2123 0980 0E94 0000 		call turn_off_tempo
+ 2124               	.LVL196:
+ 109:pattern_edit.c ****       
+ 2125               		.loc 1 109 7 view .LVU668
+ 109:pattern_edit.c ****       
+ 2126               		.loc 1 109 27 is_stmt 0 view .LVU669
+ 2127 0984 1092 0000 		sts play_loaded_pattern,__zero_reg__
+ 112:pattern_edit.c ****       dinsync_stop();
+ 2128               		.loc 1 112 7 is_stmt 1 view .LVU670
+ 2129 0988 80E0      		ldi r24,0
+ 2130 098a 0E94 0000 		call note_off
+ 2131               	.LVL197:
+ 113:pattern_edit.c ****       midi_stop();
+ 2132               		.loc 1 113 7 view .LVU671
+ 2133 098e 0E94 0000 		call dinsync_stop
+ 2134               	.LVL198:
+ 114:pattern_edit.c **** 
+ 2135               		.loc 1 114 7 view .LVU672
+ 2136 0992 0E94 0000 		call midi_stop
+ 2137               	.LVL199:
+ 117:pattern_edit.c ****       clock_leds();
+ 2138               		.loc 1 117 7 view .LVU673
+ 2139 0996 0E94 0000 		call clear_all_leds
+ 2140               	.LVL200:
+ 118:pattern_edit.c ****       return;
+ 2141               		.loc 1 118 7 view .LVU674
+ 2142 099a 0E94 0000 		call clock_leds
+ 2143               	.LVL201:
+ 119:pattern_edit.c ****     }
+ 2144               		.loc 1 119 7 view .LVU675
+ 2145               	/* epilogue start */
+ 153:pattern_edit.c **** 
+ 2146               		.loc 1 153 1 is_stmt 0 view .LVU676
+ 2147 099e DF91      		pop r29
+ 2148               	.LVL202:
+ 153:pattern_edit.c **** 
+ 2149               		.loc 1 153 1 view .LVU677
+ 2150 09a0 CF91      		pop r28
+ 2151 09a2 0895      		ret
+ 2152               	.LVL203:
+ 2153               	.L308:
+  91:pattern_edit.c ****     dinsync_set_out();
+ 2154               		.loc 1 91 5 is_stmt 1 view .LVU678
+ 2155 09a4 0E94 0000 		call turn_off_tempo
+ 2156               	.LVL204:
+  92:pattern_edit.c ****   }
+ 2157               		.loc 1 92 5 view .LVU679
+ 2158 09a8 0E94 0000 		call dinsync_set_out
+ 2159               	.LVL205:
+ 2160 09ac 00C0      		rjmp .L309
+ 2161               	.L310:
+ 122:pattern_edit.c ****       //putstring("changed bank!");
+ 2162               		.loc 1 122 5 view .LVU680
+ 122:pattern_edit.c ****       //putstring("changed bank!");
+ 2163               		.loc 1 122 8 is_stmt 0 view .LVU681
+ 2164 09ae 9091 0000 		lds r25,patt_bank
+ 2165 09b2 8091 0000 		lds r24,bank
+ 2166 09b6 9817      		cp r25,r24
+ 2167 09b8 01F0      		breq .L311
+ 126:pattern_edit.c **** 	stop_stepwrite_mode();
+ 2168               		.loc 1 126 7 is_stmt 1 view .LVU682
+ 126:pattern_edit.c **** 	stop_stepwrite_mode();
+ 2169               		.loc 1 126 10 is_stmt 0 view .LVU683
+ 2170 09ba 8091 0000 		lds r24,in_stepwrite_mode
+ 2171 09be 8111      		cpse r24,__zero_reg__
+ 127:pattern_edit.c ****       patt_bank = bank;
+ 2172               		.loc 1 127 2 is_stmt 1 view .LVU684
+ 2173 09c0 0E94 0000 		call stop_stepwrite_mode
+ 2174               	.LVL206:
+ 2175               	.L312:
+ 128:pattern_edit.c ****       load_pattern(patt_bank, patt_location);
+ 2176               		.loc 1 128 7 view .LVU685
+ 128:pattern_edit.c ****       load_pattern(patt_bank, patt_location);
+ 2177               		.loc 1 128 17 is_stmt 0 view .LVU686
+ 2178 09c4 8091 0000 		lds r24,bank
+ 2179 09c8 8093 0000 		sts patt_bank,r24
+ 129:pattern_edit.c ****       clear_bank_leds();
+ 2180               		.loc 1 129 7 is_stmt 1 view .LVU687
+ 2181 09cc 6091 0000 		lds r22,patt_location
+ 2182 09d0 0E94 0000 		call load_pattern
+ 2183               	.LVL207:
+ 130:pattern_edit.c ****       set_bank_led(bank);
+ 2184               		.loc 1 130 7 view .LVU688
+ 2185 09d4 0E94 0000 		call clear_bank_leds
+ 2186               	.LVL208:
+ 131:pattern_edit.c ****     }
+ 2187               		.loc 1 131 7 view .LVU689
+ 2188 09d8 8091 0000 		lds r24,bank
+ 2189 09dc 0E94 0000 		call set_bank_led
+ 2190               	.LVL209:
+ 2191               	.L311:
+ 135:pattern_edit.c ****       // display whatever location is selected on number keys
+ 2192               		.loc 1 135 5 view .LVU690
+ 135:pattern_edit.c ****       // display whatever location is selected on number keys
+ 2193               		.loc 1 135 9 is_stmt 0 view .LVU691
+ 2194 09e0 8091 0000 		lds r24,in_runwrite_mode
+ 2195 09e4 9091 0000 		lds r25,in_stepwrite_mode
+ 2196 09e8 892B      		or r24,r25
+ 2197 09ea 01F4      		brne .L314
+ 137:pattern_edit.c **** 
+ 2198               		.loc 1 137 7 is_stmt 1 view .LVU692
+ 2199 09ec 8091 0000 		lds r24,patt_location
+ 2200 09f0 8F5F      		subi r24,lo8(-(1))
+ 2201 09f2 0E94 0000 		call set_numkey_led
+ 2202               	.LVL210:
+ 139:pattern_edit.c ****       if (i != 0) {
+ 2203               		.loc 1 139 7 view .LVU693
+ 139:pattern_edit.c ****       if (i != 0) {
+ 2204               		.loc 1 139 11 is_stmt 0 view .LVU694
+ 2205 09f6 0E94 0000 		call get_lowest_numkey_pressed
+ 2206               	.LVL211:
+ 2207 09fa C82F      		mov r28,r24
+ 2208               	.LVL212:
+ 140:pattern_edit.c **** 	clear_notekey_leds();
+ 2209               		.loc 1 140 7 is_stmt 1 view .LVU695
+ 140:pattern_edit.c **** 	clear_notekey_leds();
+ 2210               		.loc 1 140 10 is_stmt 0 view .LVU696
+ 2211 09fc 8823      		tst r24
+ 2212 09fe 01F0      		breq .L314
+ 141:pattern_edit.c **** 	set_numkey_led(i);
+ 2213               		.loc 1 141 2 is_stmt 1 view .LVU697
+ 2214 0a00 0E94 0000 		call clear_notekey_leds
+ 2215               	.LVL213:
+ 142:pattern_edit.c **** 	patt_location = i - 1;
+ 2216               		.loc 1 142 2 view .LVU698
+ 2217 0a04 8C2F      		mov r24,r28
+ 2218 0a06 0E94 0000 		call set_numkey_led
+ 2219               	.LVL214:
+ 143:pattern_edit.c **** 	load_pattern(patt_bank, patt_location);
+ 2220               		.loc 1 143 2 view .LVU699
+ 143:pattern_edit.c **** 	load_pattern(patt_bank, patt_location);
+ 2221               		.loc 1 143 20 is_stmt 0 view .LVU700
+ 2222 0a0a 6FEF      		ldi r22,lo8(-1)
+ 2223 0a0c 6C0F      		add r22,r28
+ 143:pattern_edit.c **** 	load_pattern(patt_bank, patt_location);
+ 2224               		.loc 1 143 16 view .LVU701
+ 2225 0a0e 6093 0000 		sts patt_location,r22
+ 144:pattern_edit.c **** 	//printf("location #%d\n\r", patt_location);
+ 2226               		.loc 1 144 2 is_stmt 1 view .LVU702
+ 2227 0a12 8091 0000 		lds r24,patt_bank
+ 2228 0a16 0E94 0000 		call load_pattern
+ 2229               	.LVL215:
+ 2230               	.L314:
+ 149:pattern_edit.c **** 
+ 2231               		.loc 1 149 5 view .LVU703
+ 2232 0a1a 0E94 0000 		call edit_pattern
+ 2233               	.LVL216:
+ 104:pattern_edit.c **** 
+ 2234               		.loc 1 104 5 is_stmt 0 view .LVU704
+ 2235 0a1e 00C0      		rjmp .L316
+ 2236               		.cfi_endproc
+ 2237               	.LFE1:
+ 2239               	.global	midi_cmd
+ 2240               		.section .bss
+ 2243               	midi_cmd:
+ 2244 0000 00        		.zero	1
+ 2245               	.global	dirtyflag
+ 2248               	dirtyflag:
+ 2249 0001 00        		.zero	1
+ 2250               		.comm	runstepwrite_pattidx,1,1
+ 2251               		.comm	in_stepwrite_mode,1,1
+ 2252               		.comm	in_runwrite_mode,1,1
+ 2253               		.comm	pattern_buff,16,1
+ 2254               		.comm	patt_bank,1,1
+ 2255               		.comm	patt_location,1,1
+ 2256               		.comm	play_loaded_pattern,1,1
+ 2257               		.comm	curr_pattern_index,1,1
+ 2258               		.comm	note_counter,1,1
+ 2259               		.text
+ 2260               	.Letext0:
+ 2261               		.file 2 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdint.h"
+ 2262               		.file 3 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdio.h"
+ 2263               		.file 4 "led.h"
+ 2264               		.file 5 "synth.h"
+ 2265               		.file 6 "midi.h"
+ 2266               		.file 7 "switch.h"
+ 2267               		.file 8 "delay.h"
+ 2268               		.file 9 "dinsync.h"
+ 2269               		.file 10 "main.h"
+ 2270               		.file 11 "eeprom.h"
+ 2271               		.file 12 "<built-in>"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 pattern_edit.c
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:12     .text:0000000000000000 load_pattern
+                            *COM*:0000000000000010 pattern_buff
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:2248   .bss:0000000000000001 dirtyflag
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:133    .text:0000000000000072 clock_ticks
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:2243   .bss:0000000000000000 midi_cmd
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:226    .text:00000000000000e4 write_pattern
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:321    .text:000000000000013e start_runwrite_mode
+                            *COM*:0000000000000001 curr_pattern_index
+                            *COM*:0000000000000001 in_runwrite_mode
+                            *COM*:0000000000000001 note_counter
+                            *COM*:0000000000000001 play_loaded_pattern
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:376    .text:0000000000000176 clear_leds_and_note_off
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:409    .text:0000000000000192 stop_runwrite_mode
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:445    .text:00000000000001b0 start_stepwrite_mode
+                            *COM*:0000000000000001 in_stepwrite_mode
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:480    .text:00000000000001ce stop_stepwrite_mode
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:513    .text:00000000000001e8 edit_pattern
+                            *COM*:0000000000000001 runstepwrite_pattidx
+                            *COM*:0000000000000001 patt_bank
+                            *COM*:0000000000000001 patt_location
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:2022   .text:0000000000000918 edit_live
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccNaRLLf.s:2045   .text:0000000000000924 do_pattern_edit
+
+UNDEFINED SYMBOLS
+clock_leds
+spieeprom_read
+PATT_LENGTH
+clear_led_blink
+playing
+sync
+midisync_clocked
+midi_recv_cmd
+do_tempo
+dinsync_clocked
+function
+putnum_uh
+spieeprom_write
+set_led
+note_off
+midi_putchar
+clear_blinking_leds
+clear_key_leds
+clear_bank_leds
+bank
+set_bank_led
+clear_led
+__prologue_saves__
+just_pressed
+is_pressed
+dinsync_stopped
+just_released
+running_stepwrite
+get_lowest_notekey_just_pressed
+delay_ms
+note_on
+set_note_led
+set_led_blink
+read_switches
+get_lowest_numkey_pressed
+__epilogue_restores__
+clear_note_leds
+curr_note
+turn_on_tempo
+clear_all_leds
+turn_off_tempo
+dinsync_stop
+midi_stop
+dinsync_set_out
+set_numkey_led
+clear_notekey_leds
+__do_clear_bss

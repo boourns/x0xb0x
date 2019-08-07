@@ -1,0 +1,919 @@
+   1               		.file	"keyboard.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	do_keyboard_mode
+  12               	do_keyboard_mode:
+  13               	.LFB0:
+  14               		.file 1 "keyboard.c"
+   1:keyboard.c    **** /* 
+   2:keyboard.c    ****  * The software for the x0xb0x is available for use in accordance with the 
+   3:keyboard.c    ****  * following open source license (MIT License). For more information about
+   4:keyboard.c    ****  * OS licensing, please visit -> http://www.opensource.org/
+   5:keyboard.c    ****  *
+   6:keyboard.c    ****  * For more information about the x0xb0x project, please visit
+   7:keyboard.c    ****  * -> http://www.ladyada.net/make/x0xb0x
+   8:keyboard.c    ****  *
+   9:keyboard.c    ****  *                                     *****
+  10:keyboard.c    ****  * Copyright (c) 2005 Limor Fried
+  11:keyboard.c    ****  *
+  12:keyboard.c    ****  * Permission is hereby granted, free of charge, to any person obtaining a 
+  13:keyboard.c    ****  * copy of this software and associated documentation files (the "Software"), 
+  14:keyboard.c    ****  * to deal in the Software without restriction, including without limitation 
+  15:keyboard.c    ****  * the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+  16:keyboard.c    ****  * and/or sell copies of the Software, and to permit persons to whom the 
+  17:keyboard.c    ****  * Software is furnished to do so, subject to the following conditions:
+  18:keyboard.c    ****  *
+  19:keyboard.c    ****  * The above copyright notice and this permission notice shall be included in 
+  20:keyboard.c    ****  * all copies or substantial portions of the Software.
+  21:keyboard.c    ****  *
+  22:keyboard.c    ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+  23:keyboard.c    ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+  24:keyboard.c    ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+  25:keyboard.c    ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+  26:keyboard.c    ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+  27:keyboard.c    ****  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+  28:keyboard.c    ****  * IN THE SOFTWARE.
+  29:keyboard.c    ****  *                                     *****
+  30:keyboard.c    ****  *
+  31:keyboard.c    ****  */
+  32:keyboard.c    **** 
+  33:keyboard.c    **** #include <avr/io.h>
+  34:keyboard.c    **** #include <avr/interrupt.h>
+  35:keyboard.c    **** #include "main.h"
+  36:keyboard.c    **** #include "synth.h"
+  37:keyboard.c    **** #include "delay.h"
+  38:keyboard.c    **** #include "led.h"
+  39:keyboard.c    **** #include "midi.h"
+  40:keyboard.c    **** #include "switch.h"
+  41:keyboard.c    **** #include "pattern.h"
+  42:keyboard.c    **** #include "eeprom.h"
+  43:keyboard.c    **** 
+  44:keyboard.c    **** extern uint8_t bank;
+  45:keyboard.c    **** extern uint8_t function;
+  46:keyboard.c    **** #define function_changed (function != KEYBOARD_MODE_FUNC)
+  47:keyboard.c    **** 
+  48:keyboard.c    **** extern const uint8_t loopkey_tab[16];
+  49:keyboard.c    **** 
+  50:keyboard.c    **** extern uint8_t midi_out_addr;  // the midi address for outgoing stuff
+  51:keyboard.c    **** 
+  52:keyboard.c    **** void do_keyboard_mode(void) {
+  15               		.loc 1 52 29 view -0
+  16               		.cfi_startproc
+  17 0000 A0E8      		ldi r26,lo8(-128)
+  18 0002 B0E0      		ldi r27,0
+  19 0004 E0E0      		ldi r30,lo8(gs(1f))
+  20 0006 F0E0      		ldi r31,hi8(gs(1f))
+  21 0008 0C94 0000 		jmp __prologue_saves__+((18 - 15) * 2)
+  22               	1:
+  23               		.cfi_offset 5, -2
+  24               		.cfi_offset 6, -3
+  25               		.cfi_offset 7, -4
+  26               		.cfi_offset 8, -5
+  27               		.cfi_offset 9, -6
+  28               		.cfi_offset 10, -7
+  29               		.cfi_offset 11, -8
+  30               		.cfi_offset 12, -9
+  31               		.cfi_offset 13, -10
+  32               		.cfi_offset 14, -11
+  33               		.cfi_offset 15, -12
+  34               		.cfi_offset 16, -13
+  35               		.cfi_offset 17, -14
+  36               		.cfi_offset 28, -15
+  37               		.cfi_offset 29, -16
+  38               		.cfi_def_cfa 28, 145
+  39               	/* prologue: function */
+  40               	/* frame size = 128 */
+  41               	/* stack size = 143 */
+  42               	.L__stack_usage = 143
+  53:keyboard.c    ****   signed int shift = 0;
+  43               		.loc 1 53 3 view .LVU1
+  44               	.LVL0:
+  54:keyboard.c    ****   uint8_t accent=0, slide=0;
+  45               		.loc 1 54 3 view .LVU2
+  55:keyboard.c    ****   uint8_t i, last_bank;
+  46               		.loc 1 55 3 view .LVU3
+  56:keyboard.c    ****   
+  57:keyboard.c    ****   // turn tempo off!
+  58:keyboard.c    ****   turn_off_tempo();
+  47               		.loc 1 58 3 view .LVU4
+  48 000c 0E94 0000 		call turn_off_tempo
+  49               	.LVL1:
+  59:keyboard.c    ****   
+  60:keyboard.c    ****   clear_bank_leds();
+  50               		.loc 1 60 3 view .LVU5
+  51 0010 0E94 0000 		call clear_bank_leds
+  52               	.LVL2:
+  61:keyboard.c    **** 
+  62:keyboard.c    ****   read_switches();
+  53               		.loc 1 62 3 view .LVU6
+  54 0014 0E94 0000 		call read_switches
+  55               	.LVL3:
+  63:keyboard.c    ****   last_bank = bank;
+  56               		.loc 1 63 3 view .LVU7
+  64:keyboard.c    ****   has_bank_knob_changed(); // ignore startup change
+  57               		.loc 1 64 3 view .LVU8
+  58 0018 0E94 0000 		call has_bank_knob_changed
+  59               	.LVL4:
+  54:keyboard.c    ****   uint8_t i, last_bank;
+  60               		.loc 1 54 21 is_stmt 0 view .LVU9
+  61 001c E12C      		mov r14,__zero_reg__
+  54:keyboard.c    ****   uint8_t i, last_bank;
+  62               		.loc 1 54 11 view .LVU10
+  63 001e F12C      		mov r15,__zero_reg__
+  53:keyboard.c    ****   uint8_t accent=0, slide=0;
+  64               		.loc 1 53 14 view .LVU11
+  65 0020 10E0      		ldi r17,0
+  66 0022 00E0      		ldi r16,0
+  65:keyboard.c    **** 
+  66:keyboard.c    ****   while (1) {
+  67:keyboard.c    ****     read_switches();
+  68:keyboard.c    **** 
+  69:keyboard.c    ****     if (function_changed) {
+  70:keyboard.c    ****       midi_notesoff();           // turn all notes off
+  71:keyboard.c    ****       return;
+  72:keyboard.c    ****     }
+  73:keyboard.c    ****   
+  74:keyboard.c    ****     // show the current MIDI address
+  75:keyboard.c    ****     if (!is_bank_led_set(midi_out_addr)) {
+  76:keyboard.c    ****       clear_bank_leds();
+  77:keyboard.c    ****       set_bank_led(midi_out_addr);
+  78:keyboard.c    ****     }
+  79:keyboard.c    **** 
+  80:keyboard.c    ****     if (has_bank_knob_changed()) {
+  81:keyboard.c    ****       // bank knob was changed, which means they want a different
+  82:keyboard.c    ****       // midi addr... OK then!
+  83:keyboard.c    ****       midi_out_addr = bank;
+  84:keyboard.c    **** 
+  85:keyboard.c    ****       // set the new midi address (burn to EEPROM)
+  86:keyboard.c    ****       internal_eeprom_write8(MIDIOUT_ADDR_EEADDR, midi_out_addr);
+  87:keyboard.c    **** 
+  88:keyboard.c    ****       last_bank = bank;
+  89:keyboard.c    ****     }
+  90:keyboard.c    **** 
+  91:keyboard.c    ****     // show the octave
+  92:keyboard.c    ****     display_octave_shift(shift);
+  93:keyboard.c    **** 
+  94:keyboard.c    ****     for (i=0; i<13; i++) {
+  95:keyboard.c    ****       // check if any notes were just pressed
+  96:keyboard.c    ****       if (just_pressed(loopkey_tab[i])) {
+  97:keyboard.c    **** 	note_on((C2+i) + shift*OCTAVE, slide, accent);
+  67               		.loc 1 97 17 view .LVU12
+  68 0024 5CE0      		ldi r21,lo8(12)
+  69 0026 552E      		mov r5,r21
+  70 0028 4E01      		movw r8,r28
+  71 002a 81E8      		ldi r24,-127
+  72 002c 880E      		add r8,r24
+  73 002e 911C      		adc r9,__zero_reg__
+  74               	.LVL5:
+  75               	.L2:
+  66:keyboard.c    ****     read_switches();
+  76               		.loc 1 66 3 is_stmt 1 view .LVU13
+  67:keyboard.c    **** 
+  77               		.loc 1 67 5 view .LVU14
+  78 0030 0E94 0000 		call read_switches
+  79               	.LVL6:
+  69:keyboard.c    ****       midi_notesoff();           // turn all notes off
+  80               		.loc 1 69 5 view .LVU15
+  69:keyboard.c    ****       midi_notesoff();           // turn all notes off
+  81               		.loc 1 69 8 is_stmt 0 view .LVU16
+  82 0034 8091 0000 		lds r24,function
+  83 0038 8430      		cpi r24,lo8(4)
+  84 003a 01F0      		breq .+2
+  85 003c 00C0      		rjmp .L65
+  75:keyboard.c    ****       clear_bank_leds();
+  86               		.loc 1 75 5 is_stmt 1 view .LVU17
+  75:keyboard.c    ****       clear_bank_leds();
+  87               		.loc 1 75 10 is_stmt 0 view .LVU18
+  88 003e 8091 0000 		lds r24,midi_out_addr
+  89 0042 0E94 0000 		call is_bank_led_set
+  90               	.LVL7:
+  75:keyboard.c    ****       clear_bank_leds();
+  91               		.loc 1 75 8 view .LVU19
+  92 0046 8111      		cpse r24,__zero_reg__
+  93 0048 00C0      		rjmp .L4
+  76:keyboard.c    ****       set_bank_led(midi_out_addr);
+  94               		.loc 1 76 7 is_stmt 1 view .LVU20
+  95 004a 0E94 0000 		call clear_bank_leds
+  96               	.LVL8:
+  77:keyboard.c    ****     }
+  97               		.loc 1 77 7 view .LVU21
+  98 004e 8091 0000 		lds r24,midi_out_addr
+  99 0052 0E94 0000 		call set_bank_led
+ 100               	.LVL9:
+ 101               	.L4:
+  80:keyboard.c    ****       // bank knob was changed, which means they want a different
+ 102               		.loc 1 80 5 view .LVU22
+  80:keyboard.c    ****       // bank knob was changed, which means they want a different
+ 103               		.loc 1 80 9 is_stmt 0 view .LVU23
+ 104 0056 0E94 0000 		call has_bank_knob_changed
+ 105               	.LVL10:
+  80:keyboard.c    ****       // bank knob was changed, which means they want a different
+ 106               		.loc 1 80 8 view .LVU24
+ 107 005a 8823      		tst r24
+ 108 005c 01F0      		breq .L5
+  83:keyboard.c    **** 
+ 109               		.loc 1 83 7 is_stmt 1 view .LVU25
+  83:keyboard.c    **** 
+ 110               		.loc 1 83 21 is_stmt 0 view .LVU26
+ 111 005e 6091 0000 		lds r22,bank
+ 112 0062 6093 0000 		sts midi_out_addr,r22
+  86:keyboard.c    **** 
+ 113               		.loc 1 86 7 is_stmt 1 view .LVU27
+ 114 0066 84E0      		ldi r24,lo8(4)
+ 115 0068 90E0      		ldi r25,0
+ 116 006a 0E94 0000 		call internal_eeprom_write8
+ 117               	.LVL11:
+  88:keyboard.c    ****     }
+ 118               		.loc 1 88 7 view .LVU28
+ 119               	.L5:
+  92:keyboard.c    **** 
+ 120               		.loc 1 92 5 view .LVU29
+ 121 006e 802F      		mov r24,r16
+ 122 0070 0E94 0000 		call display_octave_shift
+ 123               	.LVL12:
+  94:keyboard.c    ****       // check if any notes were just pressed
+ 124               		.loc 1 94 5 view .LVU30
+ 125               		.loc 1 97 17 is_stmt 0 view .LVU31
+ 126 0074 059D      		mul r16,r5
+ 127 0076 802D      		mov r24,r0
+ 128 0078 1124      		clr r1
+ 129 007a 27E1      		ldi r18,lo8(23)
+ 130 007c B22E      		mov r11,r18
+ 131 007e B80E      		add r11,r24
+  98:keyboard.c    **** 	midi_send_note_on( ((C2+i) + shift*OCTAVE) | (accent << 6));
+ 132               		.loc 1 98 45 view .LVU32
+ 133 0080 7F2C      		mov r7,r15
+ 134 0082 7294      		swap r7
+ 135 0084 770C      		lsl r7
+ 136 0086 770C      		lsl r7
+ 137 0088 30EC      		ldi r19,lo8(-64)
+ 138 008a 7322      		and r7,r19
+ 139 008c 40E0      		ldi r20,lo8(loopkey_tab)
+ 140 008e C42E      		mov r12,r20
+ 141 0090 40E0      		ldi r20,hi8(loopkey_tab)
+ 142 0092 D42E      		mov r13,r20
+  94:keyboard.c    ****       // check if any notes were just pressed
+ 143               		.loc 1 94 11 view .LVU33
+ 144 0094 A12C      		mov r10,__zero_reg__
+ 145               	.LVL13:
+ 146               	.L8:
+  96:keyboard.c    **** 	note_on((C2+i) + shift*OCTAVE, slide, accent);
+ 147               		.loc 1 96 7 is_stmt 1 view .LVU34
+  96:keyboard.c    **** 	note_on((C2+i) + shift*OCTAVE, slide, accent);
+ 148               		.loc 1 96 11 is_stmt 0 view .LVU35
+ 149 0096 F601      		movw r30,r12
+ 150 0098 6190      		ld r6,Z+
+ 151 009a 6F01      		movw r12,r30
+ 152 009c 862D      		mov r24,r6
+ 153 009e 0E94 0000 		call just_pressed
+ 154               	.LVL14:
+  96:keyboard.c    **** 	note_on((C2+i) + shift*OCTAVE, slide, accent);
+ 155               		.loc 1 96 10 view .LVU36
+ 156 00a2 8823      		tst r24
+ 157 00a4 01F0      		breq .L6
+  97:keyboard.c    **** 	midi_send_note_on( ((C2+i) + shift*OCTAVE) | (accent << 6));
+ 158               		.loc 1 97 2 is_stmt 1 view .LVU37
+ 159 00a6 4F2D      		mov r20,r15
+ 160 00a8 6E2D      		mov r22,r14
+ 161 00aa 8B2D      		mov r24,r11
+ 162 00ac 0E94 0000 		call note_on
+ 163               	.LVL15:
+ 164               		.loc 1 98 2 view .LVU38
+ 165 00b0 8B2D      		mov r24,r11
+ 166 00b2 8729      		or r24,r7
+ 167 00b4 0E94 0000 		call midi_send_note_on
+ 168               	.LVL16:
+  99:keyboard.c    **** 	slide = TRUE;
+ 169               		.loc 1 99 2 view .LVU39
+ 100:keyboard.c    **** 
+ 101:keyboard.c    **** 	// turn on that LED
+ 102:keyboard.c    **** 	set_notekey_led(i);	
+ 170               		.loc 1 102 2 view .LVU40
+ 171 00b8 8A2D      		mov r24,r10
+ 172 00ba 0E94 0000 		call set_notekey_led
+ 173               	.LVL17:
+  99:keyboard.c    **** 	slide = TRUE;
+ 174               		.loc 1 99 8 is_stmt 0 view .LVU41
+ 175 00be EE24      		clr r14
+ 176 00c0 E394      		inc r14
+ 177               	.LVL18:
+ 178               	.L6:
+ 103:keyboard.c    ****       }
+ 104:keyboard.c    ****       
+ 105:keyboard.c    ****       // check if any notes were released
+ 106:keyboard.c    ****       if (just_released(loopkey_tab[i])) {
+ 179               		.loc 1 106 7 is_stmt 1 view .LVU42
+ 180               		.loc 1 106 11 is_stmt 0 view .LVU43
+ 181 00c2 862D      		mov r24,r6
+ 182 00c4 0E94 0000 		call just_released
+ 183               	.LVL19:
+ 184               		.loc 1 106 10 view .LVU44
+ 185 00c8 8823      		tst r24
+ 186 00ca 01F0      		breq .L7
+ 107:keyboard.c    **** 	midi_send_note_off( ((C2+i) + shift*OCTAVE) | (accent << 6));
+ 187               		.loc 1 107 2 is_stmt 1 view .LVU45
+ 188 00cc 8B2D      		mov r24,r11
+ 189 00ce 8729      		or r24,r7
+ 190 00d0 0E94 0000 		call midi_send_note_off
+ 191               	.LVL20:
+ 108:keyboard.c    **** 
+ 109:keyboard.c    **** 	// turn off that LED
+ 110:keyboard.c    **** 	clear_notekey_led(i);
+ 192               		.loc 1 110 2 view .LVU46
+ 193 00d4 8A2D      		mov r24,r10
+ 194 00d6 0E94 0000 		call clear_notekey_led
+ 195               	.LVL21:
+ 196               	.L7:
+  94:keyboard.c    ****       // check if any notes were just pressed
+ 197               		.loc 1 94 22 is_stmt 0 discriminator 2 view .LVU47
+ 198 00da A394      		inc r10
+ 199               	.LVL22:
+  94:keyboard.c    ****       // check if any notes were just pressed
+ 200               		.loc 1 94 22 discriminator 2 view .LVU48
+ 201 00dc B394      		inc r11
+  94:keyboard.c    ****       // check if any notes were just pressed
+ 202               		.loc 1 94 5 discriminator 2 view .LVU49
+ 203 00de FDE0      		ldi r31,lo8(13)
+ 204 00e0 AF12      		cpse r10,r31
+ 205 00e2 00C0      		rjmp .L8
+ 111:keyboard.c    ****       }
+ 112:keyboard.c    ****     }
+ 113:keyboard.c    **** 
+ 114:keyboard.c    ****     if (just_pressed(KEY_UP)) {
+ 206               		.loc 1 114 5 is_stmt 1 view .LVU50
+ 207               		.loc 1 114 9 is_stmt 0 view .LVU51
+ 208 00e4 8FE0      		ldi r24,lo8(15)
+ 209 00e6 0E94 0000 		call just_pressed
+ 210               	.LVL23:
+ 211               		.loc 1 114 8 view .LVU52
+ 212 00ea 8823      		tst r24
+ 213 00ec 01F4      		brne .+2
+ 214 00ee 00C0      		rjmp .L9
+ 115:keyboard.c    ****       if (shift < 2)
+ 215               		.loc 1 115 7 is_stmt 1 view .LVU53
+ 216               		.loc 1 115 10 is_stmt 0 view .LVU54
+ 217 00f0 0230      		cpi r16,2
+ 218 00f2 1105      		cpc r17,__zero_reg__
+ 219 00f4 04F4      		brge .L10
+ 116:keyboard.c    **** 	shift++;
+ 220               		.loc 1 116 2 is_stmt 1 view .LVU55
+ 221               		.loc 1 116 7 is_stmt 0 view .LVU56
+ 222 00f6 0F5F      		subi r16,-1
+ 223 00f8 1F4F      		sbci r17,-1
+ 224               	.LVL24:
+ 225               	.L10:
+ 117:keyboard.c    ****     } else if (just_pressed(KEY_DOWN)) {
+ 118:keyboard.c    ****       if (shift > -1)
+ 119:keyboard.c    **** 	shift--;
+ 120:keyboard.c    ****     } 
+ 121:keyboard.c    **** 
+ 122:keyboard.c    ****     // check if they turned accent on
+ 123:keyboard.c    ****     if (just_pressed(KEY_ACCENT)) {
+ 226               		.loc 1 123 5 is_stmt 1 view .LVU57
+ 227               		.loc 1 123 9 is_stmt 0 view .LVU58
+ 228 00fa 85E1      		ldi r24,lo8(21)
+ 229 00fc 0E94 0000 		call just_pressed
+ 230               	.LVL25:
+ 231               		.loc 1 123 8 view .LVU59
+ 232 0100 8823      		tst r24
+ 233 0102 01F0      		breq .L11
+ 124:keyboard.c    ****       accent = !accent;
+ 234               		.loc 1 124 7 is_stmt 1 view .LVU60
+ 235               	.LVL26:
+ 125:keyboard.c    ****       if (accent)
+ 236               		.loc 1 125 7 view .LVU61
+ 126:keyboard.c    **** 	set_led(LED_ACCENT);
+ 237               		.loc 1 126 2 is_stmt 0 view .LVU62
+ 238 0104 81E0      		ldi r24,lo8(1)
+ 125:keyboard.c    ****       if (accent)
+ 239               		.loc 1 125 10 view .LVU63
+ 240 0106 F110      		cpse r15,__zero_reg__
+ 241 0108 00C0      		rjmp .L12
+ 242               		.loc 1 126 2 is_stmt 1 view .LVU64
+ 243 010a 0E94 0000 		call set_led
+ 244               	.LVL27:
+ 124:keyboard.c    ****       accent = !accent;
+ 245               		.loc 1 124 14 is_stmt 0 view .LVU65
+ 246 010e FF24      		clr r15
+ 247 0110 F394      		inc r15
+ 248               	.LVL28:
+ 249               	.L11:
+ 127:keyboard.c    ****       else
+ 128:keyboard.c    **** 	clear_led(LED_ACCENT);
+ 129:keyboard.c    ****     }
+ 130:keyboard.c    ****       
+ 131:keyboard.c    ****       // 110109 MIDI sysex send
+ 132:keyboard.c    **** 
+ 133:keyboard.c    ****       if (just_pressed(KEY_NEXT) && is_pressed(KEY_RS)) {
+ 250               		.loc 1 133 7 is_stmt 1 view .LVU66
+ 251               		.loc 1 133 11 is_stmt 0 view .LVU67
+ 252 0112 88E0      		ldi r24,lo8(8)
+ 253 0114 0E94 0000 		call just_pressed
+ 254               	.LVL29:
+ 255               		.loc 1 133 10 view .LVU68
+ 256 0118 8823      		tst r24
+ 257 011a 01F0      		breq .L14
+ 258               		.loc 1 133 37 discriminator 1 view .LVU69
+ 259 011c 81E0      		ldi r24,lo8(1)
+ 260 011e 0E94 0000 		call is_pressed
+ 261               	.LVL30:
+ 262               		.loc 1 133 34 discriminator 1 view .LVU70
+ 263 0122 8823      		tst r24
+ 264 0124 01F0      		breq .L14
+ 265               	.LBB2:
+ 134:keyboard.c    ****           uint16_t addr = PATTERN_MEM+bank*BANK_SIZE;
+ 266               		.loc 1 134 11 is_stmt 1 view .LVU71
+ 267               		.loc 1 134 38 is_stmt 0 view .LVU72
+ 268 0126 A090 0000 		lds r10,bank
+ 269               	.LVL31:
+ 270               		.loc 1 134 38 view .LVU73
+ 271 012a 90E8      		ldi r25,lo8(-128)
+ 272 012c A99E      		mul r10,r25
+ 273 012e 5001      		movw r10,r0
+ 274 0130 1124      		clr __zero_reg__
+ 275               	.LVL32:
+ 135:keyboard.c    ****           uint8_t msg;
+ 276               		.loc 1 135 11 is_stmt 1 view .LVU74
+ 136:keyboard.c    **** 
+ 137:keyboard.c    ****           midi_putchar(0xF0);
+ 277               		.loc 1 137 11 view .LVU75
+ 278 0132 80EF      		ldi r24,lo8(-16)
+ 279 0134 0E94 0000 		call midi_putchar
+ 280               	.LVL33:
+ 138:keyboard.c    ****           midi_putchar(0x7D);
+ 281               		.loc 1 138 11 view .LVU76
+ 282 0138 8DE7      		ldi r24,lo8(125)
+ 283 013a 0E94 0000 		call midi_putchar
+ 284               	.LVL34:
+ 139:keyboard.c    ****           midi_putchar(0x03);
+ 285               		.loc 1 139 11 view .LVU77
+ 286 013e 83E0      		ldi r24,lo8(3)
+ 287 0140 0E94 0000 		call midi_putchar
+ 288               	.LVL35:
+ 140:keyboard.c    ****           midi_putchar(0x03);
+ 289               		.loc 1 140 11 view .LVU78
+ 290 0144 83E0      		ldi r24,lo8(3)
+ 291 0146 0E94 0000 		call midi_putchar
+ 292               	.LVL36:
+ 141:keyboard.c    ****           midi_putchar(0x12);
+ 293               		.loc 1 141 11 view .LVU79
+ 294 014a 82E1      		ldi r24,lo8(18)
+ 295 014c 0E94 0000 		call midi_putchar
+ 296               	.LVL37:
+ 142:keyboard.c    ****           // Save the real memory address of the bank (should be safe to send 0xF7 here?)
+ 143:keyboard.c    **** //          midi_putchar(addr>>8); //high byte
+ 144:keyboard.c    **** //          midi_putchar(addr&0xFF); // low byte
+ 145:keyboard.c    ****           // Nah, skip sending the address, let the user save to the current pattern bank instead
+ 146:keyboard.c    ****           midi_putchar(0x00); 
+ 297               		.loc 1 146 11 view .LVU80
+ 298 0150 80E0      		ldi r24,0
+ 299 0152 0E94 0000 		call midi_putchar
+ 300               	.LVL38:
+ 147:keyboard.c    ****           midi_putchar(0x00); 
+ 301               		.loc 1 147 11 view .LVU81
+ 302 0156 80E0      		ldi r24,0
+ 303 0158 0E94 0000 		call midi_putchar
+ 304               	.LVL39:
+ 148:keyboard.c    ****           midi_putchar(0x00); 
+ 305               		.loc 1 148 11 view .LVU82
+ 306 015c 80E0      		ldi r24,0
+ 307 015e 0E94 0000 		call midi_putchar
+ 308               	.LVL40:
+ 149:keyboard.c    **** 
+ 150:keyboard.c    ****           // Need to split every byte in two, MIDI sysex can only be 7-bit, will end on first occur
+ 151:keyboard.c    ****           for (i=0;i<NUM_LOCS*PATT_SIZE;i++) {
+ 309               		.loc 1 151 11 view .LVU83
+ 148:keyboard.c    ****           midi_putchar(0x00); 
+ 310               		.loc 1 148 11 is_stmt 0 view .LVU84
+ 311 0162 D12C      		mov r13,__zero_reg__
+ 312 0164 C12C      		mov r12,__zero_reg__
+ 313               	.LVL41:
+ 314               	.L16:
+ 152:keyboard.c    **** //              set_notekey_led(i>>4 + 1);
+ 153:keyboard.c    ****               msg=spieeprom_read(addr+i);
+ 315               		.loc 1 153 15 is_stmt 1 discriminator 3 view .LVU85
+ 316               		.loc 1 153 19 is_stmt 0 discriminator 3 view .LVU86
+ 317 0166 C501      		movw r24,r10
+ 318 0168 8C0D      		add r24,r12
+ 319 016a 9D1D      		adc r25,r13
+ 320 016c 0E94 0000 		call spieeprom_read
+ 321               	.LVL42:
+ 322 0170 782E      		mov r7,r24
+ 323               	.LVL43:
+ 154:keyboard.c    ****               midi_putchar(msg>>4); // high nibble
+ 324               		.loc 1 154 15 is_stmt 1 discriminator 3 view .LVU87
+ 325 0172 8295      		swap r24
+ 326 0174 8F70      		andi r24,lo8(15)
+ 327 0176 0E94 0000 		call midi_putchar
+ 328               	.LVL44:
+ 155:keyboard.c    ****               midi_putchar(msg&0xF); // low...
+ 329               		.loc 1 155 15 discriminator 3 view .LVU88
+ 330 017a 872D      		mov r24,r7
+ 331 017c 8F70      		andi r24,lo8(15)
+ 332 017e 0E94 0000 		call midi_putchar
+ 333               	.LVL45:
+ 334               		.loc 1 155 15 is_stmt 0 discriminator 3 view .LVU89
+ 335 0182 EFEF      		ldi r30,-1
+ 336 0184 CE1A      		sub r12,r30
+ 337 0186 DE0A      		sbc r13,r30
+ 338               	.LVL46:
+ 151:keyboard.c    **** //              set_notekey_led(i>>4 + 1);
+ 339               		.loc 1 151 11 discriminator 3 view .LVU90
+ 340 0188 F0E8      		ldi r31,-128
+ 341 018a CF16      		cp r12,r31
+ 342 018c D104      		cpc r13,__zero_reg__
+ 343 018e 01F4      		brne .L16
+ 156:keyboard.c    **** //              clear_notekey_led(i>>4 + 1);
+ 157:keyboard.c    ****           }
+ 158:keyboard.c    ****           
+ 159:keyboard.c    ****           midi_putchar(0xF7);
+ 344               		.loc 1 159 11 is_stmt 1 view .LVU91
+ 345 0190 87EF      		ldi r24,lo8(-9)
+ 346 0192 0E94 0000 		call midi_putchar
+ 347               	.LVL47:
+ 348               	.L14:
+ 349               		.loc 1 159 11 is_stmt 0 view .LVU92
+ 350               	.LBE2:
+ 160:keyboard.c    ****       }
+ 161:keyboard.c    **** 
+ 162:keyboard.c    ****       // 110109 MIDI sysex receive
+ 163:keyboard.c    ****       
+ 164:keyboard.c    ****       if (just_pressed(KEY_PREV) && is_pressed(KEY_RS)) {
+ 351               		.loc 1 164 7 is_stmt 1 view .LVU93
+ 352               		.loc 1 164 11 is_stmt 0 view .LVU94
+ 353 0196 83E0      		ldi r24,lo8(3)
+ 354 0198 0E94 0000 		call just_pressed
+ 355               	.LVL48:
+ 356               		.loc 1 164 10 view .LVU95
+ 357 019c 8823      		tst r24
+ 358 019e 01F0      		breq .L18
+ 359               		.loc 1 164 37 discriminator 1 view .LVU96
+ 360 01a0 81E0      		ldi r24,lo8(1)
+ 361 01a2 0E94 0000 		call is_pressed
+ 362               	.LVL49:
+ 363               		.loc 1 164 34 discriminator 1 view .LVU97
+ 364 01a6 8823      		tst r24
+ 365 01a8 01F0      		breq .L18
+ 366               	.LBB3:
+ 165:keyboard.c    **** //          uint8_t msg_buff[8]={0xF0, 0x7D, 0x03, 0x03, 0x12, 0x00, 0x00, 0x00};
+ 166:keyboard.c    ****           uint16_t addr = PATTERN_MEM+bank*BANK_SIZE;
+ 367               		.loc 1 166 11 is_stmt 1 view .LVU98
+ 368               		.loc 1 166 38 is_stmt 0 view .LVU99
+ 369 01aa C090 0000 		lds r12,bank
+ 370               	.LVL50:
+ 167:keyboard.c    ****           uint8_t msg = 0;
+ 371               		.loc 1 167 11 is_stmt 1 view .LVU100
+ 168:keyboard.c    ****           uint8_t msg2 = 0;
+ 372               		.loc 1 168 11 view .LVU101
+ 169:keyboard.c    ****           uint8_t patt_buff[128];
+ 373               		.loc 1 169 11 view .LVU102
+ 170:keyboard.c    **** //          set_led(LED_DONE);
+ 171:keyboard.c    ****           while (msg == 0 && !is_pressed(KEY_DONE)) msg=midi_recv_cmd();
+ 374               		.loc 1 171 11 view .LVU103
+ 375               	.L20:
+ 376               		.loc 1 171 31 is_stmt 0 discriminator 2 view .LVU104
+ 377 01ae 87E1      		ldi r24,lo8(23)
+ 378 01b0 0E94 0000 		call is_pressed
+ 379               	.LVL51:
+ 380               		.loc 1 171 27 discriminator 2 view .LVU105
+ 381 01b4 8823      		tst r24
+ 382 01b6 01F0      		breq .L22
+ 383               	.LVL52:
+ 384               	.L18:
+ 385               		.loc 1 171 27 discriminator 2 view .LVU106
+ 386               	.LBE3:
+ 172:keyboard.c    ****           
+ 173:keyboard.c    ****           if (msg==0xF0 && 0x7D==midi_getchar() && 0x03==midi_getchar() && 0x03==midi_getchar() && 
+ 174:keyboard.c    ****               && 0x00==midi_getchar() && 0x00==midi_getchar() && 0x00==midi_getchar())
+ 175:keyboard.c    ****           {
+ 176:keyboard.c    ****               i=0;
+ 177:keyboard.c    **** //              while (i<NUM_LOCS*PATT_SIZE && msg!=0xF7 && msg2!=0xF7) {
+ 178:keyboard.c    ****               while (i<NUM_LOCS*PATT_SIZE && !is_pressed(KEY_DONE)) {
+ 179:keyboard.c    ****                   msg=midi_getchar();
+ 180:keyboard.c    ****                   msg2=midi_getchar();
+ 181:keyboard.c    **** //                  spieeprom_write((msg<<4)+msg2,addr+i);
+ 182:keyboard.c    ****                   patt_buff[i]=(msg<<4)+msg2;
+ 183:keyboard.c    ****                   i++;
+ 184:keyboard.c    ****               }
+ 185:keyboard.c    ****               for (i=0;i<NUM_LOCS*PATT_SIZE;i++) spieeprom_write(patt_buff[i],addr+i);
+ 186:keyboard.c    ****           }
+ 187:keyboard.c    **** //          clear_led(LED_DONE);
+ 188:keyboard.c    ****       }
+ 189:keyboard.c    **** 
+ 190:keyboard.c    ****  
+ 191:keyboard.c    ****     // if no keys are held down and there was a note just playing
+ 192:keyboard.c    ****     // turn off the note.
+ 193:keyboard.c    ****     if ((NOTE_PIN & 0x3F) && no_keys_pressed()) {
+ 387               		.loc 1 193 5 is_stmt 1 view .LVU107
+ 388               		.loc 1 193 10 is_stmt 0 view .LVU108
+ 389 01b8 83B3      		in r24,0x13
+ 390               		.loc 1 193 8 view .LVU109
+ 391 01ba 8F73      		andi r24,lo8(63)
+ 392 01bc 01F4      		brne .+2
+ 393 01be 00C0      		rjmp .L2
+ 394               		.loc 1 193 30 discriminator 1 view .LVU110
+ 395 01c0 0E94 0000 		call no_keys_pressed
+ 396               	.LVL53:
+ 397               		.loc 1 193 27 discriminator 1 view .LVU111
+ 398 01c4 8823      		tst r24
+ 399 01c6 01F4      		brne .+2
+ 400 01c8 00C0      		rjmp .L2
+ 194:keyboard.c    ****       note_off(0);
+ 401               		.loc 1 194 7 is_stmt 1 view .LVU112
+ 402 01ca 80E0      		ldi r24,0
+ 403 01cc 0E94 0000 		call note_off
+ 404               	.LVL54:
+ 195:keyboard.c    ****       slide = FALSE;
+ 405               		.loc 1 195 7 view .LVU113
+ 196:keyboard.c    ****       clear_notekey_leds();
+ 406               		.loc 1 196 7 view .LVU114
+ 407 01d0 0E94 0000 		call clear_notekey_leds
+ 408               	.LVL55:
+ 195:keyboard.c    ****       slide = FALSE;
+ 409               		.loc 1 195 13 is_stmt 0 view .LVU115
+ 410 01d4 E12C      		mov r14,__zero_reg__
+ 411 01d6 00C0      		rjmp .L2
+ 412               	.LVL56:
+ 413               	.L9:
+ 117:keyboard.c    ****       if (shift > -1)
+ 414               		.loc 1 117 12 is_stmt 1 view .LVU116
+ 117:keyboard.c    ****       if (shift > -1)
+ 415               		.loc 1 117 16 is_stmt 0 view .LVU117
+ 416 01d8 8EE0      		ldi r24,lo8(14)
+ 417 01da 0E94 0000 		call just_pressed
+ 418               	.LVL57:
+ 117:keyboard.c    ****       if (shift > -1)
+ 419               		.loc 1 117 15 view .LVU118
+ 420 01de 8823      		tst r24
+ 421 01e0 01F4      		brne .+2
+ 422 01e2 00C0      		rjmp .L10
+ 118:keyboard.c    **** 	shift--;
+ 423               		.loc 1 118 7 is_stmt 1 view .LVU119
+ 118:keyboard.c    **** 	shift--;
+ 424               		.loc 1 118 10 is_stmt 0 view .LVU120
+ 425 01e4 0F3F      		cpi r16,-1
+ 426 01e6 1007      		cpc r17,r16
+ 427 01e8 01F4      		brne .+2
+ 428 01ea 00C0      		rjmp .L10
+ 119:keyboard.c    ****     } 
+ 429               		.loc 1 119 2 is_stmt 1 view .LVU121
+ 119:keyboard.c    ****     } 
+ 430               		.loc 1 119 7 is_stmt 0 view .LVU122
+ 431 01ec 0150      		subi r16,1
+ 432 01ee 1109      		sbc r17,__zero_reg__
+ 433               	.LVL58:
+ 119:keyboard.c    ****     } 
+ 434               		.loc 1 119 7 view .LVU123
+ 435 01f0 00C0      		rjmp .L10
+ 436               	.LVL59:
+ 437               	.L12:
+ 128:keyboard.c    ****     }
+ 438               		.loc 1 128 2 is_stmt 1 view .LVU124
+ 439 01f2 0E94 0000 		call clear_led
+ 440               	.LVL60:
+ 124:keyboard.c    ****       if (accent)
+ 441               		.loc 1 124 14 is_stmt 0 view .LVU125
+ 442 01f6 F12C      		mov r15,__zero_reg__
+ 443               	.LVL61:
+ 124:keyboard.c    ****       if (accent)
+ 444               		.loc 1 124 14 view .LVU126
+ 445 01f8 00C0      		rjmp .L11
+ 446               	.LVL62:
+ 447               	.L22:
+ 448               	.LBB4:
+ 171:keyboard.c    ****           
+ 449               		.loc 1 171 53 is_stmt 1 discriminator 3 view .LVU127
+ 171:keyboard.c    ****           
+ 450               		.loc 1 171 57 is_stmt 0 discriminator 3 view .LVU128
+ 451 01fa 0E94 0000 		call midi_recv_cmd
+ 452               	.LVL63:
+ 171:keyboard.c    ****           
+ 453               		.loc 1 171 17 discriminator 3 view .LVU129
+ 454 01fe 8823      		tst r24
+ 455 0200 01F0      		breq .L20
+ 173:keyboard.c    ****               && 0x00==midi_getchar() && 0x00==midi_getchar() && 0x00==midi_getchar())
+ 456               		.loc 1 173 11 is_stmt 1 view .LVU130
+ 173:keyboard.c    ****               && 0x00==midi_getchar() && 0x00==midi_getchar() && 0x00==midi_getchar())
+ 457               		.loc 1 173 14 is_stmt 0 view .LVU131
+ 458 0202 803F      		cpi r24,lo8(-16)
+ 459 0204 01F4      		brne .L18
+ 173:keyboard.c    ****               && 0x00==midi_getchar() && 0x00==midi_getchar() && 0x00==midi_getchar())
+ 460               		.loc 1 173 34 discriminator 1 view .LVU132
+ 461 0206 0E94 0000 		call midi_getchar
+ 462               	.LVL64:
+ 173:keyboard.c    ****               && 0x00==midi_getchar() && 0x00==midi_getchar() && 0x00==midi_getchar())
+ 463               		.loc 1 173 25 discriminator 1 view .LVU133
+ 464 020a 8D37      		cpi r24,125
+ 465 020c 9105      		cpc r25,__zero_reg__
+ 466 020e 01F4      		brne .L18
+ 173:keyboard.c    ****               && 0x00==midi_getchar() && 0x00==midi_getchar() && 0x00==midi_getchar())
+ 467               		.loc 1 173 58 discriminator 2 view .LVU134
+ 468 0210 0E94 0000 		call midi_getchar
+ 469               	.LVL65:
+ 173:keyboard.c    ****               && 0x00==midi_getchar() && 0x00==midi_getchar() && 0x00==midi_getchar())
+ 470               		.loc 1 173 49 discriminator 2 view .LVU135
+ 471 0214 0397      		sbiw r24,3
+ 472 0216 01F4      		brne .L18
+ 173:keyboard.c    ****               && 0x00==midi_getchar() && 0x00==midi_getchar() && 0x00==midi_getchar())
+ 473               		.loc 1 173 82 discriminator 3 view .LVU136
+ 474 0218 0E94 0000 		call midi_getchar
+ 475               	.LVL66:
+ 173:keyboard.c    ****               && 0x00==midi_getchar() && 0x00==midi_getchar() && 0x00==midi_getchar())
+ 476               		.loc 1 173 73 discriminator 3 view .LVU137
+ 477 021c 0397      		sbiw r24,3
+ 478 021e 01F4      		brne .L18
+ 173:keyboard.c    ****               && 0x00==midi_getchar() && 0x00==midi_getchar() && 0x00==midi_getchar())
+ 479               		.loc 1 173 106 discriminator 4 view .LVU138
+ 480 0220 0E94 0000 		call midi_getchar
+ 481               	.LVL67:
+ 173:keyboard.c    ****               && 0x00==midi_getchar() && 0x00==midi_getchar() && 0x00==midi_getchar())
+ 482               		.loc 1 173 97 discriminator 4 view .LVU139
+ 483 0224 4297      		sbiw r24,18
+ 484 0226 01F4      		brne .L18
+ 174:keyboard.c    ****           {
+ 485               		.loc 1 174 24 view .LVU140
+ 486 0228 0E94 0000 		call midi_getchar
+ 487               	.LVL68:
+ 174:keyboard.c    ****           {
+ 488               		.loc 1 174 15 view .LVU141
+ 489 022c 892B      		or r24,r25
+ 490 022e 01F4      		brne .L18
+ 174:keyboard.c    ****           {
+ 491               		.loc 1 174 48 discriminator 1 view .LVU142
+ 492 0230 0E94 0000 		call midi_getchar
+ 493               	.LVL69:
+ 174:keyboard.c    ****           {
+ 494               		.loc 1 174 39 discriminator 1 view .LVU143
+ 495 0234 892B      		or r24,r25
+ 496 0236 01F0      		breq .+2
+ 497 0238 00C0      		rjmp .L18
+ 174:keyboard.c    ****           {
+ 498               		.loc 1 174 72 discriminator 2 view .LVU144
+ 499 023a 0E94 0000 		call midi_getchar
+ 500               	.LVL70:
+ 174:keyboard.c    ****           {
+ 501               		.loc 1 174 63 discriminator 2 view .LVU145
+ 502 023e 892B      		or r24,r25
+ 503 0240 01F0      		breq .+2
+ 504 0242 00C0      		rjmp .L18
+ 505 0244 CE01      		movw r24,r28
+ 506 0246 0196      		adiw r24,1
+ 507 0248 5C01      		movw r10,r24
+ 174:keyboard.c    ****           {
+ 508               		.loc 1 174 63 view .LVU146
+ 509 024a 3C01      		movw r6,r24
+ 510               	.LVL71:
+ 511               	.L25:
+ 178:keyboard.c    ****                   msg=midi_getchar();
+ 512               		.loc 1 178 47 discriminator 1 view .LVU147
+ 513 024c 87E1      		ldi r24,lo8(23)
+ 514 024e 0E94 0000 		call is_pressed
+ 515               	.LVL72:
+ 178:keyboard.c    ****                   msg=midi_getchar();
+ 516               		.loc 1 178 43 discriminator 1 view .LVU148
+ 517 0252 8111      		cpse r24,__zero_reg__
+ 518 0254 00C0      		rjmp .L28
+ 179:keyboard.c    ****                   msg2=midi_getchar();
+ 519               		.loc 1 179 19 is_stmt 1 view .LVU149
+ 179:keyboard.c    ****                   msg2=midi_getchar();
+ 520               		.loc 1 179 23 is_stmt 0 view .LVU150
+ 521 0256 0E94 0000 		call midi_getchar
+ 522               	.LVL73:
+ 523 025a D82E      		mov r13,r24
+ 524               	.LVL74:
+ 180:keyboard.c    **** //                  spieeprom_write((msg<<4)+msg2,addr+i);
+ 525               		.loc 1 180 19 is_stmt 1 view .LVU151
+ 180:keyboard.c    **** //                  spieeprom_write((msg<<4)+msg2,addr+i);
+ 526               		.loc 1 180 24 is_stmt 0 view .LVU152
+ 527 025c 0E94 0000 		call midi_getchar
+ 528               	.LVL75:
+ 182:keyboard.c    ****                   i++;
+ 529               		.loc 1 182 19 is_stmt 1 view .LVU153
+ 182:keyboard.c    ****                   i++;
+ 530               		.loc 1 182 36 is_stmt 0 view .LVU154
+ 531 0260 D294      		swap r13
+ 532               	.LVL76:
+ 182:keyboard.c    ****                   i++;
+ 533               		.loc 1 182 36 view .LVU155
+ 534 0262 90EF      		ldi r25,lo8(-16)
+ 535 0264 D922      		and r13,r25
+ 182:keyboard.c    ****                   i++;
+ 536               		.loc 1 182 40 view .LVU156
+ 537 0266 D80E      		add r13,r24
+ 182:keyboard.c    ****                   i++;
+ 538               		.loc 1 182 31 view .LVU157
+ 539 0268 F301      		movw r30,r6
+ 540 026a D192      		st Z+,r13
+ 541 026c 3F01      		movw r6,r30
+ 183:keyboard.c    ****               }
+ 542               		.loc 1 183 19 is_stmt 1 view .LVU158
+ 178:keyboard.c    ****                   msg=midi_getchar();
+ 543               		.loc 1 178 21 is_stmt 0 view .LVU159
+ 544 026e E815      		cp r30,r8
+ 545 0270 F905      		cpc r31,r9
+ 546 0272 01F4      		brne .L25
+ 547               	.LVL77:
+ 548               	.L28:
+ 178:keyboard.c    ****                   msg=midi_getchar();
+ 549               		.loc 1 178 21 view .LVU160
+ 550 0274 F0E8      		ldi r31,lo8(-128)
+ 551 0276 CF9E      		mul r12,r31
+ 552 0278 6001      		movw r12,r0
+ 553 027a 1124      		clr __zero_reg__
+ 554               	.LVL78:
+ 555               	.L26:
+ 185:keyboard.c    ****           }
+ 556               		.loc 1 185 50 is_stmt 1 discriminator 3 view .LVU161
+ 557 027c B601      		movw r22,r12
+ 558 027e F501      		movw r30,r10
+ 559 0280 8191      		ld r24,Z+
+ 560 0282 5F01      		movw r10,r30
+ 561 0284 0E94 0000 		call spieeprom_write
+ 562               	.LVL79:
+ 563 0288 FFEF      		ldi r31,-1
+ 564 028a CF1A      		sub r12,r31
+ 565 028c DF0A      		sbc r13,r31
+ 185:keyboard.c    ****           }
+ 566               		.loc 1 185 15 is_stmt 0 discriminator 3 view .LVU162
+ 567 028e A814      		cp r10,r8
+ 568 0290 B904      		cpc r11,r9
+ 569 0292 01F4      		brne .L26
+ 570 0294 00C0      		rjmp .L18
+ 571               	.L65:
+ 185:keyboard.c    ****           }
+ 572               		.loc 1 185 15 discriminator 3 view .LVU163
+ 573               	.LBE4:
+  70:keyboard.c    ****       return;
+ 574               		.loc 1 70 7 is_stmt 1 view .LVU164
+ 575 0296 0E94 0000 		call midi_notesoff
+ 576               	.LVL80:
+  71:keyboard.c    ****     }
+ 577               		.loc 1 71 7 view .LVU165
+ 578               	/* epilogue start */
+ 197:keyboard.c    ****     }
+ 198:keyboard.c    ****   }
+ 199:keyboard.c    **** }
+ 579               		.loc 1 199 1 is_stmt 0 view .LVU166
+ 580 029a C058      		subi r28,-128
+ 581 029c DF4F      		sbci r29,-1
+ 582 029e EFE0      		ldi r30, lo8(15)
+ 583 02a0 0C94 0000 		jmp __epilogue_restores__ + ((18 - 15) * 2)
+ 584               		.cfi_endproc
+ 585               	.LFE0:
+ 587               	.Letext0:
+ 588               		.file 2 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdint.h"
+ 589               		.file 3 "midi.h"
+ 590               		.file 4 "eeprom.h"
+ 591               		.file 5 "switch.h"
+ 592               		.file 6 "main.h"
+ 593               		.file 7 "led.h"
+ 594               		.file 8 "synth.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 keyboard.c
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cchFZTCj.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cchFZTCj.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cchFZTCj.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cchFZTCj.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cchFZTCj.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//cchFZTCj.s:12     .text:0000000000000000 do_keyboard_mode
+
+UNDEFINED SYMBOLS
+__prologue_saves__
+turn_off_tempo
+clear_bank_leds
+read_switches
+has_bank_knob_changed
+function
+midi_out_addr
+is_bank_led_set
+set_bank_led
+bank
+internal_eeprom_write8
+display_octave_shift
+loopkey_tab
+just_pressed
+note_on
+midi_send_note_on
+set_notekey_led
+just_released
+midi_send_note_off
+clear_notekey_led
+set_led
+is_pressed
+midi_putchar
+spieeprom_read
+no_keys_pressed
+note_off
+clear_notekey_leds
+clear_led
+midi_recv_cmd
+midi_getchar
+spieeprom_write
+midi_notesoff
+__epilogue_restores__

@@ -1,0 +1,479 @@
+   1               		.file	"eeprom.c"
+   2               	__SP_H__ = 0x3e
+   3               	__SP_L__ = 0x3d
+   4               	__SREG__ = 0x3f
+   5               	__tmp_reg__ = 0
+   6               	__zero_reg__ = 1
+   7               		.text
+   8               	.Ltext0:
+   9               		.cfi_sections	.debug_frame
+  10               	.global	spieeprom_write
+  12               	spieeprom_write:
+  13               	.LVL0:
+  14               	.LFB2:
+  15               		.file 1 "eeprom.c"
+   1:eeprom.c      **** /* 
+   2:eeprom.c      ****  * The software for the x0xb0x is available for use in accordance with the 
+   3:eeprom.c      ****  * following open source license (MIT License). For more information about
+   4:eeprom.c      ****  * OS licensing, please visit -> http://www.opensource.org/
+   5:eeprom.c      ****  *
+   6:eeprom.c      ****  * For more information about the x0xb0x project, please visit
+   7:eeprom.c      ****  * -> http://www.ladyada.net/make/x0xb0x
+   8:eeprom.c      ****  *
+   9:eeprom.c      ****  *                                     *****
+  10:eeprom.c      ****  * Copyright (c) 2005 Limor Fried
+  11:eeprom.c      ****  *
+  12:eeprom.c      ****  * Permission is hereby granted, free of charge, to any person obtaining a 
+  13:eeprom.c      ****  * copy of this software and associated documentation files (the "Software"), 
+  14:eeprom.c      ****  * to deal in the Software without restriction, including without limitation 
+  15:eeprom.c      ****  * the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+  16:eeprom.c      ****  * and/or sell copies of the Software, and to permit persons to whom the 
+  17:eeprom.c      ****  * Software is furnished to do so, subject to the following conditions:
+  18:eeprom.c      ****  *
+  19:eeprom.c      ****  * The above copyright notice and this permission notice shall be included in 
+  20:eeprom.c      ****  * all copies or substantial portions of the Software.
+  21:eeprom.c      ****  *
+  22:eeprom.c      ****  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+  23:eeprom.c      ****  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+  24:eeprom.c      ****  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+  25:eeprom.c      ****  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+  26:eeprom.c      ****  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+  27:eeprom.c      ****  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+  28:eeprom.c      ****  * IN THE SOFTWARE.
+  29:eeprom.c      ****  *                                     *****
+  30:eeprom.c      ****  *
+  31:eeprom.c      ****  */
+  32:eeprom.c      **** 
+  33:eeprom.c      **** #include <avr/io.h>
+  34:eeprom.c      **** #include <avr/boot.h>
+  35:eeprom.c      **** #include <avr/pgmspace.h>
+  36:eeprom.c      **** #include <stdio.h>
+  37:eeprom.c      **** #include <avr/interrupt.h>
+  38:eeprom.c      **** #include "eeprom.h"
+  39:eeprom.c      **** #include "main.h"
+  40:eeprom.c      **** 
+  41:eeprom.c      **** void spieeprom_write(uint8_t data, uint16_t addr) {
+  16               		.loc 1 41 51 view -0
+  17               		.cfi_startproc
+  18               	/* prologue: function */
+  19               	/* frame size = 0 */
+  20               	/* stack size = 0 */
+  21               	.L__stack_usage = 0
+  42:eeprom.c      ****   uint8_t status;
+  22               		.loc 1 42 3 view .LVU1
+  43:eeprom.c      **** 
+  44:eeprom.c      ****   //printf("writing %x to 0x%x\n\r", data, addr);
+  45:eeprom.c      ****   /* check if there is a write in progress, wait */
+  46:eeprom.c      ****   cli();
+  23               		.loc 1 46 3 view .LVU2
+  24               	/* #APP */
+  25               	 ;  46 "eeprom.c" 1
+  26 0000 F894      		cli
+  27               	 ;  0 "" 2
+  47:eeprom.c      **** 
+  48:eeprom.c      ****   do {
+  49:eeprom.c      ****     cbi(SPIEE_CS_PORT, SPIEE_CS_PIN); // pull CS low
+  50:eeprom.c      ****     NOP; NOP; NOP; NOP;
+  51:eeprom.c      **** 
+  52:eeprom.c      ****     SPDR = SPI_EEPROM_RDSR;
+  28               		.loc 1 52 10 is_stmt 0 view .LVU3
+  29               	/* #NOAPP */
+  30 0002 25E0      		ldi r18,lo8(5)
+  31               	.L4:
+  48:eeprom.c      ****     cbi(SPIEE_CS_PORT, SPIEE_CS_PIN); // pull CS low
+  32               		.loc 1 48 3 is_stmt 1 view .LVU4
+  49:eeprom.c      ****     NOP; NOP; NOP; NOP;
+  33               		.loc 1 49 5 view .LVU5
+  34 0004 C098      		cbi 0x18,0
+  50:eeprom.c      **** 
+  35               		.loc 1 50 5 view .LVU6
+  36               	/* #APP */
+  37               	 ;  50 "eeprom.c" 1
+  38 0006 0000      		nop
+  39               	 ;  0 "" 2
+  50:eeprom.c      **** 
+  40               		.loc 1 50 10 view .LVU7
+  41               	 ;  50 "eeprom.c" 1
+  42 0008 0000      		nop
+  43               	 ;  0 "" 2
+  50:eeprom.c      **** 
+  44               		.loc 1 50 15 view .LVU8
+  45               	 ;  50 "eeprom.c" 1
+  46 000a 0000      		nop
+  47               	 ;  0 "" 2
+  50:eeprom.c      **** 
+  48               		.loc 1 50 20 view .LVU9
+  49               	 ;  50 "eeprom.c" 1
+  50 000c 0000      		nop
+  51               	 ;  0 "" 2
+  52               		.loc 1 52 5 view .LVU10
+  53               		.loc 1 52 10 is_stmt 0 view .LVU11
+  54               	/* #NOAPP */
+  55 000e 2FB9      		out 0xf,r18
+  53:eeprom.c      ****     while (!(SPSR & (1<<SPIF)));
+  56               		.loc 1 53 5 is_stmt 1 view .LVU12
+  57               	.L2:
+  58               		.loc 1 53 32 discriminator 1 view .LVU13
+  59               		.loc 1 53 11 is_stmt 0 discriminator 1 view .LVU14
+  60 0010 779B      		sbis 0xe,7
+  61 0012 00C0      		rjmp .L2
+  54:eeprom.c      ****     NOP; NOP; NOP; NOP;
+  62               		.loc 1 54 5 is_stmt 1 view .LVU15
+  63               	/* #APP */
+  64               	 ;  54 "eeprom.c" 1
+  65 0014 0000      		nop
+  66               	 ;  0 "" 2
+  67               		.loc 1 54 10 view .LVU16
+  68               	 ;  54 "eeprom.c" 1
+  69 0016 0000      		nop
+  70               	 ;  0 "" 2
+  71               		.loc 1 54 15 view .LVU17
+  72               	 ;  54 "eeprom.c" 1
+  73 0018 0000      		nop
+  74               	 ;  0 "" 2
+  75               		.loc 1 54 20 view .LVU18
+  76               	 ;  54 "eeprom.c" 1
+  77 001a 0000      		nop
+  78               	 ;  0 "" 2
+  55:eeprom.c      ****     SPDR = 0;
+  79               		.loc 1 55 5 view .LVU19
+  80               		.loc 1 55 10 is_stmt 0 view .LVU20
+  81               	/* #NOAPP */
+  82 001c 1FB8      		out 0xf,__zero_reg__
+  56:eeprom.c      ****     while (!(SPSR & (1<<SPIF)));
+  83               		.loc 1 56 5 is_stmt 1 view .LVU21
+  84               	.L3:
+  85               		.loc 1 56 32 discriminator 1 view .LVU22
+  86               		.loc 1 56 11 is_stmt 0 discriminator 1 view .LVU23
+  87 001e 779B      		sbis 0xe,7
+  88 0020 00C0      		rjmp .L3
+  57:eeprom.c      ****     status = SPDR;
+  89               		.loc 1 57 5 is_stmt 1 view .LVU24
+  90               		.loc 1 57 12 is_stmt 0 view .LVU25
+  91 0022 9FB1      		in r25,0xf
+  92               	.LVL1:
+  58:eeprom.c      ****     sbi(SPIEE_CS_PORT, SPIEE_CS_PIN); // pull CS high
+  93               		.loc 1 58 5 is_stmt 1 view .LVU26
+  94 0024 C09A      		sbi 0x18,0
+  59:eeprom.c      ****     //printf("status =  0x%x\n\r", status);
+  60:eeprom.c      ****     NOP; NOP;NOP; NOP;
+  95               		.loc 1 60 5 view .LVU27
+  96               	/* #APP */
+  97               	 ;  60 "eeprom.c" 1
+  98 0026 0000      		nop
+  99               	 ;  0 "" 2
+ 100               		.loc 1 60 10 view .LVU28
+ 101               	 ;  60 "eeprom.c" 1
+ 102 0028 0000      		nop
+ 103               	 ;  0 "" 2
+ 104               		.loc 1 60 14 view .LVU29
+ 105               	 ;  60 "eeprom.c" 1
+ 106 002a 0000      		nop
+ 107               	 ;  0 "" 2
+ 108               		.loc 1 60 19 view .LVU30
+ 109               	 ;  60 "eeprom.c" 1
+ 110 002c 0000      		nop
+ 111               	 ;  0 "" 2
+  61:eeprom.c      ****     
+  62:eeprom.c      ****   } while ((status & 0x1) != 0);
+ 112               		.loc 1 62 3 is_stmt 0 view .LVU31
+ 113               	/* #NOAPP */
+ 114 002e 90FD      		sbrc r25,0
+ 115 0030 00C0      		rjmp .L4
+  63:eeprom.c      ****   /* set the spi write enable latch */
+  64:eeprom.c      **** 
+  65:eeprom.c      ****   cbi(SPIEE_CS_PORT, SPIEE_CS_PIN); // pull CS low
+ 116               		.loc 1 65 3 is_stmt 1 view .LVU32
+ 117 0032 C098      		cbi 0x18,0
+  66:eeprom.c      ****   NOP; NOP;
+ 118               		.loc 1 66 3 view .LVU33
+ 119               	/* #APP */
+ 120               	 ;  66 "eeprom.c" 1
+ 121 0034 0000      		nop
+ 122               	 ;  0 "" 2
+ 123               		.loc 1 66 8 view .LVU34
+ 124               	 ;  66 "eeprom.c" 1
+ 125 0036 0000      		nop
+ 126               	 ;  0 "" 2
+  67:eeprom.c      **** 
+  68:eeprom.c      **** 
+  69:eeprom.c      ****   SPDR = SPI_EEPROM_WREN;           // send command
+ 127               		.loc 1 69 3 view .LVU35
+ 128               		.loc 1 69 8 is_stmt 0 view .LVU36
+ 129               	/* #NOAPP */
+ 130 0038 96E0      		ldi r25,lo8(6)
+ 131               	.LVL2:
+ 132               		.loc 1 69 8 view .LVU37
+ 133 003a 9FB9      		out 0xf,r25
+  70:eeprom.c      ****   while (!(SPSR & (1<<SPIF)));
+ 134               		.loc 1 70 3 is_stmt 1 view .LVU38
+ 135               	.L5:
+ 136               		.loc 1 70 30 discriminator 1 view .LVU39
+ 137               		.loc 1 70 9 is_stmt 0 discriminator 1 view .LVU40
+ 138 003c 779B      		sbis 0xe,7
+ 139 003e 00C0      		rjmp .L5
+  71:eeprom.c      ****   NOP; NOP;
+ 140               		.loc 1 71 3 is_stmt 1 view .LVU41
+ 141               	/* #APP */
+ 142               	 ;  71 "eeprom.c" 1
+ 143 0040 0000      		nop
+ 144               	 ;  0 "" 2
+ 145               		.loc 1 71 8 view .LVU42
+ 146               	 ;  71 "eeprom.c" 1
+ 147 0042 0000      		nop
+ 148               	 ;  0 "" 2
+  72:eeprom.c      ****   sbi(SPIEE_CS_PORT, SPIEE_CS_PIN); // pull CS low
+ 149               		.loc 1 72 3 view .LVU43
+ 150               	/* #NOAPP */
+ 151 0044 C09A      		sbi 0x18,0
+  73:eeprom.c      **** 
+  74:eeprom.c      ****   NOP; NOP; NOP; NOP;  // wait for write enable latch
+ 152               		.loc 1 74 3 view .LVU44
+ 153               	/* #APP */
+ 154               	 ;  74 "eeprom.c" 1
+ 155 0046 0000      		nop
+ 156               	 ;  0 "" 2
+ 157               		.loc 1 74 8 view .LVU45
+ 158               	 ;  74 "eeprom.c" 1
+ 159 0048 0000      		nop
+ 160               	 ;  0 "" 2
+ 161               		.loc 1 74 13 view .LVU46
+ 162               	 ;  74 "eeprom.c" 1
+ 163 004a 0000      		nop
+ 164               	 ;  0 "" 2
+ 165               		.loc 1 74 18 view .LVU47
+ 166               	 ;  74 "eeprom.c" 1
+ 167 004c 0000      		nop
+ 168               	 ;  0 "" 2
+  75:eeprom.c      **** 
+  76:eeprom.c      ****   cbi(SPIEE_CS_PORT, SPIEE_CS_PIN); // pull CS low
+ 169               		.loc 1 76 3 view .LVU48
+ 170               	/* #NOAPP */
+ 171 004e C098      		cbi 0x18,0
+  77:eeprom.c      ****   NOP; NOP;
+ 172               		.loc 1 77 3 view .LVU49
+ 173               	/* #APP */
+ 174               	 ;  77 "eeprom.c" 1
+ 175 0050 0000      		nop
+ 176               	 ;  0 "" 2
+ 177               		.loc 1 77 8 view .LVU50
+ 178               	 ;  77 "eeprom.c" 1
+ 179 0052 0000      		nop
+ 180               	 ;  0 "" 2
+  78:eeprom.c      **** 
+  79:eeprom.c      ****   SPDR = SPI_EEPROM_WRITE;           // send command
+ 181               		.loc 1 79 3 view .LVU51
+ 182               		.loc 1 79 8 is_stmt 0 view .LVU52
+ 183               	/* #NOAPP */
+ 184 0054 92E0      		ldi r25,lo8(2)
+ 185 0056 9FB9      		out 0xf,r25
+  80:eeprom.c      ****   while (!(SPSR & (1<<SPIF)));
+ 186               		.loc 1 80 3 is_stmt 1 view .LVU53
+ 187               	.L6:
+ 188               		.loc 1 80 30 discriminator 1 view .LVU54
+ 189               		.loc 1 80 9 is_stmt 0 discriminator 1 view .LVU55
+ 190 0058 779B      		sbis 0xe,7
+ 191 005a 00C0      		rjmp .L6
+  81:eeprom.c      **** 
+  82:eeprom.c      ****   SPDR = addr >> 8;                 // send high addr 
+ 192               		.loc 1 82 3 is_stmt 1 view .LVU56
+ 193               		.loc 1 82 8 is_stmt 0 view .LVU57
+ 194 005c 7FB9      		out 0xf,r23
+  83:eeprom.c      ****   while (!(SPSR & (1<<SPIF)));
+ 195               		.loc 1 83 3 is_stmt 1 view .LVU58
+ 196               	.L7:
+ 197               		.loc 1 83 30 discriminator 1 view .LVU59
+ 198               		.loc 1 83 9 is_stmt 0 discriminator 1 view .LVU60
+ 199 005e 779B      		sbis 0xe,7
+ 200 0060 00C0      		rjmp .L7
+  84:eeprom.c      **** 
+  85:eeprom.c      ****   SPDR = addr & 0xFF;               // send low addr
+ 201               		.loc 1 85 3 is_stmt 1 view .LVU61
+ 202               		.loc 1 85 8 is_stmt 0 view .LVU62
+ 203 0062 6FB9      		out 0xf,r22
+  86:eeprom.c      ****   while (!(SPSR & (1<<SPIF)));
+ 204               		.loc 1 86 3 is_stmt 1 view .LVU63
+ 205               	.L8:
+ 206               		.loc 1 86 30 discriminator 1 view .LVU64
+ 207               		.loc 1 86 9 is_stmt 0 discriminator 1 view .LVU65
+ 208 0064 779B      		sbis 0xe,7
+ 209 0066 00C0      		rjmp .L8
+  87:eeprom.c      **** 
+  88:eeprom.c      ****   SPDR = data;               // send data
+ 210               		.loc 1 88 3 is_stmt 1 view .LVU66
+ 211               		.loc 1 88 8 is_stmt 0 view .LVU67
+ 212 0068 8FB9      		out 0xf,r24
+  89:eeprom.c      ****   while (!(SPSR & (1<<SPIF)));
+ 213               		.loc 1 89 3 is_stmt 1 view .LVU68
+ 214               	.L9:
+ 215               		.loc 1 89 30 discriminator 1 view .LVU69
+ 216               		.loc 1 89 9 is_stmt 0 discriminator 1 view .LVU70
+ 217 006a 779B      		sbis 0xe,7
+ 218 006c 00C0      		rjmp .L9
+  90:eeprom.c      **** 
+  91:eeprom.c      ****   NOP;
+ 219               		.loc 1 91 3 is_stmt 1 view .LVU71
+ 220               	/* #APP */
+ 221               	 ;  91 "eeprom.c" 1
+ 222 006e 0000      		nop
+ 223               	 ;  0 "" 2
+  92:eeprom.c      ****   NOP;
+ 224               		.loc 1 92 3 view .LVU72
+ 225               	 ;  92 "eeprom.c" 1
+ 226 0070 0000      		nop
+ 227               	 ;  0 "" 2
+  93:eeprom.c      **** 
+  94:eeprom.c      ****   sbi(SPIEE_CS_PORT, SPIEE_CS_PIN); // pull CS low  
+ 228               		.loc 1 94 3 view .LVU73
+ 229               	/* #NOAPP */
+ 230 0072 C09A      		sbi 0x18,0
+  95:eeprom.c      ****   sei();
+ 231               		.loc 1 95 3 view .LVU74
+ 232               	/* #APP */
+ 233               	 ;  95 "eeprom.c" 1
+ 234 0074 7894      		sei
+ 235               	 ;  0 "" 2
+ 236               	/* #NOAPP */
+ 237               	/* epilogue start */
+  96:eeprom.c      **** }
+ 238               		.loc 1 96 1 is_stmt 0 view .LVU75
+ 239 0076 0895      		ret
+ 240               		.cfi_endproc
+ 241               	.LFE2:
+ 243               	.global	spieeprom_read
+ 245               	spieeprom_read:
+ 246               	.LVL3:
+ 247               	.LFB3:
+  97:eeprom.c      **** 
+  98:eeprom.c      **** uint8_t spieeprom_read(uint16_t addr) {
+ 248               		.loc 1 98 39 is_stmt 1 view -0
+ 249               		.cfi_startproc
+ 250               	/* prologue: function */
+ 251               	/* frame size = 0 */
+ 252               	/* stack size = 0 */
+ 253               	.L__stack_usage = 0
+  99:eeprom.c      ****   uint8_t data;
+ 254               		.loc 1 99 3 view .LVU77
+ 100:eeprom.c      **** 
+ 101:eeprom.c      ****   cli();
+ 255               		.loc 1 101 3 view .LVU78
+ 256               	/* #APP */
+ 257               	 ;  101 "eeprom.c" 1
+ 258 0078 F894      		cli
+ 259               	 ;  0 "" 2
+ 102:eeprom.c      **** 
+ 103:eeprom.c      ****   cbi(SPIEE_CS_PORT, SPIEE_CS_PIN); // pull CS low
+ 260               		.loc 1 103 3 view .LVU79
+ 261               	/* #NOAPP */
+ 262 007a C098      		cbi 0x18,0
+ 104:eeprom.c      ****   NOP; NOP;
+ 263               		.loc 1 104 3 view .LVU80
+ 264               	/* #APP */
+ 265               	 ;  104 "eeprom.c" 1
+ 266 007c 0000      		nop
+ 267               	 ;  0 "" 2
+ 268               		.loc 1 104 8 view .LVU81
+ 269               	 ;  104 "eeprom.c" 1
+ 270 007e 0000      		nop
+ 271               	 ;  0 "" 2
+ 105:eeprom.c      **** 
+ 106:eeprom.c      ****   SPDR = SPI_EEPROM_READ;           // send command
+ 272               		.loc 1 106 3 view .LVU82
+ 273               		.loc 1 106 8 is_stmt 0 view .LVU83
+ 274               	/* #NOAPP */
+ 275 0080 23E0      		ldi r18,lo8(3)
+ 276 0082 2FB9      		out 0xf,r18
+ 107:eeprom.c      ****   while (!(SPSR & (1<<SPIF)));
+ 277               		.loc 1 107 3 is_stmt 1 view .LVU84
+ 278               	.L19:
+ 279               		.loc 1 107 30 discriminator 1 view .LVU85
+ 280               		.loc 1 107 9 is_stmt 0 discriminator 1 view .LVU86
+ 281 0084 779B      		sbis 0xe,7
+ 282 0086 00C0      		rjmp .L19
+ 108:eeprom.c      **** 
+ 109:eeprom.c      ****   SPDR = addr >> 8;                 // send high addr 
+ 283               		.loc 1 109 3 is_stmt 1 view .LVU87
+ 284               		.loc 1 109 8 is_stmt 0 view .LVU88
+ 285 0088 9FB9      		out 0xf,r25
+ 110:eeprom.c      ****   while (!(SPSR & (1<<SPIF)));
+ 286               		.loc 1 110 3 is_stmt 1 view .LVU89
+ 287               	.L20:
+ 288               		.loc 1 110 30 discriminator 1 view .LVU90
+ 289               		.loc 1 110 9 is_stmt 0 discriminator 1 view .LVU91
+ 290 008a 779B      		sbis 0xe,7
+ 291 008c 00C0      		rjmp .L20
+ 111:eeprom.c      **** 
+ 112:eeprom.c      ****   SPDR = addr & 0xFF;               // send low addr
+ 292               		.loc 1 112 3 is_stmt 1 view .LVU92
+ 293               		.loc 1 112 8 is_stmt 0 view .LVU93
+ 294 008e 8FB9      		out 0xf,r24
+ 113:eeprom.c      ****   while (!(SPSR & (1<<SPIF)));
+ 295               		.loc 1 113 3 is_stmt 1 view .LVU94
+ 296               	.L21:
+ 297               		.loc 1 113 30 discriminator 1 view .LVU95
+ 298               		.loc 1 113 9 is_stmt 0 discriminator 1 view .LVU96
+ 299 0090 779B      		sbis 0xe,7
+ 300 0092 00C0      		rjmp .L21
+ 114:eeprom.c      ****   NOP;
+ 301               		.loc 1 114 3 is_stmt 1 view .LVU97
+ 302               	/* #APP */
+ 303               	 ;  114 "eeprom.c" 1
+ 304 0094 0000      		nop
+ 305               	 ;  0 "" 2
+ 115:eeprom.c      ****   NOP;
+ 306               		.loc 1 115 3 view .LVU98
+ 307               	 ;  115 "eeprom.c" 1
+ 308 0096 0000      		nop
+ 309               	 ;  0 "" 2
+ 116:eeprom.c      **** 
+ 117:eeprom.c      ****   SPDR = 0;
+ 310               		.loc 1 117 3 view .LVU99
+ 311               		.loc 1 117 8 is_stmt 0 view .LVU100
+ 312               	/* #NOAPP */
+ 313 0098 1FB8      		out 0xf,__zero_reg__
+ 118:eeprom.c      ****   while (!(SPSR & (1<<SPIF)));
+ 314               		.loc 1 118 3 is_stmt 1 view .LVU101
+ 315               	.L22:
+ 316               		.loc 1 118 30 discriminator 1 view .LVU102
+ 317               		.loc 1 118 9 is_stmt 0 discriminator 1 view .LVU103
+ 318 009a 779B      		sbis 0xe,7
+ 319 009c 00C0      		rjmp .L22
+ 119:eeprom.c      ****   data = SPDR;
+ 320               		.loc 1 119 3 is_stmt 1 view .LVU104
+ 321               		.loc 1 119 8 is_stmt 0 view .LVU105
+ 322 009e 8FB1      		in r24,0xf
+ 323               	.LVL4:
+ 120:eeprom.c      ****   //printf("got %x\n\r", data);
+ 121:eeprom.c      **** 
+ 122:eeprom.c      ****   sbi(SPIEE_CS_PORT, SPIEE_CS_PIN); // pull CS high
+ 324               		.loc 1 122 3 is_stmt 1 view .LVU106
+ 325 00a0 C09A      		sbi 0x18,0
+ 123:eeprom.c      ****   sei();
+ 326               		.loc 1 123 3 view .LVU107
+ 327               	/* #APP */
+ 328               	 ;  123 "eeprom.c" 1
+ 329 00a2 7894      		sei
+ 330               	 ;  0 "" 2
+ 124:eeprom.c      ****   return data;
+ 331               		.loc 1 124 3 view .LVU108
+ 332               	/* #NOAPP */
+ 333               	/* epilogue start */
+ 125:eeprom.c      **** }
+ 334               		.loc 1 125 1 is_stmt 0 view .LVU109
+ 335 00a4 0895      		ret
+ 336               		.cfi_endproc
+ 337               	.LFE3:
+ 339               	.Letext0:
+ 340               		.file 2 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdint.h"
+ 341               		.file 3 "/usr/local/Cellar/avr-gcc/9.1.0/avr/include/stdio.h"
+DEFINED SYMBOLS
+                            *ABS*:0000000000000000 eeprom.c
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccbqxPVQ.s:2      *ABS*:000000000000003e __SP_H__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccbqxPVQ.s:3      *ABS*:000000000000003d __SP_L__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccbqxPVQ.s:4      *ABS*:000000000000003f __SREG__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccbqxPVQ.s:5      *ABS*:0000000000000000 __tmp_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccbqxPVQ.s:6      *ABS*:0000000000000001 __zero_reg__
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccbqxPVQ.s:12     .text:0000000000000000 spieeprom_write
+/var/folders/r8/bhw8rf6916j75xkgjmn833680000gn/T//ccbqxPVQ.s:245    .text:0000000000000078 spieeprom_read
+
+NO UNDEFINED SYMBOLS
