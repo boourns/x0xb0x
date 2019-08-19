@@ -1,5 +1,5 @@
-/* 
- * The software for the x0xb0x is available for use in accordance with the 
+/*
+ * The software for the x0xb0x is available for use in accordance with the
  * following open source license (MIT License). For more information about
  * OS licensing, please visit -> http://www.opensource.org/
  *
@@ -9,22 +9,22 @@
  *                                     *****
  * Copyright (c) 2005 Limor Fried
  *
- * Permission is hereby granted, free of charge, to any person obtaining a 
- * copy of this software and associated documentation files (the "Software"), 
- * to deal in the Software without restriction, including without limitation 
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, 
- * and/or sell copies of the Software, and to permit persons to whom the 
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in 
+ * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  *                                     *****
  *
@@ -33,7 +33,7 @@
 void clock_leds(void);
 
 #define LED_LATCH_PORT PORTA
-#define LED_LATCH_PIN  7
+#define LED_LATCH_PIN 7
 
 #define MAX_LED 40
 
@@ -110,7 +110,7 @@ void display_octave_shift(int8_t shift);
 #define LED_BANK3 29
 #define LED_BANK4 30
 #define LED_BANK5 31
-#define LED_BANK6  16
+#define LED_BANK6 16
 #define LED_BANK7 18
 #define LED_BANK8 17
 #define LED_BANK9 19
@@ -121,4 +121,3 @@ void display_octave_shift(int8_t shift);
 #define LED_BANK14 5
 #define LED_BANK15 6
 #define LED_BANK16 7
-

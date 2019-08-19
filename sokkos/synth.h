@@ -1,5 +1,5 @@
-/* 
- * The software for the x0xb0x is available for use in accordance with the 
+/*
+ * The software for the x0xb0x is available for use in accordance with the
  * following open source license (MIT License). For more information about
  * OS licensing, please visit -> http://www.opensource.org/
  *
@@ -9,22 +9,22 @@
  *                                     *****
  * Copyright (c) 2005 Limor Fried
  *
- * Permission is hereby granted, free of charge, to any person obtaining a 
- * copy of this software and associated documentation files (the "Software"), 
- * to deal in the Software without restriction, including without limitation 
- * the rights to use, copy, modify, merge, publish, distribute, sublicense, 
- * and/or sell copies of the Software, and to permit persons to whom the 
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in 
+ * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  *                                     *****
  *
@@ -42,19 +42,19 @@
 
 void note_on(uint8_t note, uint8_t slide, uint8_t accent);
 void note_off(uint8_t slide);
-uint8_t is_playing (uint8_t note);
+uint8_t is_playing(uint8_t note);
 
 #define REST 0x0
 
 /* between 0x0 and 0xA, the VCO voltage pins, so these notes arent really
- * 'effective' in that they all sound the same. 
+ * 'effective' in that they all sound the same.
  */
 
 // lowest octave
 #define C1 0x0B
 #define C1_SHARP 0x0C
 #define D1 0x0D
-#define D1_SHARP  0x0E
+#define D1_SHARP 0x0E
 #define E1 0x0F
 #define F1 0x10
 #define F1_SHARP 0x11
@@ -68,7 +68,7 @@ uint8_t is_playing (uint8_t note);
 #define C2 0x17
 #define C2_SHARP 0x18
 #define D2 0x19
-#define D2_SHARP  0x1A
+#define D2_SHARP 0x1A
 #define E2 0x1B
 #define F2 0x1C
 #define F2_SHARP 0x1D
