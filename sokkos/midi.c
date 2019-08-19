@@ -69,6 +69,9 @@ volatile uint8_t midi_q[MIDI_Q_SIZE]; // cyclic queue for midi msgs
 volatile static uint8_t head_idx = 0;
 volatile static uint8_t tail_idx = 0;
 
+extern volatile int16_t dinsync_clocked, dinsync_counter;
+
+
 // interrupt on receive char
 SIGNAL(SIG_USART0_RECV) {
   char c = UDR0;
@@ -84,7 +87,7 @@ SIGNAL(SIG_USART0_RECV) {
 
     // raise dinsync clk immediately, and also sched. to drop clock
     // (MIDISYNC -> DINSYNC conversion);
-    if (sync == MIDI_SYNC) {
+    if (sync == MIDI_SYNC || function == MIDI_CONTROL_FUNC) {
       sbi(DINSYNC_PORT, DINSYNC_CLK); // rising edge on note start
       dinsync_clock_timeout = 5;      // in 5ms drop the edge, is this enough?
     }
@@ -176,6 +179,19 @@ void do_midi_mode(void) {
         }
       }
 
+      switch(c) {
+        case MIDI_START:
+          dinsync_counter = 0;
+          dinsync_clocked = 0;
+          dinsync_start();
+          break;
+        case MIDI_STOP:
+          dinsync_stop();
+          break;
+        case MIDI_CLOCK:
+          break;
+      }
+
       switch (midi_running_status) {
       case MIDI_IGNORE: {
         // somebody else's data, ignore
@@ -225,6 +241,8 @@ void do_midi_mode(void) {
           putstring("\n\r"); */
         break;
       }
+
+
     }
   }
 }
