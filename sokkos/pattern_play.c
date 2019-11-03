@@ -109,6 +109,20 @@ extern uint8_t midi_in_addr;
 // could be MIDISYNC, DINSYNC or SYNCOUT
 #define function_changed (function != curr_function)
 
+void midi_load_pattern(uint8_t pattern) {
+  next_bank = pattern / 8;
+  next_chain[0] = pattern % 8;
+  next_chain[1] = 0xFF;
+  if (!playing) {
+    curr_bank = next_bank;
+    curr_chain[0] = pattern % 8;
+    curr_chain[1] = 0xFF;
+  }
+  clear_numkey_leds();
+  set_numkey_led(next_chain[0] + 1);
+}
+
+
 // both pattern and track play are similar enough in function
 // (and codespace is small enough) that they're in the same
 // function. eek
@@ -363,16 +377,19 @@ void do_patterntrack_play(void) {
         if (midi_cmd >> 4 == 0xC) {
           midi_data = midi_getchar();
           if (!(midi_data & 0x80)) {
-            next_bank = midi_data / 8;
-            next_chain[0] = midi_data % 8;
-            next_chain[1] = 0xFF;
-            if (!playing) {
-              curr_bank = next_bank;
-              curr_chain[0] = midi_data % 8;
-              curr_chain[1] = 0xFF;
+            midi_load_pattern(midi_data);
+          }
+        } else if (midi_cmd >> 4 == 0xB) {
+          // also load patterns on CC #0 so octatrack can sequence it - TB
+          // But ignore value 127, because the OT wants to send the CC value at the start of
+          // each pattern.
+          midi_data = midi_getchar();
+          if (midi_data == 0x00) {
+            midi_data = midi_getchar();
+            if (!(midi_data & 0x80) && midi_data != 0x7f) {
+
+              midi_load_pattern(midi_data);
             }
-            clear_numkey_leds();
-            set_numkey_led(next_chain[0] + 1);
           }
         } else // 110109
             if ((midi_cmd >> 4 == 0x9) &&
@@ -554,11 +571,13 @@ void do_patterntrack_play(void) {
         studge = TRUE;
 
         curr_pattern_index = prev_pattern_index;
-        if (loop_countdown)
-          if (countdown < 0)
+        if (loop_countdown) {
+          if (countdown < 0) {
             countdown--;
-          else
+          } else {
             countdown++;
+          }
+        }
       } else if (just_pressed(KEY_NEXT)) {
         // 080602
         if (studge)
@@ -596,6 +615,8 @@ void do_patterntrack_play(void) {
     }
   }
 }
+
+
 
 uint8_t chains_equiv(volatile uint8_t *chain1, volatile uint8_t *chain2) {
   uint8_t i;

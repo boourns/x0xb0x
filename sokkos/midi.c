@@ -181,6 +181,7 @@ void do_midi_mode(void) {
 
       switch(c) {
         case MIDI_START:
+        case MIDI_CONTINUE:
           dinsync_counter = 0;
           dinsync_clocked = 0;
           dinsync_start();
